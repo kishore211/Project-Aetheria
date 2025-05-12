@@ -1,0 +1,89 @@
+/* 
+ * Pixelated visual style for Project Aetheria
+ * This CSS provides styles for the pixelated aesthetic mode
+ */
+
+/* Global pixelated style */
+.pixelated-mode canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* Pixelation filter effect for the entire game */
+.enable-pixelation .game-viewport {
+  filter: url('#pixelate-filter');
+}
+
+/* Font styles for pixelated mode */
+.pixelated-mode .game-ui {
+  font-family: 'Press Start 2P', monospace;
+  letter-spacing: 1px;
+}
+
+/* Pixelated UI elements */
+.pixelated-mode .ui-button, 
+.pixelated-mode .ui-panel {
+  border: 2px solid #000;
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.5);
+  border-radius: 0;
+}
+
+/* Color modes */
+.color-normal {
+  /* Default colors - no adjustments needed */
+}
+
+.color-high-contrast {
+  filter: contrast(1.2) brightness(1.1);
+}
+
+.color-monochrome {
+  filter: grayscale(100%) contrast(1.1);
+}
+
+/* Entity label styling */
+.entity-label {
+  font-size: 8px;
+  background-color: rgba(0, 0, 0, 0.5);
+  color: white;
+  padding: 2px 4px;
+  border-radius: 2px;
+  text-align: center;
+  pointer-events: none;
+  white-space: nowrap;
+  transform: translate(-50%, -100%);
+}
+
+/* Status effect icons */
+.status-effect {
+  width: 16px;
+  height: 16px;
+  image-rendering: pixelated;
+  display: inline-block;
+  margin-right: 2px;
+  vertical-align: middle;
+}
+
+/* Health bar styles */
+.health-bar-container {
+  width: 24px;
+  height: 3px;
+  background-color: #333;
+  border-radius: 0;
+  overflow: hidden;
+  margin-top: 2px;
+}
+
+.health-bar {
+  height: 100%;
+  background-color: #2ecc71;
+  transition: width 0.2s ease-in-out;
+}
+
+.health-bar.warning {
+  background-color: #f1c40f;
+}
+
+.health-bar.danger {
+  background-color: #e74c3c;
+}

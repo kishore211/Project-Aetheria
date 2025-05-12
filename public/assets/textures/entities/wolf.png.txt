@@ -1,0 +1,2 @@
+// This is a placeholder file for a wolf walking/attacking animation
+// In future implementations, this would be replaced with an actual 4x4 sprite sheet PNG file
