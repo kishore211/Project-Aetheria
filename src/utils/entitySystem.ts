@@ -1706,9 +1706,10 @@ export class EntityAI {
 }
 
 /**
- * Create a new entity based on type
+ * Create a new entity based on type (3D version)
+ * This is a duplicate implementation that needs to be consolidated with the original createEntity
  */
-export function createEntity(
+export function createEntity3D(
   type: EntityType,
   x: number, 
   y: number,
@@ -1857,12 +1858,13 @@ export function createEntity(
 }
 
 /**
- * Create a 3D mesh for an entity
+ * Create a 3D mesh for an entity (3D Model version)
+ * This is a duplicate implementation that needs to be consolidated with the original createEntityMesh
  */
-export function createEntityMesh(entity: Entity): THREE.Object3D {
+export function createEntityMesh3D(entity: Entity): THREE.Object3D {
   // Base geometry based on entity type
-  let geometry;
-  let color;
+  let geometry: THREE.BufferGeometry;
+  let color: number;
   
   // Size scale for different entities
   const sizeMap: Record<EntityType, number> = {
@@ -1949,9 +1951,10 @@ export function createEntityMesh(entity: Entity): THREE.Object3D {
 }
 
 /**
- * Update entity mesh position based on entity data
+ * Update entity mesh position based on entity data (3D Model version)
+ * This is a duplicate implementation that needs to be consolidated with the original updateEntityMesh
  */
-export function updateEntityMesh(entity: Entity): void {
+export function updateEntityMesh3D(entity: Entity): void {
   if (!entity.mesh) return;
   
   // Update position

@@ -1,6 +1,6 @@
 // src/utils/visualizationManager.ts
 import * as THREE from 'three';
-import { Entity, Tile } from '../types/world';
+import type { Entity, Tile } from '../types/world';
 import { 
   getSpriteDataForEntity, 
   createBillboardSprite,
@@ -14,6 +14,8 @@ import { ParticleSystem, ParticleType } from './particleSystem';
 import { TerrainVisualizer } from './terrainVisualizer';
 import { currentVisualSettings } from './visualSettings';
 import { AnimatedSpriteFactory } from './animatedSpriteFactory';
+import { ModelManager } from './modelManager';
+import { ensureModelsLoaded } from './modelPreloader';
 
 /**
  * Manages visualization of entities and terrain using the pixelated aesthetic
@@ -28,7 +30,9 @@ export class VisualizationManager {
     entity: Entity;
     lastStatus: string[];
     lastAnimation: string;
+    useModel: boolean;  // Whether this entity uses a 3D model
   }>;
+  private modelManager: ModelManager; // Manager for 3D models
   
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -37,6 +41,10 @@ export class VisualizationManager {
     this.spriteFactory = new AnimatedSpriteFactory();
     this.clock = new THREE.Clock();
     this.entityVisuals = new Map();
+    
+    // Initialize the ModelManager with the scene
+    console.log('VisualizationManager: Initializing ModelManager');
+    this.modelManager = new ModelManager(scene);
     
     // Preload textures
     this.particleSystem.preloadTextures();
@@ -100,94 +108,155 @@ export class VisualizationManager {
     this.scene.add(terrainGroup);
   }
   
+
+  
   /**
    * Initialize or update the visualization for an entity
    */
   public updateEntityVisualization(entity: Entity, deltaTime: number): void {
     // If entity doesn't have a mesh yet, create one
     if (!entity.mesh) {
-      // Get sprite data for entity type
+      // Check if this entity should use a 3D model (currently only humans)
+      let useModel = entity.type === 'human';
+      
+      console.log(`Entity ${entity.id} of type ${entity.type}, useModel: ${useModel}`);
+      
+      if (useModel) {
+        // Force use of models for human types
+        console.log(`Attempting to create 3D model for entity ${entity.id}`);
+        
+        // Check if the ModelManager is properly initialized
+        if (!this.modelManager) {
+          console.error('ModelManager not initialized! Creating it now.');
+          this.modelManager = new ModelManager(this.scene);
+        }
+        
+        // Create a 3D model for this entity using the ModelManager
+        const model = this.modelManager.createModelForEntity(entity);
+        
+        if (model) {
+          console.log(`Successfully created 3D model for entity ${entity.id}`);
+          // Store mesh reference in entity
+          entity.mesh = model;
+          
+          // Store for tracking changes with model flag
+          this.entityVisuals.set(entity.id, {
+            entity,
+            lastStatus: [...entity.status],
+            lastAnimation: 'idle',
+            useModel: true
+          });
+          
+          // Always return after successfully creating a model to prevent sprite creation
+          return;
+        } else {
+          // Fallback to sprite if model creation failed
+          console.warn(`Failed to create model for entity type ${entity.type}, falling back to sprite`);
+          useModel = false;
+        }
+      }
+      
+      // For non-model entities, use sprite as before
       const spriteData = getSpriteDataForEntity(entity.type);
-      
-      // Create billboard sprite
       const sprite = createBillboardSprite(spriteData, 0, 0.5);
-      
-      // Position the sprite
       const height = 0.5; // Some height above the ground
       sprite.position.set(entity.position.x, height, entity.position.y);
       
-      // Add to scene
       this.scene.add(sprite);
-      
-      // Store mesh reference in entity
       entity.mesh = sprite;
-      
-      // Set initial animation
       entity.currentAnimation = 'idle';
       entity.animationFrame = 0;
       
-      // Store for tracking changes
       this.entityVisuals.set(entity.id, {
         entity,
         lastStatus: [...entity.status],
-        lastAnimation: entity.currentAnimation
+        lastAnimation: entity.currentAnimation || 'idle',
+        useModel: false
       });
+      
+      return;
     }
     
-    // Update the sprite's position
-    if (entity.mesh && entity.mesh instanceof THREE.Sprite) {
-      entity.mesh.position.x = entity.position.x;
-      entity.mesh.position.z = entity.position.y; // Y in world is Z in scene
+    // Get visual tracking data
+    const visualData = this.entityVisuals.get(entity.id);
+    
+    if (!visualData) {
+      return; // No visual data found
+    }
+    
+    // Check if using a 3D model or sprite
+    if (visualData.useModel) {
+      // Update model using the ModelManager
+      this.modelManager.updateEntityModel(entity);
       
-      // Get sprite data and determine animation
-      const spriteData = getSpriteDataForEntity(entity.type);
-      const animationName = getAnimationForEntityStatus(entity);
+      // Update animation based on entity state
+      const newAnimation = this.modelManager.getAnimationForEntityStatus(entity);
+      if (newAnimation !== visualData.lastAnimation) {
+        this.modelManager.playAnimation(entity, newAnimation);
+        visualData.lastAnimation = newAnimation;
+      }
       
-      // Update animation frame
-      entity.animationFrame = animateSprite(
-        entity.mesh, 
-        spriteData, 
-        animationName, 
-        deltaTime,
-        entity.animationFrame || 0
+      // Check if status changed for effects
+      const statusChanged = !this.areStatusArraysEqual(
+        visualData.lastStatus,
+        entity.status
       );
       
-      entity.currentAnimation = animationName;
+      // Create particles for status changes
+      if (statusChanged && currentVisualSettings.enableParticleEffects) {
+        // Generate particles based on status
+        createStatusEffectParticles(entity, this.particleSystem);
+        
+        // Check for specific status changes
+        if (entity.status.includes('moving') && !visualData.lastStatus.includes('moving')) {
+          this.createFootstepEffect(entity);
+        }
+        
+        if (entity.status.includes('attacking') && !visualData.lastStatus.includes('attacking')) {
+          this.createAttackEffect(entity);
+        }
+      }
       
-      // Apply status effects to sprite appearance
-      applyStatusEffectsToSprite(entity.mesh, entity);
-      
-      // Update sprite facing based on movement direction
-      updateSpriteDirection(entity.mesh, entity);
-      
-      // Get visual tracking data
-      const visualData = this.entityVisuals.get(entity.id);
-      
-      if (visualData) {
-        // Check if status changed
+      // Update tracking data
+      visualData.lastStatus = [...entity.status];
+    } else {
+      // Update sprite as before
+      if (entity.mesh && entity.mesh instanceof THREE.Sprite) {
+        entity.mesh.position.x = entity.position.x;
+        entity.mesh.position.z = entity.position.y;
+        
+        const spriteData = getSpriteDataForEntity(entity.type);
+        const animationName = getAnimationForEntityStatus(entity);
+        
+        entity.animationFrame = animateSprite(
+          entity.mesh, 
+          spriteData, 
+          animationName, 
+          deltaTime,
+          entity.animationFrame || 0
+        );
+        
+        entity.currentAnimation = animationName;
+        applyStatusEffectsToSprite(entity.mesh, entity);
+        updateSpriteDirection(entity.mesh, entity);
+        
         const statusChanged = !this.areStatusArraysEqual(
           visualData.lastStatus,
           entity.status
         );
         
-        // Create particles for status changes
         if (statusChanged && currentVisualSettings.enableParticleEffects) {
-          // Generate particles based on status
           createStatusEffectParticles(entity, this.particleSystem);
           
-          // Check for specific status changes
           if (entity.status.includes('moving') && !visualData.lastStatus.includes('moving')) {
-            // Entity started moving - add footstep particles
             this.createFootstepEffect(entity);
           }
           
           if (entity.status.includes('attacking') && !visualData.lastStatus.includes('attacking')) {
-            // Entity started attacking - add attack particles
             this.createAttackEffect(entity);
           }
         }
         
-        // Update tracking data
         visualData.lastStatus = [...entity.status];
         visualData.lastAnimation = entity.currentAnimation;
       }
@@ -215,7 +284,7 @@ export class VisualizationManager {
     if (!currentVisualSettings.enableParticleEffects) return;
     
     // Default to "grassland" if we don't know the actual terrain
-    let biomeType = "grassland";
+    const biomeType = "grassland";
     
     // Note: We could determine actual biome type here if needed
     // by checking the terrain type at entity position
@@ -264,20 +333,24 @@ export class VisualizationManager {
    */
   public removeEntityVisualization(entityId: string): void {
     const visualData = this.entityVisuals.get(entityId);
-    if (visualData?.entity?.mesh) {
-      this.scene.remove(visualData.entity.mesh);
-      
-      // If it's a sprite, dispose of materials
-      if (visualData.entity.mesh instanceof THREE.Sprite) {
-        const material = visualData.entity.mesh.material as THREE.SpriteMaterial;
-        if (material) {
-          material.map?.dispose();
-          material.dispose();
-        }
+    if (!visualData || !visualData.entity.mesh) return;
+    
+    this.scene.remove(visualData.entity.mesh);
+    
+    if (visualData.entity.mesh instanceof THREE.Sprite) {
+      // Clean up sprite-specific resources
+      const material = visualData.entity.mesh.material as THREE.SpriteMaterial;
+      if (material) {
+        material.map?.dispose();
+        material.dispose();
       }
-      
-      visualData.entity.mesh = null;
+    } else if (visualData.useModel) {
+      // Clean up model-specific resources
+      this.modelManager.removeEntityModel(entityId);
     }
+    
+    // Clear the mesh reference
+    visualData.entity.mesh = null;
     
     // Remove from tracking
     this.entityVisuals.delete(entityId);
@@ -300,7 +373,7 @@ export class VisualizationManager {
    */
   public update(): void {
     // Get current time for animations
-    this.clock.getDelta(); // Update the clock
+    const deltaTime = this.clock.getDelta();
     
     // Update particle system
     this.particleSystem.update();
@@ -310,5 +383,52 @@ export class VisualizationManager {
     
     // Update animated sprites
     this.spriteFactory.update();
+    
+    // Update model animations
+    this.modelManager.update(deltaTime);
+    
+    // Check for any human entities still using sprites and convert them to models if possible
+    this.checkForModelUpgrades();
+  }
+  
+  /**
+   * Check for any human entities still using sprites and convert them to 3D models
+   * This helps ensure entities are properly upgraded once models are loaded
+   */
+  private checkForModelUpgrades(): void {
+    // We only do this occasionally, not every frame
+    if (Math.random() > 0.05) return; // ~5% chance to run each frame
+    
+    this.entityVisuals.forEach((visualData, entityId) => {
+      // Skip if already using model or not a human
+      if (visualData.useModel || visualData.entity.type !== 'human') return;
+      
+      console.log(`Found human entity ${entityId} still using sprite, attempting to upgrade to 3D model`);
+      
+      // Try to create a model
+      const model = this.modelManager.createModelForEntity(visualData.entity);
+      if (model) {
+        console.log(`Successfully upgraded entity ${entityId} to 3D model`);
+        
+        // Remove old sprite from scene
+        if (visualData.entity.mesh) {
+          this.scene.remove(visualData.entity.mesh);
+          
+          // Clean up sprite resources
+          if (visualData.entity.mesh instanceof THREE.Sprite) {
+            const material = visualData.entity.mesh.material as THREE.SpriteMaterial;
+            if (material) {
+              material.map?.dispose();
+              material.dispose();
+            }
+          }
+        }
+        
+        // Update with new model
+        visualData.entity.mesh = model;
+        visualData.useModel = true;
+        visualData.lastAnimation = 'idle';
+      }
+    });
   }
 }

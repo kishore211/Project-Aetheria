@@ -1,7 +1,9 @@
 // src/utils/entityManager.ts
 import * as THREE from 'three';
-import { Tile, Entity, EntityType, BiomeType } from '../types/world';
-import { createEntity, createEntityMesh, updateEntityMesh, EntityAI } from './entitySystem';
+import type { Tile, Entity, EntityType } from '../types/world';
+import { createEntity } from './entitySystem';
+import type { VisualizationManager } from './visualizationManager';
+import { EntityAI } from './entitySystem';
 
 /**
  * EntityManager - Handles spawning, updating, and managing entities in the world
@@ -11,17 +13,19 @@ export class EntityManager {
   private entityAIs: Map<string, EntityAI> = new Map();
   private tiles: Tile[][];
   private scene: THREE.Scene;
-  private lastUpdate: number = 0;
+  private lastUpdate = 0;
   private entityPopulationDensity: 'low' | 'medium' | 'high' = 'medium';
+  private visualizationManager: VisualizationManager;
   
   // Lifecycle settings
-  private reproductionProbability: number = 0.001; // Base chance per update
-  private deathProbability: number = 0.0005; // Base chance per update
-  private agingRate: number = 0.01; // Amount to age per update
+  private reproductionProbability = 0.001; // Base chance per update
+  private deathProbability = 0.0005; // Base chance per update
+  private agingRate = 0.01; // Amount to age per update
 
-  constructor(tiles: Tile[][], scene: THREE.Scene) {
+  constructor(tiles: Tile[][], scene: THREE.Scene, visualizationManager: VisualizationManager) {
     this.tiles = tiles;
     this.scene = scene;
+    this.visualizationManager = visualizationManager;
   }
 
   /**
@@ -46,19 +50,7 @@ export class EntityManager {
     // Create the entity
     const entity = createEntity(type, x, y);
     
-    // Create and position the mesh
-    const mesh = createEntityMesh(entity);
-    const worldX = (x - this.tiles.length / 2) * 0.5; // Assuming TILE_SIZE = 0.5
-    const worldY = tile.scaledHeight;
-    const worldZ = (y - this.tiles[0].length / 2) * 0.5;
-    
-    mesh.position.set(worldX, worldY, worldZ);
-    
-    // Add mesh to the scene
-    this.scene.add(mesh);
-    
-    // Add entity to management systems
-    entity.mesh = mesh;
+    // Add entity to management systems first (before visualization)
     this.entities.set(entity.id, entity);
     
     // Create AI for this entity
@@ -67,6 +59,9 @@ export class EntityManager {
     
     // Add to tile's entity list
     tile.entities.push(entity);
+    
+    // Let visualization manager create the visual representation
+    this.visualizationManager.updateEntityVisualization(entity, 0);
     
     return entity;
   }
@@ -79,7 +74,7 @@ export class EntityManager {
     this.lastUpdate = currentTime;
     
     // Process each entity
-    this.entities.forEach((entity, id) => {
+    for (const [id, entity] of this.entities.entries()) {
       // First, run the entity's AI
       const ai = this.entityAIs.get(id);
       if (ai) {
@@ -89,9 +84,9 @@ export class EntityManager {
       // Then, handle lifecycle events
       this.processLifecycleEvents(entity, delta);
       
-      // Update entity visual
-      this.updateEntityVisual(entity);
-    });
+      // Update entity visual using visualization manager
+      this.visualizationManager.updateEntityVisualization(entity, delta);
+    }
   }
   
   /**
@@ -103,7 +98,7 @@ export class EntityManager {
     
     // Get entity current tile
     const { x, y } = entity.position;
-    const tile = this.tiles[x][y];
+    const currentTile = this.tiles[x][y];
     
     // Aging
     const agingAmount = this.agingRate * delta;
@@ -179,8 +174,8 @@ export class EntityManager {
     const { x, y } = entity.position;
     const tile = this.tiles[x][y];
     
-    // Add visual effects or animations
-    // ...
+    // Remove entity visualization
+    this.visualizationManager.removeEntityVisualization(entity.id);
     
     // Remove from management systems
     this.entities.delete(entity.id);
@@ -192,14 +187,9 @@ export class EntityManager {
       tile.entities.splice(entityIndex, 1);
     }
     
-    // Remove visual from scene
-    if (entity.mesh) {
-      this.scene.remove(entity.mesh);
-    }
-    
     // Handle remains or create resources from the death
     if (cause === 'old_age' || cause === 'health') {
-      // Maybe add some resources or create a corpse entity
+      // Maybe add some resources or create a corpse entity in the future
     }
   }
   
@@ -245,9 +235,9 @@ export class EntityManager {
    */
   private getEntityCountByType(type: EntityType): number {
     let count = 0;
-    this.entities.forEach(entity => {
+    for (const entity of this.entities.values()) {
       if (entity.type === type) count++;
-    });
+    }
     return count;
   }
   
@@ -318,11 +308,11 @@ export class EntityManager {
     }
     
     if (type === 'rabbit') {
-      return tile.type === 'grassland' || tile.type === 'meadow';
+      return tile.type === 'grassland';
     }
     
     if (type === 'bird') {
-      return tile.type.includes('forest') || tile.type === 'grassland' || tile.type === 'meadow';
+      return tile.type.includes('forest') || tile.type === 'grassland';
     }
     
     // For monsters
@@ -364,40 +354,6 @@ export class EntityManager {
     }
     
     return nearby;
-  }
-  
-  /**
-   * Update the visual representation of an entity
-   */
-  private updateEntityVisual(entity: Entity): void {
-    if (!entity.mesh) return;
-    
-    // Get the tile at the entity's position
-    const { x, y } = entity.position;
-    const tile = this.tiles[x][y];
-    
-    // Position the mesh correctly
-    const worldX = (x - this.tiles.length / 2) * 0.5;
-    const worldY = tile.scaledHeight;
-    const worldZ = (y - this.tiles[0].length / 2) * 0.5;
-    
-    // Use lerp for smooth movement if there was a previous position
-    if (entity.lastPosition) {
-      const lastX = (entity.lastPosition.x - this.tiles.length / 2) * 0.5;
-      const lastZ = (entity.lastPosition.y - this.tiles[0].length / 2) * 0.5;
-      
-      entity.mesh.position.x = THREE.MathUtils.lerp(entity.mesh.position.x, worldX, 0.1);
-      entity.mesh.position.z = THREE.MathUtils.lerp(entity.mesh.position.z, worldZ, 0.1);
-    } else {
-      entity.mesh.position.x = worldX;
-      entity.mesh.position.z = worldZ;
-    }
-    
-    // Always update Y to match the terrain
-    entity.mesh.position.y = worldY;
-    
-    // Update the mesh appearance based on health, status, etc.
-    updateEntityMesh(entity);
   }
   
   /**

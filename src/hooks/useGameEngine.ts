@@ -6,7 +6,8 @@ import { OrbitControls } from '@react-three/drei';
 import { useGameStore } from '../store/gameStore';
 import { generateTerrain, determineBiome, getBiomeColor } from '../utils/worldGenerator';
 import { Tile, BiomeType, MAP_SIZES, TILE_SIZE, EntityType } from '../types/world';
-import { EntityManager } from '../utils/entityManagerMinimal';
+import { EntityManager } from '../utils/entityManager';
+import { VisualizationManager } from '../utils/visualizationManager';
 
 // Constants for game engine
 const CAMERA_PAN_SPEED = 0.5;
@@ -42,6 +43,7 @@ export const useGameEngine = () => {
   const tickTimerRef = useRef<number>(0);
   const lastTimeRef = useRef<number>(0);
   const entityManagerRef = useRef<EntityManager | null>(null);
+  const visualizationManagerRef = useRef<VisualizationManager | null>(null);
   
   const [isInitialized, setIsInitialized] = useState<boolean>(false);
   
@@ -98,11 +100,23 @@ export const useGameEngine = () => {
     // Set up lights
     setupLights();
     
-    // Initialize entity manager
-    entityManagerRef.current = new EntityManager(tilesData, scene);
+    // Initialize visualization manager first
+    console.log('Initializing VisualizationManager');
+    visualizationManagerRef.current = new VisualizationManager(scene);
     
-    // Set population density
-    if (entityManagerRef.current) {
+    // Initialize terrain in visualization manager
+    visualizationManagerRef.current.initializeTerrain(tilesData, TILE_SIZE, 2.0);
+    
+    // Then initialize entity manager with the visualization manager
+    console.log('Initializing EntityManager with VisualizationManager');
+    if (visualizationManagerRef.current) {
+      entityManagerRef.current = new EntityManager(
+        tilesData, 
+        scene, 
+        visualizationManagerRef.current
+      );
+      
+      // Set population density
       entityManagerRef.current.setPopulationDensity('medium');
     }
     
@@ -470,6 +484,11 @@ export const useGameEngine = () => {
     // Update entities every frame for smooth movement
     if (entityManagerRef.current) {
       entityManagerRef.current.update(deltaTime);
+    }
+    
+    // Update visualization manager
+    if (visualizationManagerRef.current) {
+      visualizationManagerRef.current.update();
     }
     
     // Perform game simulation every ~250ms of game time
