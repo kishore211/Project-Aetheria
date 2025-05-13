@@ -17,17 +17,15 @@ const GameContainer = () => {
   const { isInitialized, worldRef } = useGameEngine();
   
   // Get Three.js camera
-  const { camera } = useThree();
-  
-  // Configure orbit controls based on world size
+  const { camera } = useThree();      // Configure orbit controls based on world size
   useEffect(() => {
     if (controlsRef.current && isInitialized) {
       const mapSize = worldSize === 'custom' ? customWorldSize : MAP_SIZES[worldSize];
       const worldSizeUnits = mapSize * 0.5;
       
-      // Configure min/max distances
+      // Configure min/max distances - increased for better visibility with orthographic camera
       controlsRef.current.minDistance = worldSizeUnits * 0.2;
-      controlsRef.current.maxDistance = worldSizeUnits * 3;
+      controlsRef.current.maxDistance = worldSizeUnits * 5; // Increased max distance for better map viewing
       
       // Set maximum polar angle to prevent going below the ground plane
       controlsRef.current.maxPolarAngle = Math.PI / 2.1;
@@ -35,6 +33,9 @@ const GameContainer = () => {
       // Make controls more responsive
       controlsRef.current.enableDamping = true;
       controlsRef.current.dampingFactor = 0.1;
+      
+      // Center the camera on the world
+      controlsRef.current.target.set(0, 0, 0);
     }
   }, [isInitialized, worldSize, customWorldSize]);
   
