@@ -16,6 +16,7 @@ import {
   SkullIcon
 } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
+import WorldModeSelector from './WorldModeSelector';
 import type { Tool } from '../../store/gameStore';
 
 // List of tools available to the player
@@ -173,6 +174,11 @@ const Sidebar = () => {
           </div>
         </div>
       )}
+      
+      {/* World Mode Selector */}
+      <div className="mt-6">
+        <WorldModeSelector />
+      </div>
       
       {/* Bottom info */}
       <div className="mt-6 text-sm text-muted-foreground">

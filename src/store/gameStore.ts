@@ -128,6 +128,15 @@ interface GameState {
   togglePause: () => void;
 }
 
+// Extend GameState with reference map properties
+interface GameState extends BaseGameState {
+  useReferenceMap: boolean;
+  referenceMapUrl: string | null;
+  setUseReferenceMap: (useReferenceMap: boolean) => void;
+  setReferenceMapUrl: (url: string | null) => void;
+  regenerateWorld: () => Promise<void>;
+}
+
 export const useGameStore = create<GameState>((set) => ({
   // Initial world parameters
   worldSeed: Math.floor(Math.random() * 1000000),
@@ -136,6 +145,10 @@ export const useGameStore = create<GameState>((set) => ({
   timeOfDay: 'day',
   season: 'spring',
   year: 1,
+  
+  // Reference map options
+  useReferenceMap: false,
+  referenceMapUrl: null,
   
   // Initial game state
   isGamePaused: false,
@@ -159,6 +172,23 @@ export const useGameStore = create<GameState>((set) => ({
   },
   
   setWorldSize: (size: 'small' | 'medium' | 'large' | 'custom') => set({ worldSize: size }),
+
+  // Reference map methods
+  setUseReferenceMap: (useReferenceMap: boolean) => set({ useReferenceMap }),
+  
+  setReferenceMapUrl: (url: string | null) => set({ 
+    referenceMapUrl: url,
+    useReferenceMap: url !== null
+  }),
+  
+  regenerateWorld: async () => {
+    console.log('Regenerating world...');
+    // This is just a placeholder - the actual regeneration happens in useGameEngine
+    // We're setting a dummy value to trigger the useEffect in useGameEngine
+    set(state => ({ 
+      worldSeed: state.useReferenceMap ? state.worldSeed : Math.floor(Math.random() * 1000000) 
+    }));
+  },
   setCustomWorldSize: (size: number) => set({ customWorldSize: size }),
   
   setTimeOfDay: (time: TimeOfDay) => set({ timeOfDay: time }),

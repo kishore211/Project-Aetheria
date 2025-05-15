@@ -5,6 +5,7 @@ import { OrbitControls } from '@react-three/drei';
 
 import { useGameStore } from '../store/gameStore';
 import { generateTerrain, determineBiome, getBiomeColor } from '../utils/worldGenerator';
+import { generateTerrainFromReferenceMap } from '../utils/mapReferenceWorldGenerator';
 import { Tile, BiomeType, MAP_SIZES, TILE_SIZE, EntityType } from '../types/world';
 import { EntityManager } from '../utils/entityManager';
 import { VisualizationManager } from '../utils/visualizationManager';
@@ -53,7 +54,7 @@ export const useGameEngine = () => {
   /**
    * Initializes the game world
    */
-  const initializeWorld = useCallback(() => {
+  const initializeWorld = useCallback(async () => {
     console.log('Initializing world...');
     
     // Clear any existing world
@@ -67,13 +68,36 @@ export const useGameEngine = () => {
     
     // Generate terrain
     const mapSize = worldSize === 'custom' ? customWorldSize : MAP_SIZES[worldSize];
-    const { worldGroup, tilesData } = generateTerrain(
-      worldSeed,
-      worldSize,
-      customWorldSize,
-      timeOfDay,
-      season
-    );
+    
+    // Check if using reference map or procedural generation
+    const { useReferenceMap, referenceMapUrl } = useGameStore.getState();
+    
+    let worldData;
+    
+    if (useReferenceMap && referenceMapUrl) {
+      // Generate terrain from reference map
+      console.log('[GameEngine] Generating terrain from reference map');
+      worldData = await generateTerrainFromReferenceMap(
+        referenceMapUrl,
+        worldSeed,
+        worldSize,
+        customWorldSize,
+        timeOfDay,
+        season
+      );
+    } else {
+      // Use procedural generation
+      console.log('[GameEngine] Generating terrain procedurally');
+      worldData = generateTerrain(
+        worldSeed,
+        worldSize,
+        customWorldSize,
+        timeOfDay,
+        season
+      );
+    }
+    
+    const { worldGroup, tilesData } = worldData;
     
     // Store the tiles data and add the world group to the scene
     tilesRef.current = tilesData;
@@ -505,7 +529,10 @@ export const useGameEngine = () => {
   useEffect(() => {
     if (!scene) return;
     
-    initializeWorld();
+    // Use async IIFE to handle async initializeWorld
+    (async () => {
+      await initializeWorld();
+    })();
     
     // Event listeners
     window.addEventListener('mousemove', handleMouseMove);
