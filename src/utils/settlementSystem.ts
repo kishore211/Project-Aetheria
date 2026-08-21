@@ -23,6 +23,7 @@ import type { TerrainRenderer } from './terrainRenderer';
 import { registerOrderHandler, simulation } from './simulation';
 import { emitFloater } from './floatBridge';
 import { requestFlash } from './impactBridge';
+import { chronicle } from './chronicle';
 import { speak } from './dialogue';
 import {
   generateKingdomName,
@@ -367,13 +368,13 @@ export class SettlementSystem {
 
     if (newKingdom) {
       this.events.onEvent(
-        `${kingdom.name} is founded at ${village.name}, led by ${kingdom.ruler}`,
+        chronicle('kingdom_founded', { a: kingdom.name, name: village.name, b: kingdom.ruler }),
         'kingdom',
         { x: tile.x, y: tile.y },
       );
     } else {
       this.events.onEvent(
-        `${village.name} is settled under ${kingdom.name}`,
+        chronicle('village_settled', { name: village.name, a: kingdom.name }),
         'kingdom',
         { x: tile.x, y: tile.y },
       );
@@ -780,13 +781,13 @@ export class SettlementSystem {
 
       if (recipe.kind === 'hall') {
         this.events.onEvent(
-          `${village.name} raises a great hall`,
+          chronicle('hall_raised', { name: village.name }),
           'kingdom',
           { x: spot.x, y: spot.y },
         );
       } else if (recipe.kind === 'temple' || recipe.kind === 'statue') {
         this.events.onEvent(
-          `${village.name} completes a ${recipe.kind}`,
+          chronicle('monument_raised', { name: village.name, type: recipe.kind }),
           'kingdom',
           { x: spot.x, y: spot.y },
         );
@@ -935,7 +936,7 @@ export class SettlementSystem {
   private abandonVillage(village: Village): void {
     this.releaseVillage(village);
     this.events.onEvent(
-      `${village.name} stands empty and falls to ruin`,
+      chronicle('village_abandoned', { name: village.name }),
       'kingdom',
       { x: village.centerX, y: village.centerY },
     );
@@ -1065,7 +1066,7 @@ export class SettlementSystem {
     if (party.memberIds.size === 0) return;
     this.parties.set(party.id, party);
     this.events.onEvent(
-      `Settlers leave ${source.name} to found a new home`,
+      chronicle('settlers_leave', { name: source.name }),
       'kingdom',
       { x: source.centerX, y: source.centerY },
     );
@@ -1116,8 +1117,8 @@ export class SettlementSystem {
     const source = this.villages.get(party.sourceVillageId);
     this.events.onEvent(
       source
-        ? `${village.name} is founded by settlers from ${source.name}`
-        : `${village.name} is founded`,
+        ? chronicle('village_settled_from', { name: village.name, a: source.name })
+        : chronicle('village_founded', { name: village.name }),
       'kingdom',
       { x: tile.x, y: tile.y },
     );
@@ -1181,7 +1182,7 @@ export class SettlementSystem {
 
     const capital = this.villages.get(a.villageIds[0]);
     this.events.onEvent(
-      `${a.name} declares war on ${b.name}`,
+      chronicle('war_declared', { a: a.name, b: b.name }),
       'war',
       capital ? { x: capital.centerX, y: capital.centerY } : undefined,
     );
@@ -1196,7 +1197,7 @@ export class SettlementSystem {
     a.tension.set(b.id, 0.25);
     b.tension.set(a.id, 0.25);
     this.warTimers.delete(pairKey(a.id, b.id));
-    this.events.onEvent(`${a.name} and ${b.name} agree to peace`, 'war');
+    this.events.onEvent(chronicle('peace', { a: a.name, b: b.name }), 'war');
   }
 
   /** Send warbands at the enemy, and time wars out into peace. */
@@ -1311,7 +1312,7 @@ export class SettlementSystem {
     // Kingdoms with no settlements left pass into history
     for (const kingdom of Array.from(this.kingdoms.values())) {
       if (kingdom.villageIds.length > 0) continue;
-      this.events.onEvent(`${kingdom.name} has fallen`, 'war');
+      this.events.onEvent(chronicle('kingdom_fallen', { a: kingdom.name }), 'war');
       requestFlash('blood', 1);
       for (const entity of this.entities.getAllEntities()) {
         if (entity.kingdomId === kingdom.id) {

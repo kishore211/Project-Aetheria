@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { SettlementSystem } from './settlementSystem';
+import { matchesTopic } from './chronicle';
 import { TerrainRenderer } from './terrainRenderer';
 import { EntityManager } from './entityManagerMinimal';
 import { generateWorld } from './worldGenerator';
@@ -75,7 +76,10 @@ describe('village founding', () => {
     const village = Array.from(harness.settlements.villages.values())[0];
     expect(village.name.length).toBeGreaterThan(2);
     expect(village.buildings.some((building) => building.kind === 'bonfire')).toBe(true);
-    expect(harness.events.some((message) => message.includes('is founded'))).toBe(true);
+    // Asserted by topic, not by prose: the chronicle writes each event
+    // several ways, and pinning a test to one wording makes it break when the
+    // writing grows rather than when the behaviour does.
+    expect(harness.events.some((message) => matchesTopic(message, 'kingdom_founded'))).toBe(true);
   });
 
   it('does not found anything from a lone wanderer', () => {
@@ -204,7 +208,7 @@ describe('kingdoms at war', () => {
     }
 
     expect(peakTension).toBeGreaterThan(0);
-    expect(harness.events.some((message) => message.includes('declares war'))).toBe(true);
+    expect(harness.events.some((message) => matchesTopic(message, 'war_declared'))).toBe(true);
   });
 
   it('razes a village when its bonfire falls', () => {
@@ -304,8 +308,8 @@ describe('colonisation', () => {
 
     const kingdom = Array.from(harness.settlements.kingdoms.values())[0];
     expect(kingdom.villageIds.length).toBeGreaterThan(1);
-    expect(harness.events.some((message) => message.includes('Settlers leave'))).toBe(true);
-    expect(harness.events.some((message) => message.includes('founded by settlers from'))).toBe(true);
+    expect(harness.events.some((message) => matchesTopic(message, 'settlers_leave'))).toBe(true);
+    expect(harness.events.some((message) => matchesTopic(message, 'village_settled_from'))).toBe(true);
   });
 
   it('marks exactly one capital per kingdom', () => {
@@ -390,7 +394,7 @@ describe('decay', () => {
       const { x, y } = harness.terrain.tileCoordsFromInstanceId(instanceId);
       expect(harness.tiles[x][y].ownerId).toBeNull();
     }
-    expect(harness.events.some((message) => message.includes('falls to ruin'))).toBe(true);
+    expect(harness.events.some((message) => matchesTopic(message, 'village_abandoned'))).toBe(true);
   });
 });
 

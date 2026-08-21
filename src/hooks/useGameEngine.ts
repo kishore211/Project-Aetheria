@@ -28,6 +28,7 @@ import { publishSimulationContext, simulation } from '../utils/simulation';
 import { advanceFloaters, clearFloaters, emitFloater, floatBridge } from '../utils/floatBridge';
 import { clearImpacts, isShaking, requestFlash, requestShake, sampleShake } from '../utils/impactBridge';
 import { speak, type Occasion } from '../utils/dialogue';
+import { chronicle } from '../utils/chronicle';
 
 /** Mirrors entitySystemMinimal: only the sentient races get bubbles. */
 const SPEAKING_RACES = new Set<string>(['human', 'elf', 'dwarf', 'orc']);
@@ -684,7 +685,7 @@ export const useGameEngine = () => {
         effectsManagerRef.current?.spawnShockwave(tileWorldPosition(tile), 0xaa8855, 6);
         soundManager.earthquake();
         store.addEvent(
-          `An earthquake reshapes the land${kills > 0 ? `, claiming ${kills} lives` : ''}`,
+          chronicle('quake') + (kills > 0 ? `, claiming ${kills} lives` : ''),
           'disaster',
           { x: tile.x, y: tile.y },
         );
@@ -707,7 +708,7 @@ export const useGameEngine = () => {
           requestShake(26 + store.brushRadius * 10, 0.7);
           requestFlash('impact', 0.9);
           store.addEvent(
-            `A meteor devastates the region${kills > 0 ? ` — ${kills} perished` : ''}`,
+            chronicle('meteor') + (kills > 0 ? ` — ${kills} perished` : ''),
             'disaster',
             { x: tile.x, y: tile.y },
           );
@@ -723,7 +724,7 @@ export const useGameEngine = () => {
         const kills = entityManagerRef.current?.damageArea(tile.x, tile.y, 1.2, 60) ?? 0;
         if (FLAMMABLE_BIOMES.includes(tile.type) && Math.random() < 0.6) igniteTile(tile);
         store.addEvent(
-          `Lightning strikes (${tile.x}, ${tile.y})${kills > 0 ? ` — ${kills} slain` : ''}`,
+          chronicle('lightning') + (kills > 0 ? ` — ${kills} slain` : ''),
           'disaster',
           { x: tile.x, y: tile.y },
         );
@@ -749,7 +750,7 @@ export const useGameEngine = () => {
         reactNearby(tile, blessRadius, 'blessed');
         requestFlash('divine', 0.5);
         store.addEvent(
-          `A blessing radiates outward${healed > 0 ? `, healing ${healed} creatures` : ''}`,
+          chronicle('blessing') + (healed > 0 ? `, healing ${healed} creatures` : ''),
           'divine',
           { x: tile.x, y: tile.y },
         );
@@ -771,7 +772,7 @@ export const useGameEngine = () => {
         reactNearby(tile, curseRadius, 'cursed');
         requestFlash('plague', 0.7);
         store.addEvent(
-          `Dark corruption spreads${kills > 0 ? ` — ${kills} souls claimed` : ''}`,
+          chronicle('curse') + (kills > 0 ? ` — ${kills} souls claimed` : ''),
           'disaster',
           { x: tile.x, y: tile.y },
         );

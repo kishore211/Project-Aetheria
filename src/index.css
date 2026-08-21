@@ -688,3 +688,25 @@ canvas {
 @media (prefers-reduced-motion: reduce) {
   .layer-badge { animation: none; }
 }
+
+/* ---------------------------------------------------------------------------
+   Chronicle filters
+--------------------------------------------------------------------------- */
+
+.chronicle-chip {
+  padding: 0.1rem 0.42rem 0.14rem;
+  border: 1px solid rgb(148 163 184 / 0.22);
+  border-radius: 999px;
+  background: rgb(15 23 42 / 0.6);
+  color: rgb(148 163 184);
+  font-size: 0.6rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: color 0.14s, background 0.14s, border-color 0.14s;
+}
+.chronicle-chip:hover { color: rgb(226 232 240); background: rgb(51 65 85 / 0.7); }
+.chronicle-chip.is-on {
+  color: rgb(255 255 255);
+  border-color: rgb(129 140 248 / 0.6);
+  background: rgb(79 70 229 / 0.85);
+}

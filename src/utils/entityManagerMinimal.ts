@@ -6,6 +6,7 @@ import { inheritTraits } from './traits';
 import { simulation } from './simulation';
 import { emitDamage, emitFloater } from './floatBridge';
 import { speak } from './dialogue';
+import { chronicle, deathTopic } from './chronicle';
 import type { WorldLaws } from '../store/gameStore';
 import type { GameEvent } from '../store/gameStore';
 import type { SavedEntity } from './saveSystem';
@@ -317,7 +318,7 @@ export class EntityManager implements EntityIndex {
       // A child costs the parent some of its reserves
       entity.needs.hunger = Math.max(0.15, entity.needs.hunger - 0.35);
       this.onLifeEvent?.(
-        `${child.name} the ${child.type} was born`,
+        chronicle('born', { name: child.name, type: child.type }),
         'life',
         { x: Math.floor(child.position.x), y: Math.floor(child.position.y) },
       );
@@ -364,15 +365,8 @@ export class EntityManager implements EntityIndex {
     this.disposeMesh(entity);
 
     this.onEntityDeath?.(entity, cause);
-    const causeText = cause === 'old_age' ? 'died of old age'
-      : cause === 'divine' ? 'was struck down by divine power'
-      : cause === 'combat' ? 'was slain'
-      : cause === 'starvation' ? 'starved'
-      : cause === 'burned' ? 'was consumed by fire'
-      : cause === 'health' ? 'perished'
-      : 'died suddenly';
     this.onLifeEvent?.(
-      `${entity.name} the ${entity.type} ${causeText}`,
+      chronicle(deathTopic(cause), { name: entity.name, type: entity.type }),
       'death',
       { x: ix, y: iy },
     );
