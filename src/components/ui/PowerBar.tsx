@@ -11,6 +11,7 @@ import {
 } from '../../utils/powers';
 import { MAP_LAYERS } from '../../utils/mapLayers';
 import SavePanel from './SavePanel';
+import StatsPanel from './StatsPanel';
 
 /**
  * The bottom power bar.
@@ -82,6 +83,7 @@ const PowerBar = () => {
 
   const [hover, setHover] = useState<HoverInfo | null>(null);
   const [showSaves, setShowSaves] = useState(false);
+  const [showStats, setShowStats] = useState(false);
 
   const hasUnit = Boolean(selectedEntity);
   const tabs = useMemo(
@@ -116,6 +118,12 @@ const PowerBar = () => {
           hint: 'Save this world or load another.',
           quip: 'Regret, but reversible.',
           run: () => setShowSaves(true),
+        },
+        {
+          key: 'stats', label: 'Records', icon: 'BarChart3',
+          hint: 'Population over time, and what everyone died of.',
+          quip: 'Every world keeps a tally whether you look at it or not.',
+          run: () => setShowStats(true),
         },
         {
           key: 'help', label: 'Help', icon: 'HelpCircle',
@@ -414,6 +422,7 @@ const PowerBar = () => {
       </div>
 
       <SavePanel open={showSaves} onClose={() => setShowSaves(false)} />
+      <StatsPanel open={showStats} onClose={() => setShowStats(false)} />
     </>
   );
 };

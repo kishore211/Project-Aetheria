@@ -7,6 +7,7 @@ import { simulation } from './simulation';
 import { emitDamage, emitFloater } from './floatBridge';
 import { speak } from './dialogue';
 import { chronicle, deathTopic } from './chronicle';
+import { recordBirth } from './worldStats';
 import type { WorldLaws } from '../store/gameStore';
 import type { GameEvent } from '../store/gameStore';
 import type { SavedEntity } from './saveSystem';
@@ -313,6 +314,7 @@ export class EntityManager implements EntityIndex {
       traits: inheritTraits(entity.traits),
     });
     if (child) {
+      recordBirth();
       child.kingdomId = entity.kingdomId ?? null;
       child.villageId = entity.villageId ?? null;
       // A child costs the parent some of its reserves

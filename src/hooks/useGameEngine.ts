@@ -29,6 +29,7 @@ import { advanceFloaters, clearFloaters, emitFloater, floatBridge } from '../uti
 import { clearImpacts, isShaking, requestFlash, requestShake, sampleShake } from '../utils/impactBridge';
 import { speak, type Occasion } from '../utils/dialogue';
 import { chronicle } from '../utils/chronicle';
+import { recordDeath, resetStats, sampleWorld } from '../utils/worldStats';
 
 /** Mirrors entitySystemMinimal: only the sentient races get bubbles. */
 const SPEAKING_RACES = new Set<string>(['human', 'elf', 'dwarf', 'orc']);
@@ -217,6 +218,7 @@ export const useGameEngine = () => {
     publishLabels([]);
     clearFloaters();
     clearImpacts();
+    resetStats();
     if (selectionIndicatorRef.current) {
       scene.remove(selectionIndicatorRef.current);
       selectionIndicatorRef.current.geometry.dispose();
@@ -318,7 +320,8 @@ export const useGameEngine = () => {
     manager.onLifeEvent = (message, kind, position) => {
       useGameStore.getState().addEvent(message, kind, position);
     };
-    manager.onEntityDeath = (entity) => {
+    manager.onEntityDeath = (entity, cause) => {
+      recordDeath(cause);
       const state = useGameStore.getState();
       if (state.selectedEntity?.id === entity.id) state.setSelectedEntity(null);
       if (state.followEntityId === entity.id) state.setFollowEntity(null);
@@ -1423,6 +1426,12 @@ export const useGameEngine = () => {
       if (manager) unitIconsRef.current?.update(manager.getAllEntities(), manager.detail);
     }
 
+    // Statistics run on simulated time, not the wall clock: at triple speed the
+    // world's history should fill three times as fast, and a paused world must
+    // not accumulate a flat line of history nobody watched happen. Cheap enough
+    // to call every frame; sampleWorld owns its own interval.
+    sampleWorld(scaledDelta, useGameStore.getState().population);
+
     ecologyTimerRef.current += scaledDelta;
     if (ecologyTimerRef.current >= 2.5) {
       ecologyTimerRef.current = 0;
@@ -1434,7 +1443,8 @@ export const useGameEngine = () => {
     if (statsTimerRef.current >= 1) {
       statsTimerRef.current = 0;
       const store = useGameStore.getState();
-      store.setPopulation(entityManagerRef.current?.getPopulation() ?? 0);
+      const population = entityManagerRef.current?.getPopulation() ?? 0;
+      store.setPopulation(population);
       if (store.weather !== 'clear') {
         effectsManagerRef.current?.startRain();
         soundManager.startRain();
