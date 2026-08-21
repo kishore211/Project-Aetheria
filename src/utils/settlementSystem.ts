@@ -1016,6 +1016,14 @@ export class SettlementSystem {
     return this.tileAt(x, y);
   }
 
+  /** Where a unit's village is, used to rescue units that get stranded. */
+  homePositionFor(entity: Entity): { x: number; y: number } | null {
+    if (!entity.villageId) return null;
+    const village = this.villages.get(entity.villageId);
+    if (!village) return null;
+    return { x: village.centerX, y: village.centerY };
+  }
+
   kingdomColorFor(id: string): string | undefined {
     return this.kingdoms.get(id)?.colorHex;
   }

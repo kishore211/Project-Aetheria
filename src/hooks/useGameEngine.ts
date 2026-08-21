@@ -274,6 +274,8 @@ export const useGameEngine = () => {
     settlementRef.current = settlements;
     settlements.setWorldLaws(storeState.worldLaws);
     simulation.onOrderComplete = (entity, order) => settlements.handleOrderComplete(entity, order);
+    // Lets the AI walk a stranded villager back to somewhere it belongs
+    simulation.homePositionFor = (entity) => settlements.homePositionFor(entity);
 
     // Let HUD panels (minimap, kingdom list) read the live world
     publishWorldAccess({

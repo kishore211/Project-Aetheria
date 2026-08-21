@@ -7,13 +7,21 @@ import * as THREE from 'three';
 import { v4 as uuidv4 } from 'uuid';
 import {
   isDrinkableBiome,
+  isWaterBiome,
   type Entity,
   type EntityType,
   type Tile,
   type TraitId,
 } from '../types/world';
 import { getPixelSpriteTexture, getPixelSpriteFrames } from './pixelSprites';
-import { findPath, isWalkableForEntity } from './pathfinding';
+import {
+  canSwim,
+  findNearestStandable,
+  findPath,
+  isAirborne,
+  isShoreTile,
+  isWalkableForEntity,
+} from './pathfinding';
 import { applyTraits, rollTraitsForType } from './traits';
 import { simulation } from './simulation';
 import type { EntityIndex } from './entityManagerMinimal';
@@ -365,6 +373,11 @@ export class EntityAI {
   private repathCooldown = 0;
   private attackCooldown = 0;
   private pyroCooldown = 6;
+  /** Seconds spent trying to move without actually getting anywhere. */
+  private stuckTimer = 0;
+  private lastStuckPosition = { x: 0, y: 0 };
+  /** Throttles the "am I walled in?" check, which is the expensive one. */
+  private confinementCooldown = 2;
 
   constructor(entity: Entity, index?: EntityIndex) {
     this.entity = entity;
@@ -398,6 +411,8 @@ export class EntityAI {
     }
 
     this.updateNeeds(deltaTime);
+    this.ensureStandable(tiles);
+    this.trackStuck(tiles, deltaTime);
     this.maybeStartFire(tiles, deltaTime);
 
     switch (this.currentState) {
@@ -411,6 +426,162 @@ export class EntityAI {
       case 'sleeping': this.handleSleepingState(deltaTime); break;
       case 'dying': this.handleDyingState(); break;
     }
+  }
+
+  // -- staying unstuck ---------------------------------------------------
+  //
+  // An emergent world strands its inhabitants: terrain gets lowered under
+  // their feet, a meteor leaves them in a crater, a river cuts them off on a
+  // one-tile island. WorldBox keeps explicit escape hatches for exactly this
+  // (move_from_block, check_if_stuck_on_small_land, teleport_back_home) and so
+  // do we. Detection and recovery beat trying to make it impossible.
+
+  /** If the ground under this creature stopped being viable, move it off. */
+  private ensureStandable(tiles: Tile[][]): void {
+    if (isAirborne(this.entity.type)) return;
+    const tile = this.tileAt(tiles, Math.floor(this.entity.position.x), Math.floor(this.entity.position.y));
+    if (tile && isWalkableForEntity(tile, this.entity.type)) return;
+
+    // Swimmers get a moment to make their own way out of the water
+    if (tile && canSwim(this.entity.type) && isWaterBiome(tile.type) && this.stuckTimer < 4) {
+      this.addStatus('swimming');
+      return;
+    }
+    this.removeStatus('swimming');
+    this.teleportToSafety(tiles);
+  }
+
+  /** Notice a creature that means to move but is not moving. */
+  private trackStuck(tiles: Tile[][], deltaTime: number): void {
+    const trying = this.currentState === 'moving'
+      || this.currentState === 'hunting'
+      || this.currentState === 'fleeing'
+      || this.currentState === 'fighting';
+
+    if (!trying) {
+      this.stuckTimer = 0;
+      this.lastStuckPosition = { ...this.entity.position };
+      this.checkConfinement(tiles, deltaTime);
+      return;
+    }
+
+    const moved = Math.hypot(
+      this.entity.position.x - this.lastStuckPosition.x,
+      this.entity.position.y - this.lastStuckPosition.y,
+    );
+    if (moved > 0.35) {
+      this.stuckTimer = 0;
+      this.lastStuckPosition = { ...this.entity.position };
+      return;
+    }
+
+    this.stuckTimer += deltaTime;
+
+    // First try: forget the errand and step somewhere it can actually stand.
+    if (this.stuckTimer > 4 && this.stuckTimer - deltaTime <= 4) {
+      this.nudgeOut(tiles);
+      return;
+    }
+    // Last resort: put it back on solid ground, near home if it has one.
+    if (this.stuckTimer > 14) {
+      this.teleportToSafety(tiles);
+    }
+  }
+
+  /**
+   * A creature can be standing on perfectly good ground and still be trapped —
+   * a one-tile island, a crater ringed with water, a pocket walled in by
+   * mountains. It never enters a moving state, so the movement watchdog above
+   * never fires. Measure the area it can actually reach instead.
+   */
+  private checkConfinement(tiles: Tile[][], deltaTime: number): void {
+    if (isAirborne(this.entity.type)) return;
+    this.confinementCooldown -= deltaTime;
+    if (this.confinementCooldown > 0) return;
+    this.confinementCooldown = 3;
+
+    if (this.reachableArea(tiles, 4) > 4) return;
+    // Nowhere to go: lift it out rather than let it starve where it stands.
+    this.teleportToSafety(tiles);
+  }
+
+  /** Flood fill from the current tile, giving up once `limit` is exceeded. */
+  private reachableArea(tiles: Tile[][], limit: number): number {
+    const start = this.tileAt(tiles, Math.floor(this.entity.position.x), Math.floor(this.entity.position.y));
+    if (!start) return 0;
+
+    const seen = new Set<Tile>([start]);
+    const queue: Tile[] = [start];
+    while (queue.length > 0 && seen.size <= limit) {
+      const tile = queue.shift()!;
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          if (dx === 0 && dy === 0) continue;
+          const neighbour = this.tileAt(tiles, tile.x + dx, tile.y + dy);
+          if (!neighbour || seen.has(neighbour)) continue;
+          if (!isWalkableForEntity(neighbour, this.entity.type)) continue;
+          seen.add(neighbour);
+          queue.push(neighbour);
+          if (seen.size > limit) return seen.size;
+        }
+      }
+    }
+    return seen.size;
+  }
+
+  /** Abandon whatever it was doing and walk to the nearest viable tile. */
+  private nudgeOut(tiles: Tile[][]): void {
+    this.targetEntity = null;
+    this.order = null;
+    this.path = [];
+    const escape = findNearestStandable(
+      tiles,
+      Math.floor(this.entity.position.x),
+      Math.floor(this.entity.position.y),
+      this.entity.type,
+      6,
+    );
+    if (escape) {
+      this.targetTile = escape;
+      this.currentState = 'moving';
+    } else {
+      this.targetTile = null;
+      this.currentState = 'idle';
+    }
+    this.ticksSinceLastAction = 0;
+  }
+
+  /** Place the creature back on solid ground; prefer its home village. */
+  private teleportToSafety(tiles: Tile[][]): void {
+    const home = simulation.homePositionFor?.(this.entity) ?? null;
+    const anchor = home ?? {
+      x: Math.floor(this.entity.position.x),
+      y: Math.floor(this.entity.position.y),
+    };
+
+    const refuge = findNearestStandable(tiles, anchor.x, anchor.y, this.entity.type, 16)
+      ?? findNearestStandable(
+        tiles,
+        Math.floor(this.entity.position.x),
+        Math.floor(this.entity.position.y),
+        this.entity.type,
+        24,
+      );
+
+    this.stuckTimer = 0;
+    this.confinementCooldown = 6;
+    this.path = [];
+    this.targetTile = null;
+    this.targetEntity = null;
+    this.order = null;
+    this.removeStatus('swimming');
+    this.currentState = 'idle';
+    this.ticksSinceLastAction = 0;
+
+    if (!refuge) return;
+    this.entity.position = { x: refuge.x + 0.5, y: refuge.y + 0.5 };
+    this.lastStuckPosition = { ...this.entity.position };
+    this.entity.lastPosition = undefined;
   }
 
   // -- needs -------------------------------------------------------------
@@ -469,9 +640,14 @@ export class EntityAI {
       this.order = null;
     }
 
-    // Thirst
+    // Thirst. Land animals drink from the bank; only swimmers wade in, which
+    // is what stops the whole population ending up in the water.
     if (this.entity.needs.thirst <= 0.35) {
-      const water = this.findNearbyTile(tiles, 12, (tile) => isDrinkableBiome(tile.type));
+      const water = this.findNearbyTile(tiles, 14, (tile) => (
+        isDrinkableBiome(tile.type)
+          ? canSwim(this.entity.type) || isAirborne(this.entity.type)
+          : isShoreTile(tile, tiles)
+      ));
       if (water) {
         this.targetTile = water;
         this.path = [];
@@ -577,14 +753,45 @@ export class EntityAI {
       const startX = Math.max(0, Math.min(tiles.length - 1, Math.floor(this.entity.position.x)));
       const startY = Math.max(0, Math.min(tiles[0].length - 1, Math.floor(this.entity.position.y)));
       const startTile = tiles[startX][startY];
-      if (startTile !== this.targetTile && this.repathCooldown === 0) {
+
+      if (startTile === this.targetTile) {
+        this.arriveAtTarget(startTile, tiles);
+        return;
+      }
+
+      if (this.repathCooldown === 0) {
         this.repathCooldown = 0.5;
         this.path = findPath(startTile, this.targetTile, tiles, this.entity.type);
       }
-      if (this.path.length === 0) this.path = [this.targetTile];
+
+      if (this.path.length === 0) {
+        // No route exists. Walking the straight line anyway is what used to
+        // march creatures into the sea and strand them, so give up on the
+        // errand instead and let the idle state pick something reachable.
+        const adjacent = Math.abs(startTile.x - this.targetTile.x) <= 1
+          && Math.abs(startTile.y - this.targetTile.y) <= 1;
+        if (adjacent && isWalkableForEntity(this.targetTile, this.entity.type)) {
+          this.path = [this.targetTile];
+        } else {
+          this.targetTile = null;
+          this.currentState = 'idle';
+          this.ticksSinceLastAction = 0;
+          this.removeStatus('moving');
+          return;
+        }
+      }
     }
 
     const waypoint = this.path[0];
+
+    // The world changes underneath a path: a tile can be flooded or raised
+    // after the route was planned. Re-plan rather than walking into it.
+    if (!isWalkableForEntity(waypoint, this.entity.type)) {
+      this.path = [];
+      this.repathCooldown = 0;
+      return;
+    }
+
     const { x, y } = this.entity.position;
     const dx = waypoint.x + 0.5 - x;
     const dy = waypoint.y + 0.5 - y;
@@ -595,7 +802,7 @@ export class EntityAI {
     if (length < 0.12) {
       this.path.shift();
       if (this.path.length > 0) return;
-      this.arriveAtTarget(waypoint);
+      this.arriveAtTarget(waypoint, tiles);
       return;
     }
 
@@ -607,8 +814,11 @@ export class EntityAI {
   }
 
   /** Resolve whatever the unit walked here to do. */
-  private arriveAtTarget(tile: Tile): void {
-    this.entity.position = { x: tile.x + 0.5, y: tile.y + 0.5 };
+  private arriveAtTarget(tile: Tile, tiles: Tile[][]): void {
+    // Only settle onto the tile if it is somewhere this creature can be
+    if (isWalkableForEntity(tile, this.entity.type)) {
+      this.entity.position = { x: tile.x + 0.5, y: tile.y + 0.5 };
+    }
     this.removeStatus('moving');
 
     // Fulfil a village order
@@ -622,7 +832,7 @@ export class EntityAI {
       return;
     }
 
-    if (isDrinkableBiome(tile.type)) {
+    if (isDrinkableBiome(tile.type) || isShoreTile(tile, tiles)) {
       this.entity.needs.thirst = 1.0;
       this.addTimedStatus('drinking', 2500);
     } else if (this.hasHarvestableResource(tile)) {
@@ -826,6 +1036,12 @@ export class EntityAI {
         this.entity.position = { x: nextX, y: nextY };
         return;
       }
+    }
+
+    // Cornered: turn and fight rather than shaking against a wall forever
+    if (this.entity.health > this.entity.maxHealth * 0.35) {
+      this.removeStatus('fleeing');
+      this.currentState = 'fighting';
     }
   }
 

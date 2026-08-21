@@ -1,5 +1,22 @@
 // src/utils/pathfinding.ts
-import { Tile, BiomeType, EntityType } from '../types/world';
+import { Tile, BiomeType, EntityType, isWaterBiome } from '../types/world';
+
+/** Creatures that live in water and cannot leave it. */
+const AQUATIC: EntityType[] = ['fish'];
+/** Creatures that ignore terrain entirely. */
+const AIRBORNE: EntityType[] = ['bird', 'dragon'];
+/**
+ * Creatures that will wade or swim across fresh water and shallows. Everything
+ * else keeps its feet dry — a land animal standing in the sea is the bug that
+ * strands whole populations.
+ */
+const SWIMMERS: EntityType[] = ['bear', 'wolf', 'deer', 'orc', 'human', 'elemental'];
+/** Water a swimmer will cross, as opposed to open sea nobody crosses. */
+const SHALLOW: BiomeType[] = ['shallow_water', 'river', 'lake'];
+
+export const isAquatic = (type: EntityType): boolean => AQUATIC.includes(type);
+export const isAirborne = (type: EntityType): boolean => AIRBORNE.includes(type);
+export const canSwim = (type: EntityType): boolean => SWIMMERS.includes(type);
 
 /**
  * A* Pathfinding algorithm for entities to navigate the world
@@ -165,7 +182,7 @@ function getTerrainModifier(biomeType: BiomeType, entityType: EntityType): numbe
     case 'shallow_water':
     case 'river':
     case 'lake':
-      return 5.0; // Hard to move in water
+      return 8.0; // Swimmers only, and slow — paths route around water
       
     case 'beach':
     case 'rocky_shore':
@@ -209,30 +226,77 @@ function getTerrainModifier(biomeType: BiomeType, entityType: EntityType): numbe
  * Check if a tile is walkable for a specific entity type
  */
 export function isWalkableForEntity(tile: Tile, entityType: EntityType): boolean {
-  // Explicit walkable flag overrides everything
+  // Fish need water and cannot leave it
+  if (isAquatic(entityType)) return isWaterBiome(tile.type);
+
+  // Birds and dragons ignore the ground
+  if (isAirborne(entityType)) return true;
+
+  // The explicit flag blocks everything that walks
   if (tile.walkable === false) return false;
-  
-  // Water entities
-  if (entityType === 'fish') {
-    return ['deep_ocean', 'ocean', 'shallow_water', 'river', 'lake'].includes(tile.type);
+
+  if (isWaterBiome(tile.type)) {
+    // Nothing that walks crosses open sea; strong swimmers ford the shallows
+    return canSwim(entityType) && SHALLOW.includes(tile.type);
   }
-  
-  // Flying entities
-  if (entityType === 'bird') {
-    return true; // Birds can go anywhere
-  }
-  
-  // Dragons can go almost anywhere
-  if (entityType === 'dragon') {
-    return true;
-  }
-  
-  // Most entities can't walk on water
-  if (['deep_ocean', 'ocean'].includes(tile.type)) {
-    return false;
-  }
-  
+
   return true;
+}
+
+/**
+ * A land tile touching fresh water — where a creature stands to drink.
+ * Drinking from the bank rather than from inside the lake is what keeps land
+ * animals out of the water in the first place.
+ */
+export function isShoreTile(tile: Tile, tiles: Tile[][]): boolean {
+  if (isWaterBiome(tile.type)) return false;
+  for (let dx = -1; dx <= 1; dx++) {
+    for (let dy = -1; dy <= 1; dy++) {
+      if (dx === 0 && dy === 0) continue;
+      const nx = tile.x + dx;
+      const ny = tile.y + dy;
+      if (nx < 0 || nx >= tiles.length || ny < 0 || ny >= tiles[0].length) continue;
+      const neighbour = tiles[nx][ny];
+      if (SHALLOW.includes(neighbour.type)) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * The closest tile this creature can actually stand on, searched outward in
+ * rings. Used to rescue anything that ends up somewhere impossible — a lowered
+ * pit, a meteor crater, a flooded tile, a one-tile island.
+ */
+export function findNearestStandable(
+  tiles: Tile[][],
+  x: number,
+  y: number,
+  entityType: EntityType,
+  maxRadius = 12,
+): Tile | null {
+  for (let radius = 1; radius <= maxRadius; radius++) {
+    let best: Tile | null = null;
+    let bestDistance = Infinity;
+    for (let dx = -radius; dx <= radius; dx++) {
+      for (let dy = -radius; dy <= radius; dy++) {
+        // Only the newly added ring each time
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue;
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx < 0 || nx >= tiles.length || ny < 0 || ny >= tiles[0].length) continue;
+        const tile = tiles[nx][ny];
+        if (!isWalkableForEntity(tile, entityType)) continue;
+        const distance = dx * dx + dy * dy;
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          best = tile;
+        }
+      }
+    }
+    if (best) return best;
+  }
+  return null;
 }
 
 /**

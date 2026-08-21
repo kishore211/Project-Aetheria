@@ -18,6 +18,8 @@ export interface SimulationContext {
   igniteTile?: (x: number, y: number) => void;
   /** A unit reached the tile a village sent it to. */
   onOrderComplete?: (entity: Entity, order: AIOrder) => void;
+  /** Where a unit's home village is, if it has one. Used to rescue strays. */
+  homePositionFor?: (entity: Entity) => { x: number; y: number } | null;
 }
 
 export const simulation: SimulationContext = {
