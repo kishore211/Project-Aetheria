@@ -25,6 +25,11 @@ import { writeSave } from '../utils/saveSystem';
 import { worldAccess } from '../utils/worldAccess';
 import { buildSave } from '../utils/saveSystem';
 import { publishSimulationContext, simulation } from '../utils/simulation';
+import { advanceFloaters, clearFloaters, emitFloater, floatBridge } from '../utils/floatBridge';
+import { speak, type Occasion } from '../utils/dialogue';
+
+/** Mirrors entitySystemMinimal: only the sentient races get bubbles. */
+const SPEAKING_RACES = new Set<string>(['human', 'elf', 'dwarf', 'orc']);
 import { labelBridge, publishLabels, type MapLabel } from '../utils/labelBridge';
 import { soundManager } from '../utils/soundManager';
 
@@ -206,6 +211,7 @@ export const useGameEngine = () => {
     terrainRef.current = null;
     publishWorldAccess(null);
     publishLabels([]);
+    clearFloaters();
     if (selectionIndicatorRef.current) {
       scene.remove(selectionIndicatorRef.current);
       selectionIndicatorRef.current.geometry.dispose();
@@ -512,6 +518,30 @@ export const useGameEngine = () => {
     return true;
   }, []);
 
+  /**
+   * Let the people standing in a divine act say something about it.
+   *
+   * Capped at two speakers: a blessing over a full village should read as a
+   * couple of people noticing, not as a chorus. The global speech budget in
+   * floatBridge would swallow the rest anyway; capping here keeps that from
+   * looking like a coincidence.
+   */
+  const reactNearby = useCallback((tile: Tile, radius: number, occasion: Occasion) => {
+    const witnesses = entityManagerRef.current?.query(tile.x, tile.y, radius + 1) ?? [];
+    let spoken = 0;
+    for (const witness of witnesses) {
+      if (spoken >= 2) break;
+      if (!SPEAKING_RACES.has(witness.type)) continue;
+      if (emitFloater({
+        kind: 'speech',
+        text: speak(occasion, Math.random()),
+        x: witness.position.x,
+        y: witness.position.y,
+        entityId: witness.id,
+      })) spoken += 1;
+    }
+  }, []);
+
   const applyToolEffect = useCallback((tile: Tile, tool: string | null): boolean => {
     if (!tile || !tool) return false;
     const store = useGameStore.getState();
@@ -702,6 +732,7 @@ export const useGameEngine = () => {
         });
         effectsManagerRef.current?.spawnAura(tileWorldPosition(tile), 0xffee88);
         soundManager.bless();
+        reactNearby(tile, blessRadius, 'blessed');
         store.addEvent(
           `A blessing radiates outward${healed > 0 ? `, healing ${healed} creatures` : ''}`,
           'divine',
@@ -722,6 +753,7 @@ export const useGameEngine = () => {
         const kills = entityManagerRef.current?.damageArea(tile.x, tile.y, curseRadius, 25) ?? 0;
         effectsManagerRef.current?.spawnAura(tileWorldPosition(tile), 0x9922cc);
         soundManager.curse();
+        reactNearby(tile, curseRadius, 'cursed');
         store.addEvent(
           `Dark corruption spreads${kills > 0 ? ` — ${kills} souls claimed` : ''}`,
           'disaster',
@@ -736,7 +768,7 @@ export const useGameEngine = () => {
       soundManager.refused();
     }
     return acted;
-  }, [forEachBrushTile, reshapeTile, igniteTile, extinguishTile, syncTile, tileWorldPosition, spawnRace, spawnableAnimalsFor]);
+  }, [forEachBrushTile, reshapeTile, igniteTile, extinguishTile, syncTile, tileWorldPosition, spawnRace, spawnableAnimalsFor, reactNearby]);
 
   /**
    * Handles mouse click on the game world
@@ -1027,6 +1059,67 @@ export const useGameEngine = () => {
       label.screenX = (point.x * 0.5 + 0.5) * width;
       label.screenY = (-point.y * 0.5 + 0.5) * height;
       label.opacity = band;
+    }
+  }, [camera, controls, gl, inBounds]);
+
+  /**
+   * Project the floater pool. Anything attached to an entity follows it, so a
+   * damage number stays over the creature that took the hit while it staggers
+   * away rather than hanging in the field where the blow landed.
+   */
+  const projectFloaters = useCallback(() => {
+    const canvas = gl.domElement;
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+    const size = tilesRef.current.length;
+    if (size === 0 || width === 0) return;
+
+    const orbit = controls as unknown as { target?: THREE.Vector3 } | null;
+    const focus = orbit?.target ?? new THREE.Vector3();
+    const zoom = camera.position.distanceTo(focus) / (size * TILE_SIZE);
+    // Numbers over two hundred creatures at map scale are static, not
+    // information. They fade in as you come down to where you can tell who
+    // is who.
+    const band = THREE.MathUtils.clamp((0.62 - zoom) / 0.14, 0, 1);
+
+    for (const slot of floatBridge.slots) {
+      if (slot.id === 0) continue;
+      if (band <= 0.01) {
+        slot.opacity = 0;
+        continue;
+      }
+
+      if (slot.entityId) {
+        const entity = entityManagerRef.current?.getEntityById(slot.entityId);
+        if (entity) {
+          slot.x = entity.position.x;
+          slot.y = entity.position.y;
+        } else {
+          slot.entityId = null;
+        }
+      }
+
+      const tx = Math.floor(slot.x);
+      const ty = Math.floor(slot.y);
+      if (!inBounds(tx, ty)) {
+        slot.opacity = 0;
+        continue;
+      }
+      const tile = tilesRef.current[tx][ty];
+      const point = projectionRef.current.set(
+        (slot.x - size / 2) * TILE_SIZE,
+        tile.scaledHeight + (slot.kind === 'speech' ? 1.05 : 0.75),
+        (slot.y - size / 2) * TILE_SIZE,
+      );
+      point.project(camera);
+
+      if (point.z > 1 || point.x < -1.15 || point.x > 1.15 || point.y < -1.15 || point.y > 1.15) {
+        slot.opacity = 0;
+        continue;
+      }
+      slot.screenX = (point.x * 0.5 + 0.5) * width;
+      slot.screenY = (-point.y * 0.5 + 0.5) * height;
+      slot.opacity = band;
     }
   }, [camera, controls, gl, inBounds]);
 
@@ -1406,6 +1499,11 @@ export const useGameEngine = () => {
       refreshLabels();
     }
     projectLabels();
+    // Clamped like the game tick: a tab returning from the background hands us
+    // a delta of several seconds, and unclamped that retires every floater at
+    // once instead of playing the animations the player came back to see.
+    advanceFloaters(Math.min(deltaTime, 0.1));
+    projectFloaters();
 
     gameTick(Math.min(deltaTime, 0.1));
   });
@@ -1424,6 +1522,12 @@ export const useGameEngine = () => {
       useTool: (tool: string, x: number, y: number) => {
         if (!inBounds(x, y)) return;
         applyToolEffect(tilesRef.current[x][y], tool);
+      },
+      /** Live floaters, for verifying numbers and speech without screenshots. */
+      get floaters() {
+        return floatBridge.slots
+          .filter(slot => slot.id !== 0)
+          .map(slot => ({ kind: slot.kind, text: slot.text, opacity: slot.opacity }));
       },
       get settlements() { return settlementRef.current; },
       get herds() { return herdRef.current; },

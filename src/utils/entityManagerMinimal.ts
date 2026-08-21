@@ -4,6 +4,8 @@ import { TILE_SIZE, type Tile, type Entity, type EntityType } from '../types/wor
 import { createEntity, createEntityMesh, updateEntityMesh, EntityAI, type AIOrder } from './entitySystemMinimal';
 import { inheritTraits } from './traits';
 import { simulation } from './simulation';
+import { emitDamage, emitFloater } from './floatBridge';
+import { speak } from './dialogue';
 import type { WorldLaws } from '../store/gameStore';
 import type { GameEvent } from '../store/gameStore';
 import type { SavedEntity } from './saveSystem';
@@ -319,6 +321,17 @@ export class EntityManager implements EntityIndex {
         'life',
         { x: Math.floor(child.position.x), y: Math.floor(child.position.y) },
       );
+      // A heart over the parent, and once in a while a word about it.
+      emitFloater({
+        kind: 'emote', text: '\u2665',
+        x: entity.position.x, y: entity.position.y, entityId: entity.id,
+      });
+      if (Math.random() < 0.35) {
+        emitFloater({
+          kind: 'speech', text: speak('newborn', Math.random()),
+          x: entity.position.x, y: entity.position.y, entityId: entity.id,
+        });
+      }
     }
   }
 
@@ -327,6 +340,14 @@ export class EntityManager implements EntityIndex {
    */
   killEntity(entity: Entity, cause: DeathCause): void {
     if (!this.entities.has(entity.id)) return;
+
+    // Marked here rather than on the corpse: the entity is about to stop
+    // existing, so the floater is given a fixed position instead of an id to
+    // follow.
+    emitFloater({
+      kind: 'emote', text: '\u2620',
+      x: entity.position.x, y: entity.position.y,
+    });
 
     const ix = Math.floor(entity.position.x);
     const iy = Math.floor(entity.position.y);
@@ -381,6 +402,7 @@ export class EntityManager implements EntityIndex {
     let kills = 0;
     for (const victim of this.query(centerX, centerY, radius)) {
       victim.health -= damage;
+      emitDamage(victim.position.x, victim.position.y, damage, victim.id);
       if (!victim.status.includes('wounded')) victim.status.push('wounded');
       if (victim.health <= 0) {
         this.killEntity(victim, cause);
@@ -394,7 +416,15 @@ export class EntityManager implements EntityIndex {
   healArea(centerX: number, centerY: number, radius: number, amount: number): number {
     let healed = 0;
     for (const entity of this.query(centerX, centerY, radius)) {
+      const before = entity.health;
       entity.health = Math.min(entity.maxHealth, entity.health + amount);
+      const given = Math.round(entity.health - before);
+      if (given >= 1) {
+        emitFloater({
+          kind: 'heal', text: `+${given}`,
+          x: entity.position.x, y: entity.position.y, entityId: entity.id,
+        });
+      }
       entity.needs.hunger = 1.0;
       entity.needs.thirst = 1.0;
       const woundedIndex = entity.status.indexOf('wounded');

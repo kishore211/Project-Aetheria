@@ -21,6 +21,8 @@ import { getBuildingAtlas } from './pixelAtlas';
 import { SpriteCloud } from './spriteCloud';
 import type { TerrainRenderer } from './terrainRenderer';
 import { registerOrderHandler, simulation } from './simulation';
+import { emitFloater } from './floatBridge';
+import { speak } from './dialogue';
 import {
   generateKingdomName,
   generateRulerName,
@@ -409,6 +411,17 @@ export class SettlementSystem {
       founder.job = 'gatherer';
     }
 
+    // Founding a village is one of the few moments worth interrupting for.
+    if (founders[0]) {
+      emitFloater({
+        kind: 'speech',
+        text: speak('newVillage', Math.random()),
+        x: founders[0].position.x,
+        y: founders[0].position.y,
+        entityId: founders[0].id,
+      });
+    }
+
     this.claimTerritory(village);
     return village;
   }
@@ -636,7 +649,16 @@ export class SettlementSystem {
     const crown = village.capital ? 'king' : 'leader';
     const other = village.capital ? 'leader' : 'king';
     this.stripStatus(leader, other);
-    if (!leader.status.includes(crown)) leader.status.push(crown);
+    if (!leader.status.includes(crown)) {
+      leader.status.push(crown);
+      emitFloater({
+        kind: 'speech',
+        text: speak('crowned', Math.random()),
+        x: leader.position.x,
+        y: leader.position.y,
+        entityId: leader.id,
+      });
+    }
 
     // A kingdom's ruler is now a person, not just a generated name
     if (village.capital) {
@@ -705,6 +727,14 @@ export class SettlementSystem {
       const village = entity.villageId ? this.villages.get(entity.villageId) : null;
       if (village && entity.carrying) {
         this.deposit(village, entity.carrying.type, entity.carrying.quantity);
+        // The granary filling up is the whole point of the errand, and until
+        // now it happened entirely in a number nobody could see.
+        emitFloater({
+          kind: 'gain',
+          text: `+${entity.carrying.quantity} ${entity.carrying.type}`,
+          x: entity.position.x,
+          y: entity.position.y,
+        });
         entity.carrying = null;
       }
       return;

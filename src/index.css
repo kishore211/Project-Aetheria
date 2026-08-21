@@ -517,3 +517,65 @@ canvas {
   opacity: 0.35;
 }
 .powerbar-peek:hover { opacity: 1; color: rgb(248 250 252); }
+
+/* ---------------------------------------------------------------------------
+   Floating text and speech
+--------------------------------------------------------------------------- */
+
+.floater-host {
+  position: fixed;
+  inset: 0;
+  z-index: 12;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.floater {
+  position: absolute;
+  top: 0;
+  left: 0;
+  will-change: transform, opacity;
+  white-space: nowrap;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  /* Numbers land on grass, sand, snow and sea alike, so the readability comes
+     from an outline rather than from a panel behind them. */
+  text-shadow:
+    0 1px 0 #000, 0 -1px 0 #000, 1px 0 0 #000, -1px 0 0 #000,
+    0 2px 4px rgb(0 0 0 / 0.7);
+}
+
+.floater-damage { font-size: 0.82rem; color: #fb7185; }
+.floater-heal   { font-size: 0.82rem; color: #4ade80; }
+.floater-gain   { font-size: 0.78rem; color: #fcd34d; }
+.floater-emote  { font-size: 1rem; }
+
+/* Speech is a bubble rather than bare text: it is somebody talking, and the
+   shape is what says so before you have read a word of it. */
+.floater-speech {
+  max-width: 13rem;
+  padding: 0.22rem 0.5rem 0.26rem;
+  border-radius: 9px;
+  border: 1px solid rgb(15 23 42 / 0.9);
+  background: rgb(248 250 252 / 0.96);
+  color: rgb(15 23 42);
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: normal;
+  text-align: center;
+  text-shadow: none;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.45);
+}
+.floater-speech::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -4px;
+  width: 6px;
+  height: 6px;
+  transform: translateX(-50%) rotate(45deg);
+  border-right: 1px solid rgb(15 23 42 / 0.9);
+  border-bottom: 1px solid rgb(15 23 42 / 0.9);
+  background: rgb(248 250 252 / 0.96);
+}

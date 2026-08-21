@@ -24,6 +24,11 @@ import {
 } from './pathfinding';
 import { applyTraits, rollTraitsForType } from './traits';
 import { simulation } from './simulation';
+import { emitDamage, emitFloater } from './floatBridge';
+import { speak, type Occasion } from './dialogue';
+
+/** Who gets speech bubbles. Monsters brood; animals do not have a position. */
+const SPEAKING_TYPES = new Set<string>(['human', 'elf', 'dwarf', 'orc']);
 import type { EntityIndex } from './entityManagerMinimal';
 
 /**
@@ -421,7 +426,11 @@ export class EntityAI {
     this.maybeStartFire(tiles, deltaTime);
 
     // Publish what we are doing so the HUD can show it without reaching in
-    this.entity.activity = this.describeActivity();
+    const activity = this.describeActivity();
+    if (activity !== this.entity.activity) {
+      this.entity.activity = activity;
+      this.maybeSpeak(activity);
+    }
 
     switch (this.currentState) {
       case 'idle': this.handleIdleState(tiles); break;
@@ -436,6 +445,56 @@ export class EntityAI {
       case 'sleeping': this.handleSleepingState(deltaTime); break;
       case 'dying': this.handleDyingState(); break;
     }
+  }
+
+  /**
+   * Say something, sometimes.
+   *
+   * Hooked to the moment the published activity changes rather than to each of
+   * the thirty-odd places `currentState` is assigned — one hook, and it cannot
+   * drift out of sync with what the HUD says the creature is doing.
+   *
+   * Two gates sit in front of it. This one is a coin flip, which spreads the
+   * global speech budget across the whole population instead of letting
+   * whichever creatures happen to update first spend all of it; the budget
+   * itself lives in floatBridge. Both are needed: without the coin flip, the
+   * same dozen units by iteration order do all the talking.
+   */
+  private maybeSpeak(activity: string): void {
+    if (Math.random() > 0.12) return;
+    // Animals do not have dialogue. A wolf with a speech bubble is a cartoon,
+    // and not the kind we are making.
+    if (!this.isPerson()) return;
+
+    const needs = this.entity.needs;
+    let occasion: Occasion | null = null;
+
+    switch (activity) {
+      case 'fighting': occasion = 'fighting'; break;
+      case 'fleeing': occasion = 'afraid'; break;
+      case 'talking': occasion = 'bonfire'; break;
+      case 'gathering': occasion = 'working'; break;
+      case 'hauling': occasion = 'hauling'; break;
+      case 'building': occasion = 'working'; break;
+      default: {
+        if (this.entity.health < this.entity.maxHealth * 0.4) occasion = 'wounded';
+        else if (needs.hunger < 0.3) occasion = 'hungry';
+        else if (needs.thirst < 0.3) occasion = 'thirsty';
+        else if (needs.rest < 0.25) occasion = 'exhausted';
+        else if (needs.social < 0.25) occasion = 'lonely';
+        else if (needs.hunger > 0.8 && needs.thirst > 0.8) occasion = 'content';
+        break;
+      }
+    }
+    if (!occasion) return;
+
+    emitFloater({
+      kind: 'speech',
+      text: speak(occasion, Math.random()),
+      x: this.entity.position.x,
+      y: this.entity.position.y,
+      entityId: this.entity.id,
+    });
   }
 
   /**
@@ -1200,7 +1259,9 @@ export class EntityAI {
   private strike(target: Entity): void {
     if (this.attackCooldown > 0) return;
     this.attackCooldown = 0.8;
-    target.health -= this.entity.attributes.strength * 0.6;
+    const blow = this.entity.attributes.strength * 0.6;
+    target.health -= blow;
+    emitDamage(target.position.x, target.position.y, blow, target.id);
     this.addTimedStatus('attacking', 600);
     if (!target.status.includes('wounded')) target.status.push('wounded');
     if (target.health <= 0 && !target.status.includes('slain')) target.status.push('slain');
@@ -1371,6 +1432,11 @@ export class EntityAI {
 
   private isPrey(): boolean {
     return (PREDATORS_OF[this.entity.type] ?? []).length > 0;
+  }
+
+  /** Only the four sentient races talk. */
+  private isPerson(): boolean {
+    return SPEAKING_TYPES.has(this.entity.type);
   }
 
   /** Send this unit to fight a specific enemy (used by raids). */
