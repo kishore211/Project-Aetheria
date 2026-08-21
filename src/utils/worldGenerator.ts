@@ -219,11 +219,16 @@ const SPRING_BOOST: Partial<Record<BiomeType, number>> = {
   marsh: 1.05,
 };
 
+/**
+ * How much each phase dims the land. Night was 0.46, which made the map barely
+ * legible for a quarter of every day — the point of night is atmosphere, not
+ * hiding the world you are meant to be watching.
+ */
 const TIME_FACTORS: Record<TimeOfDayName, number> = {
-  dawn: 0.86,
+  dawn: 0.88,
   day: 1.0,
-  dusk: 0.74,
-  night: 0.46,
+  dusk: 0.8,
+  night: 0.62,
 };
 
 /** Slight colour cast per phase so the map feels lit, not just dimmed. */
@@ -231,7 +236,7 @@ const TIME_TINTS: Record<TimeOfDayName, { color: THREE.Color; amount: number }> 
   dawn: { color: new THREE.Color(0xffb877), amount: 0.14 },
   day: { color: new THREE.Color(0xffffff), amount: 0 },
   dusk: { color: new THREE.Color(0xff8f6b), amount: 0.16 },
-  night: { color: new THREE.Color(0x4a6bb0), amount: 0.28 },
+  night: { color: new THREE.Color(0x5878c0), amount: 0.24 },
 };
 
 /**

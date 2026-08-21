@@ -29,13 +29,35 @@ import { soundManager } from '../utils/soundManager';
 
 // Constants for game engine
 const SELECTION_INDICATOR_HEIGHT = 0.1;
-const SECONDS_PER_DAY_PHASE = 20; // Game seconds per dawn/day/dusk/night phase
+/**
+ * Pacing. These four numbers decide how busy the world feels, and the first
+ * pass had them all too fast: a full day took 80 seconds, so the sky was in
+ * near-constant transition, and rain arrived every couple of minutes.
+ *
+ * A day is now ~2.8 minutes at 1x, which is slow enough that dusk reads as an
+ * event rather than as flicker, and most play happens at 2-3x anyway.
+ */
+const SECONDS_PER_DAY_PHASE = 42;
+/** How often the weather is reconsidered. */
+const WEATHER_INTERVAL = 30;
+/** Chance rain starts on a given roll, before the season is taken into account. */
+const RAIN_START_CHANCE = 0.055;
+/** Chance rain stops on a given roll. */
+const RAIN_STOP_CHANCE = 0.34;
+/** Wet springs, dry summers. */
+const RAIN_SEASON_FACTOR: Record<string, number> = {
+  spring: 1.6,
+  summer: 0.45,
+  autumn: 1.35,
+  winter: 0.9,
+};
 const TIME_PHASES: TimeOfDay[] = ['dawn', 'day', 'dusk', 'night'];
 const SKY_COLORS: Record<TimeOfDay, THREE.Color> = {
-  dawn: new THREE.Color('#4a3a63'),
+  dawn: new THREE.Color('#5b4670'),
   day: new THREE.Color('#7cabce'),
-  dusk: new THREE.Color('#5a3550'),
-  night: new THREE.Color('#0b1120'),
+  dusk: new THREE.Color('#6a3f5c'),
+  // Night used to be near-black, which hid the map for a quarter of every day
+  night: new THREE.Color('#141d33'),
 };
 /** Tools that paint an area and therefore honour the brush size. */
 const BRUSH_TOOLS = new Set([
@@ -130,8 +152,8 @@ export const useGameEngine = () => {
     }
     lightsRef.current = [];
 
-    const ambientIntensity = timeOfDay === 'night' ? 1.05
-      : timeOfDay === 'dawn' || timeOfDay === 'dusk' ? 1.5
+    const ambientIntensity = timeOfDay === 'night' ? 1.35
+      : timeOfDay === 'dawn' || timeOfDay === 'dusk' ? 1.6
       : 1.9;
     const ambient = new THREE.AmbientLight(0xffffff, ambientIntensity);
     scene.add(ambient);
@@ -1071,13 +1093,15 @@ export const useGameEngine = () => {
 
     const currentPhase = useGameStore.getState().timeOfDay;
     const targetSky = SKY_COLORS[currentPhase];
+    // Slow enough that a change of phase is something you notice happening
+    const skyBlend = Math.min(1, deltaTime * 0.35);
     if (scene.background instanceof THREE.Color) {
-      scene.background.lerp(targetSky, Math.min(1, deltaTime * 0.8));
+      scene.background.lerp(targetSky, skyBlend);
     } else {
       scene.background = targetSky.clone();
     }
     if (scene.fog?.color) {
-      scene.fog.color.lerp(targetSky, Math.min(1, deltaTime * 0.8));
+      scene.fog.color.lerp(targetSky, skyBlend);
     }
     effectsManagerRef.current?.setStarVisibility(currentPhase === 'night' || currentPhase === 'dusk');
 
@@ -1107,17 +1131,29 @@ export const useGameEngine = () => {
       );
     }
 
-    // Weather drifts on its own
+    // Weather drifts on its own, seasonally and far more slowly than it used
+    // to: rain every couple of minutes read as bad weather rather than as
+    // weather.
     weatherTimerRef.current += scaledDelta;
-    if (weatherTimerRef.current >= 12) {
+    if (weatherTimerRef.current >= WEATHER_INTERVAL) {
       weatherTimerRef.current = 0;
       const store = useGameStore.getState();
-      if (store.weather !== 'clear' && Math.random() < 0.3) {
-        store.setWeather('clear');
-        store.addEvent('The rain subsides', 'info');
-      } else if (store.weather === 'clear' && Math.random() < 0.08) {
-        store.setWeather('rain');
-        store.addEvent('Clouds gather; rain begins to fall', 'info');
+      if (store.weather !== 'clear') {
+        if (Math.random() < RAIN_STOP_CHANCE) {
+          store.setWeather('clear');
+          store.addEvent('The rain subsides', 'info');
+        }
+      } else {
+        const seasonal = RAIN_SEASON_FACTOR[store.season] ?? 1;
+        if (Math.random() < RAIN_START_CHANCE * seasonal) {
+          store.setWeather('rain');
+          store.addEvent(
+            store.season === 'winter'
+              ? 'Snow begins to fall across the land'
+              : 'Clouds gather; rain begins to fall',
+            'info',
+          );
+        }
       }
     }
 
