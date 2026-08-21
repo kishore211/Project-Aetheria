@@ -1,76 +1,212 @@
-import { Scale, X } from 'lucide-react';
-import { useGameStore, type WorldLaws } from '../../store/gameStore';
+import {
+  Baby, CloudLightning, Flame, Hourglass, Scale, Sprout, Swords, Utensils, X,
+} from 'lucide-react';
+import { useGameStore, DEFAULT_WORLD_LAWS, type WorldLaws } from '../../store/gameStore';
+import { soundManager } from '../../utils/soundManager';
 
-const LAWS: Array<{ key: keyof WorldLaws; label: string; description: string }> = [
-  { key: 'aging', label: 'Old age', description: 'Creatures grow old and die.' },
-  { key: 'hunger', label: 'Hunger & thirst', description: 'Needs drain and starvation kills.' },
-  { key: 'reproduction', label: 'Reproduction', description: 'Creatures breed and pass on traits.' },
-  { key: 'fireSpread', label: 'Fire spread', description: 'Flames jump to neighbouring tiles.' },
-  { key: 'biomeGrowth', label: 'Biome growth', description: 'Forests creep, corruption spreads, scars heal.' },
-  { key: 'settlements', label: 'Settlements', description: 'Races found villages and build.' },
-  { key: 'warfare', label: 'Warfare', description: 'Kingdoms build tension, declare war and raid.' },
-  { key: 'disasters', label: 'Natural disasters', description: 'The world may strike on its own.' },
+/**
+ * The sandbox switchboard.
+ *
+ * This was eight bare toggles in one flat list. WorldBox groups its laws,
+ * gives each an icon, and writes a line under every one that tells you what
+ * the world becomes without it — which is the actual question you are asking
+ * when you reach for the switch
+ * (06-WORLDBOX-COMPLETE-REFERENCE.md §10). A toggle labelled "Old age" tells
+ * you what it controls; "nothing dies of anything but violence" tells you what
+ * you are about to make.
+ */
+interface Law {
+  key: keyof WorldLaws;
+  label: string;
+  icon: typeof Flame;
+  /** What the rule does while it is on. */
+  description: string;
+  /** What the world becomes with it off. */
+  without: string;
+}
+
+interface LawGroup {
+  title: string;
+  blurb: string;
+  laws: Law[];
+}
+
+const GROUPS: LawGroup[] = [
+  {
+    title: 'Life',
+    blurb: 'What it costs to be alive here.',
+    laws: [
+      {
+        key: 'aging', label: 'Old age', icon: Hourglass,
+        description: 'Creatures grow old and die.',
+        without: 'Nobody dies of anything but violence. Your first generation is your only one.',
+      },
+      {
+        key: 'hunger', label: 'Hunger and thirst', icon: Utensils,
+        description: 'Needs drain, and starvation kills.',
+        without: 'Nothing has to eat, so nothing has to travel. Villages stop hauling and just stand there.',
+      },
+      {
+        key: 'reproduction', label: 'Reproduction', icon: Baby,
+        description: 'Creatures breed and pass their traits on.',
+        without: 'No new anybody. Whatever you place is all there will ever be.',
+      },
+    ],
+  },
+  {
+    title: 'The land',
+    blurb: 'Whether the world does anything on its own.',
+    laws: [
+      {
+        key: 'biomeGrowth', label: 'Growth and decay', icon: Sprout,
+        description: 'Forests creep outward, corruption spreads, scars heal.',
+        without: 'The map you generate is the map you keep. Nothing grows back.',
+      },
+      {
+        key: 'fireSpread', label: 'Fire spread', icon: Flame,
+        description: 'Flames jump to neighbouring tiles, faster on dry ground.',
+        without: 'Fire burns exactly where you put it and no further. Safer. Less interesting.',
+      },
+      {
+        key: 'disasters', label: 'Natural disasters', icon: CloudLightning,
+        description: 'The world may strike on its own.',
+        without: 'Every catastrophe from here on is yours, and everyone knows it.',
+      },
+    ],
+  },
+  {
+    title: 'Civilisation',
+    blurb: 'Whether anybody organises.',
+    laws: [
+      {
+        key: 'settlements', label: 'Settlements', icon: Scale,
+        description: 'Races found villages, take jobs, and build.',
+        without: 'Nothing is ever founded. A world of wanderers with nowhere to walk back to.',
+      },
+      {
+        key: 'warfare', label: 'Warfare', icon: Swords,
+        description: 'Kingdoms build tension, declare war, and raid.',
+        without: 'Borders stop where they stop. Permanent, brittle peace.',
+      },
+    ],
+  },
 ];
 
-/** The sandbox switchboard: turn any simulation rule off and watch what changes. */
+/**
+ * Presets. The point of a sandbox switchboard is the interesting *combinations*,
+ * and finding those by flipping eight switches is work the player should not
+ * have to do to discover that the game can do this at all.
+ */
+const PRESETS: Array<{ label: string; blurb: string; laws: WorldLaws }> = [
+  {
+    label: 'Everything on',
+    blurb: 'The world as intended.',
+    laws: { ...DEFAULT_WORLD_LAWS },
+  },
+  {
+    label: 'Peaceable',
+    blurb: 'They build, they never fight, and nothing falls out of the sky.',
+    laws: { ...DEFAULT_WORLD_LAWS, warfare: false, disasters: false },
+  },
+  {
+    label: 'Deathless',
+    blurb: 'Nothing ages, nothing starves. Watch a population run away with itself.',
+    laws: { ...DEFAULT_WORLD_LAWS, aging: false, hunger: false },
+  },
+  {
+    label: 'Diorama',
+    blurb: 'Everything off. A world that only moves when you move it.',
+    laws: {
+      aging: false, hunger: false, reproduction: false, disasters: false,
+      fireSpread: false, biomeGrowth: false, settlements: false, warfare: false,
+    },
+  },
+];
+
+const sameLaws = (a: WorldLaws, b: WorldLaws): boolean =>
+  (Object.keys(a) as Array<keyof WorldLaws>).every((key) => a[key] === b[key]);
+
 const WorldLawsPanel = () => {
   const showLaws = useGameStore((state) => state.showLaws);
   const setShowLaws = useGameStore((state) => state.setShowLaws);
   const worldLaws = useGameStore((state) => state.worldLaws);
   const toggleWorldLaw = useGameStore((state) => state.toggleWorldLaw);
+  const setWorldLaws = useGameStore((state) => state.setWorldLaws);
 
   if (!showLaws) return null;
 
+  const activeCount = Object.values(worldLaws).filter(Boolean).length;
+  const total = Object.keys(worldLaws).length;
+
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="ui-modal w-full max-w-md bg-secondary rounded-xl shadow-2xl border border-muted/50 p-5 text-foreground">
+      <div className="ui-modal w-full max-w-lg max-h-[88vh] overflow-y-auto bg-secondary rounded-xl shadow-2xl border border-muted/50 p-5 text-foreground">
         <div className="flex items-center justify-between mb-1">
           <h2 className="text-lg font-bold flex items-center gap-2">
             <Scale size={18} className="text-amber-300" />
             World Laws
           </h2>
-          <button type="button" onClick={() => setShowLaws(false)} className="text-muted-foreground hover:text-foreground">
+          <button
+            type="button"
+            onClick={() => setShowLaws(false)}
+            className="text-muted-foreground hover:text-foreground"
+          >
             <X size={18} />
           </button>
         </div>
-        <p className="text-muted-foreground text-sm mb-4">
-          Rewrite the rules of your world. Changes take effect immediately.
+        <p className="text-muted-foreground text-sm mb-3">
+          Rewrite the rules. Changes take effect immediately —{' '}
+          <span className="text-foreground">{activeCount} of {total}</span> laws in force.
         </p>
 
-        <ul className="space-y-2">
-          {LAWS.map((law) => {
-            const enabled = worldLaws[law.key];
-            return (
-              <li key={law.key}>
-                <button
-                  type="button"
-                  onClick={() => toggleWorldLaw(law.key)}
-                  className={`tool-btn w-full flex items-center gap-3 text-left px-3 py-2 rounded-lg border ${
-                    enabled
-                      ? 'bg-accent/15 border-accent/50'
-                      : 'bg-background/40 border-muted/40'
-                  }`}
-                >
-                  <span
-                    className={`shrink-0 w-9 h-5 rounded-full relative transition-colors ${
-                      enabled ? 'bg-accent' : 'bg-muted'
-                    }`}
-                  >
-                    <span
-                      className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${
-                        enabled ? 'left-4' : 'left-0.5'
-                      }`}
-                    />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-sm font-medium">{law.label}</span>
-                    <span className="block text-xs text-muted-foreground">{law.description}</span>
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-4">
+          {PRESETS.map((preset) => (
+            <button
+              key={preset.label}
+              type="button"
+              title={preset.blurb}
+              className={`law-preset ${sameLaws(worldLaws, preset.laws) ? 'is-on' : ''}`}
+              onClick={() => { soundManager.uiClick(); setWorldLaws(preset.laws); }}
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+
+        {GROUPS.map((group) => (
+          <section key={group.title} className="mb-4 last:mb-0">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              {group.title}
+            </h3>
+            <p className="text-[0.7rem] text-muted-foreground/70 mb-1.5">{group.blurb}</p>
+            <ul className="space-y-1.5">
+              {group.laws.map((law) => {
+                const enabled = worldLaws[law.key];
+                const Glyph = law.icon;
+                return (
+                  <li key={law.key}>
+                    <button
+                      type="button"
+                      onClick={() => { soundManager.uiClick(); toggleWorldLaw(law.key); }}
+                      className={`law-row ${enabled ? 'is-on' : ''}`}
+                    >
+                      <span className={`law-switch ${enabled ? 'is-on' : ''}`}>
+                        <i />
+                      </span>
+                      <Glyph size={15} className="shrink-0 mt-0.5 opacity-80" />
+                      <span className="min-w-0 text-left">
+                        <span className="block text-sm font-medium">{law.label}</span>
+                        <span className="block text-xs text-muted-foreground">
+                          {enabled ? law.description : law.without}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ))}
       </div>
     </div>
   );

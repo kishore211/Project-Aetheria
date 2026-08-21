@@ -215,6 +215,8 @@ interface GameState {
   /** direction > 0 pulls the camera out, < 0 pushes it in. */
   requestZoom: (direction: number) => void;
   toggleWorldLaw: (law: keyof WorldLaws) => void;
+  /** Apply a whole set at once, for the law presets. */
+  setWorldLaws: (laws: WorldLaws) => void;
   setKingdoms: (kingdoms: KingdomSummary[]) => void;
   setFollowEntity: (id: string | null) => void;
   focusTile: (x: number, y: number) => void;
@@ -368,6 +370,8 @@ export const useGameStore = create<GameState>((set) => ({
   toggleWorldLaw: (law) => set((state) => ({
     worldLaws: { ...state.worldLaws, [law]: !state.worldLaws[law] },
   })),
+
+  setWorldLaws: (worldLaws: WorldLaws) => set({ worldLaws: { ...worldLaws } }),
 
   setKingdoms: (kingdoms: KingdomSummary[]) => set({ kingdoms }),
 
