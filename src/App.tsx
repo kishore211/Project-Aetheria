@@ -8,6 +8,7 @@ import RightRail from './components/ui/RightRail';
 import WorldLawsPanel from './components/ui/WorldLawsPanel';
 import AchievementWatcher from './components/ui/AchievementWatcher';
 import HoverTooltip from './components/ui/HoverTooltip';
+import MapLabels from './components/ui/MapLabels';
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
           <fog attach="fog" args={['#0b1120', 140, 420]} />
           <GameContainer />
         </Canvas>
+        <MapLabels />
         <div className="game-ui">
           <Sidebar />
           <TopBar />

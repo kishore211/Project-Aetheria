@@ -150,3 +150,30 @@ canvas {
   }
   .tool-btn { transition: none; }
 }
+
+/* --- Map labels --- */
+
+/* Drawn over the world, so they need their own contrast rather than a panel
+   behind them: a tight dark outline reads on grass, sand, snow and water
+   alike, which a translucent background does not. */
+.map-label {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-shadow:
+    0 0 3px rgb(6 10 18 / 0.95),
+    0 1px 0 rgb(6 10 18 / 0.9),
+    1px 0 0 rgb(6 10 18 / 0.9),
+    0 -1px 0 rgb(6 10 18 / 0.9),
+    -1px 0 0 rgb(6 10 18 / 0.9);
+}
+
+.map-label-kingdom {
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.map-label-village {
+  font-size: 0.6875rem;
+  color: rgb(240 236 226);
+}

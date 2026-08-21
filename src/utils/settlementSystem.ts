@@ -1519,6 +1519,64 @@ export class SettlementSystem {
     return { x: village.centerX, y: village.centerY };
   }
 
+  /**
+   * Everything the map wants to label: one entry per village, plus one per
+   * kingdom placed at the centroid of its settlements.
+   */
+  labelTargets(): Array<{
+    id: string;
+    kind: 'kingdom' | 'village';
+    text: string;
+    color: string;
+    tileX: number;
+    tileY: number;
+    capital: boolean;
+  }> {
+    const targets: Array<{
+      id: string;
+      kind: 'kingdom' | 'village';
+      text: string;
+      color: string;
+      tileX: number;
+      tileY: number;
+      capital: boolean;
+    }> = [];
+
+    for (const village of this.villages.values()) {
+      const kingdom = this.kingdoms.get(village.kingdomId);
+      targets.push({
+        id: village.id,
+        kind: 'village',
+        text: village.name,
+        color: kingdom?.colorHex ?? '#d8d2c4',
+        tileX: village.centerX,
+        tileY: village.centerY,
+        capital: village.capital,
+      });
+    }
+
+    for (const kingdom of this.kingdoms.values()) {
+      const villages = kingdom.villageIds
+        .map(id => this.villages.get(id))
+        .filter((village): village is Village => Boolean(village));
+      if (villages.length === 0) continue;
+
+      const centreX = villages.reduce((sum, village) => sum + village.centerX, 0) / villages.length;
+      const centreY = villages.reduce((sum, village) => sum + village.centerY, 0) / villages.length;
+      targets.push({
+        id: kingdom.id,
+        kind: 'kingdom',
+        text: kingdom.name,
+        color: kingdom.colorHex,
+        tileX: Math.round(centreX),
+        tileY: Math.round(centreY),
+        capital: false,
+      });
+    }
+
+    return targets;
+  }
+
   /** Village name by id, for tooltips and the inspector. */
   villageName(id: string): string | null {
     return this.villages.get(id)?.name ?? null;

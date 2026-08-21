@@ -25,6 +25,7 @@ import { writeSave } from '../utils/saveSystem';
 import { worldAccess } from '../utils/worldAccess';
 import { buildSave } from '../utils/saveSystem';
 import { publishSimulationContext, simulation } from '../utils/simulation';
+import { labelBridge, publishLabels, type MapLabel } from '../utils/labelBridge';
 import { soundManager } from '../utils/soundManager';
 
 // Constants for game engine
@@ -109,6 +110,8 @@ export const useGameEngine = () => {
   const hoverKeyRef = useRef<string>('');
   const brushPreviewRef = useRef<THREE.Mesh | null>(null);
   const hoverTileRef = useRef<Tile | null>(null);
+  const labelTimerRef = useRef<number>(0);
+  const projectionRef = useRef<THREE.Vector3>(new THREE.Vector3());
 
   const [isInitialized, setIsInitialized] = useState<boolean>(false);
 
@@ -201,6 +204,7 @@ export const useGameEngine = () => {
     terrainRef.current?.dispose();
     terrainRef.current = null;
     publishWorldAccess(null);
+    publishLabels([]);
     if (selectionIndicatorRef.current) {
       scene.remove(selectionIndicatorRef.current);
       selectionIndicatorRef.current.geometry.dispose();
@@ -927,6 +931,104 @@ export const useGameEngine = () => {
     preview.scale.set(span, span, 1);
   }, [tileWorldPosition]);
 
+
+  /**
+   * Rebuild the label set. Cheap but not free, so it runs a couple of times a
+   * second rather than per frame — villages are founded, not animated.
+   */
+  const refreshLabels = useCallback(() => {
+    const settlements = settlementRef.current;
+    if (!settlements) return;
+
+    const targets = settlements.labelTargets();
+    const existing = new Map(labelBridge.labels.map(label => [label.id, label]));
+
+    let changed = targets.length !== labelBridge.labels.length;
+    const labels: MapLabel[] = targets.map((target) => {
+      // Reuse the object so the animation loop keeps reading the same instance
+      const previous = existing.get(target.id);
+      if (previous) {
+        previous.text = target.text;
+        previous.color = target.color;
+        previous.tileX = target.tileX;
+        previous.tileY = target.tileY;
+        previous.capital = target.capital;
+        return previous;
+      }
+      changed = true;
+      return {
+        ...target,
+        screenX: 0,
+        screenY: 0,
+        opacity: 0,
+      };
+    });
+
+    if (changed) publishLabels(labels);
+    else labelBridge.labels = labels;
+  }, []);
+
+  /**
+   * Project every label to screen space and decide whether it should show.
+   * Kingdom names belong to the zoomed-out view and village names to the
+   * zoomed-in one, which keeps a busy map from turning into a wall of text.
+   */
+  const projectLabels = useCallback(() => {
+    const labels = labelBridge.labels;
+    if (labels.length === 0) return;
+
+    const store = useGameStore.getState();
+    const canvas = gl.domElement;
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+    const size = tilesRef.current.length;
+    if (size === 0 || width === 0) return;
+
+    if (!store.showMapLabels) {
+      for (const label of labels) label.opacity = 0;
+      return;
+    }
+
+    const orbit = controls as unknown as { target?: THREE.Vector3 } | null;
+    const focus = orbit?.target ?? new THREE.Vector3();
+    const worldUnits = size * TILE_SIZE;
+    const zoom = camera.position.distanceTo(focus) / worldUnits;
+
+    // Fade bands, so labels arrive and leave rather than popping
+    const kingdomOpacity = THREE.MathUtils.clamp((zoom - 0.35) / 0.2, 0, 1);
+    const villageOpacity = THREE.MathUtils.clamp((0.85 - zoom) / 0.2, 0, 1);
+
+    for (const label of labels) {
+      const band = label.kind === 'kingdom' ? kingdomOpacity : villageOpacity;
+      if (band <= 0.01) {
+        label.opacity = 0;
+        continue;
+      }
+
+      if (!inBounds(label.tileX, label.tileY)) {
+        label.opacity = 0;
+        continue;
+      }
+      const tile = tilesRef.current[label.tileX][label.tileY];
+      const point = projectionRef.current.set(
+        (tile.x - size / 2 + 0.5) * TILE_SIZE,
+        tile.scaledHeight + 0.6,
+        (tile.y - size / 2 + 0.5) * TILE_SIZE,
+      );
+      point.project(camera);
+
+      // Behind the camera, or outside the viewport with a margin
+      if (point.z > 1 || point.x < -1.2 || point.x > 1.2 || point.y < -1.2 || point.y > 1.2) {
+        label.opacity = 0;
+        continue;
+      }
+
+      label.screenX = (point.x * 0.5 + 0.5) * width;
+      label.screenY = (-point.y * 0.5 + 0.5) * height;
+      label.opacity = band;
+    }
+  }, [camera, controls, gl, inBounds]);
+
   /** Advance the fire system with the current weather and world laws. */
   const simulateFire = useCallback((delta: number) => {
     const store = useGameStore.getState();
@@ -1280,6 +1382,13 @@ export const useGameEngine = () => {
       updateHover();
       updateBrushPreview();
     }
+
+    labelTimerRef.current += deltaTime;
+    if (labelTimerRef.current >= 0.5) {
+      labelTimerRef.current = 0;
+      refreshLabels();
+    }
+    projectLabels();
 
     gameTick(Math.min(deltaTime, 0.1));
   });

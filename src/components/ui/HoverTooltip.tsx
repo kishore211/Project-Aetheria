@@ -27,11 +27,18 @@ const pretty = (value: string): string => value.replace(/_/g, ' ');
 const HoverTooltip = () => {
   const target = useGameStore((state) => state.hoverTarget);
   const boxRef = useRef<HTMLDivElement>(null);
+  // The pointer may never have moved in this session (a touch device, or the
+  // window regaining focus), and a tooltip parked at the origin looks broken.
+  const positioned = useRef(false);
 
   useEffect(() => {
     const move = (event: MouseEvent) => {
       const box = boxRef.current;
       if (!box) return;
+      if (!positioned.current) {
+        positioned.current = true;
+        box.style.visibility = 'visible';
+      }
       const pad = 14;
       const width = box.offsetWidth;
       const height = box.offsetHeight;
@@ -53,6 +60,7 @@ const HoverTooltip = () => {
   return (
     <div
       ref={boxRef}
+      style={{ visibility: positioned.current ? 'visible' : 'hidden' }}
       className="fixed left-0 top-0 z-40 pointer-events-none max-w-[15rem] rounded-md border border-muted/50 bg-secondary/95 px-2.5 py-2 text-xs shadow-xl backdrop-blur"
     >
       {target.kind === 'unit' ? (
