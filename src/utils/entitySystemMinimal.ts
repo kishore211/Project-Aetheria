@@ -46,7 +46,7 @@ export interface AIOrder {
   kind: 'goto';
   x: number;
   y: number;
-  purpose: 'deliver' | 'build' | 'raid' | 'return' | 'herd';
+  purpose: 'deliver' | 'build' | 'raid' | 'return' | 'herd' | 'settle';
 }
 
 // Predator-Prey relationships

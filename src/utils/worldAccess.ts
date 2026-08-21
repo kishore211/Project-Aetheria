@@ -27,6 +27,7 @@ export interface WorldAccess {
     store: { food: number; wood: number; stone: number };
     buildings: number;
     territory: number;
+    capital: boolean;
   } | null;
 }
 

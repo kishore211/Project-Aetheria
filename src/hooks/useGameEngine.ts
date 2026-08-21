@@ -282,12 +282,6 @@ export const useGameEngine = () => {
     const herds = new HerdSystem(tilesData, manager);
     herdRef.current = herds;
 
-    simulation.onOrderComplete = (entity, order) => {
-      if (order.purpose === 'herd') herds.handleArrival(entity);
-      else settlements.handleOrderComplete(entity, order);
-    };
-    // Lets the AI walk a stranded villager back to somewhere it belongs
-    simulation.homePositionFor = (entity) => settlements.homePositionFor(entity);
 
     // Let HUD panels (minimap, kingdom list) read the live world
     publishWorldAccess({

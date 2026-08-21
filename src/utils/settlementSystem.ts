@@ -20,7 +20,7 @@ import type { EntityManager } from './entityManagerMinimal';
 import { getBuildingAtlas } from './pixelAtlas';
 import { SpriteCloud } from './spriteCloud';
 import type { TerrainRenderer } from './terrainRenderer';
-import { simulation } from './simulation';
+import { registerOrderHandler, simulation } from './simulation';
 import {
   generateKingdomName,
   generateRulerName,
@@ -72,6 +72,29 @@ export interface Village {
   /** Tile instance ids currently claimed. */
   territory: Set<number>;
   founded: { year: number; season: string };
+  /** The kingdom's first settlement. Capitals never send the last settlers. */
+  capital: boolean;
+  /**
+   * Extra claim radius the village has worked up over time — WorldBox's
+   * claim_land task, which is what makes borders visibly creep outward rather
+   * than only jumping when a building goes up.
+   */
+  claimBonus: number;
+  /** Seconds this village has existed, for expansion and settling gates. */
+  age: number;
+  /** Seconds it has stood with nobody living in it. */
+  emptyFor: number;
+}
+
+/** A group walking out to found a new village. */
+export interface SettlerParty {
+  id: string;
+  kingdomId: string;
+  sourceVillageId: string;
+  target: { x: number; y: number };
+  memberIds: Set<string>;
+  /** Seconds left before the attempt is abandoned. */
+  timeout: number;
 }
 
 export interface Kingdom {
@@ -119,11 +142,44 @@ const BUILDING_HEALTH: Record<BuildingKind, number> = {
   farm: 90, tower: 240, temple: 220, statue: 180, mine: 160,
 };
 
-/** How many tiles a single building projects its kingdom's claim. */
+/**
+ * How many tiles a single building projects its kingdom's claim.
+ * Scaled up from the first pass: a WorldBox village claims 3x3 zones of 8x8
+ * tiles — 576 tiles — at founding, on a map the size of our 'medium'. Ours
+ * claimed about 50, which is why the world looked like a few specks on a big
+ * empty continent (research doc section 1).
+ */
 const CLAIM_RADIUS: Record<BuildingKind, number> = {
-  bonfire: 4, tent: 2, house: 3, hall: 6,
-  farm: 2, tower: 5, temple: 5, statue: 4, mine: 2,
+  bonfire: 7, tent: 3, house: 4, hall: 9,
+  farm: 3, tower: 7, temple: 7, statue: 5, mine: 3,
 };
+
+/** Villages a kingdom of each race will grow to before it stops expanding. */
+const VILLAGE_LIMIT: Record<Race, number> = {
+  human: 5,
+  orc: 4,
+  elf: 3,
+  dwarf: 3,
+};
+
+/** Adults a village needs before it can spare anyone to settle elsewhere. */
+const SETTLER_SOURCE_POPULATION = 9;
+/** How many leave together. */
+const SETTLER_PARTY_MIN = 3;
+const SETTLER_PARTY_MAX = 5;
+/** How far a settler party will walk to found a new home. */
+const SETTLE_RANGE = 34;
+/** Give up on a party that never arrives. */
+const SETTLE_TIMEOUT = 180;
+
+/**
+ * Ids are minted from a module-level counter, not a per-instance one. Two
+ * settlement systems each numbering their villages from 1 produce colliding
+ * ids, and anything that looks a village up by id — order completion, saves —
+ * can then match the wrong world's village.
+ */
+let nextIdentifier = 1;
+const mintId = (prefix: string): string => `${prefix}-${nextIdentifier++}`;
 
 /** Stable key for a pair of kingdoms, order-independent. */
 const pairKey = (a: string, b: string): string => (a < b ? `${a}|${b}` : `${b}|${a}`);
@@ -134,7 +190,7 @@ const isRace = (value: string): value is Race => SENTIENT_RACES.includes(value a
 /** Minimum unaffiliated adults of one race in one place to found a village. */
 const FOUNDING_CLUSTER = 3;
 const FOUNDING_RADIUS = 5;
-const MIN_VILLAGE_SPACING = 11;
+const MIN_VILLAGE_SPACING = 16;
 const BUILDING_CLOUD_CAPACITY = 2048;
 
 export interface SettlementEvents {
@@ -150,19 +206,22 @@ export class SettlementSystem {
   private buildingCloud: SpriteCloud;
   private freeSlots: number[] = [];
   private nextSlot = 0;
-  private nextId = 1;
 
   villages = new Map<string, Village>();
   kingdoms = new Map<string, Kingdom>();
+  parties = new Map<string, SettlerParty>();
 
   private foundTimer = 0;
   private workTimer = 0;
   private buildTimer = 0;
   private diplomacyTimer = 0;
+  private expansionTimer = 0;
+  private colonyTimer = 0;
   private publishTimer = 0;
   private laws: WorldLaws = simulation.laws;
   /** Diplomacy rounds each active war has lasted, keyed by kingdom pair. */
   private warTimers = new Map<string, number>();
+  private unsubscribeOrders: () => void;
 
   constructor(
     tiles: Tile[][],
@@ -179,6 +238,13 @@ export class SettlementSystem {
 
     this.buildingCloud = new SpriteCloud(getBuildingAtlas(), BUILDING_CLOUD_CAPACITY);
     scene.add(this.buildingCloud.points);
+
+    // Own the wiring rather than relying on a caller to remember it
+    this.unsubscribeOrders = registerOrderHandler((entity, order) => {
+      if (order.purpose === 'herd') return;
+      this.handleOrderComplete(entity, order);
+    });
+    simulation.homePositionFor = (entity) => this.homePositionFor(entity);
   }
 
   setWorldLaws(laws: WorldLaws): void {
@@ -212,6 +278,21 @@ export class SettlementSystem {
       this.buildTimer = 0;
       this.buildRound();
     }
+
+    for (const village of this.villages.values()) village.age += delta;
+
+    this.expansionTimer += delta;
+    if (this.expansionTimer >= 10) {
+      this.expansionTimer = 0;
+      this.expansionRound();
+    }
+
+    this.colonyTimer += delta;
+    if (this.colonyTimer >= 8) {
+      this.colonyTimer = 0;
+      this.colonyRound(this.colonyTimer);
+    }
+    this.ageParties(delta);
 
     this.diplomacyTimer += delta;
     if (this.diplomacyTimer >= 6) {
@@ -271,30 +352,7 @@ export class SettlementSystem {
       newKingdom = true;
     }
 
-    const village: Village = {
-      id: `village-${this.nextId++}`,
-      name: generateVillageName(race),
-      kingdomId: kingdom.id,
-      race,
-      centerX: tile.x,
-      centerY: tile.y,
-      buildings: [],
-      store: { food: 4, wood: 4, stone: 2 },
-      territory: new Set(),
-      founded: { year: 0, season: simulation.season },
-    };
-    this.villages.set(village.id, village);
-    kingdom.villageIds.push(village.id);
-
-    this.placeBuilding(village, 'bonfire', tile.x, tile.y);
-
-    for (const founder of founders) {
-      founder.villageId = village.id;
-      founder.kingdomId = kingdom.id;
-      founder.job = 'gatherer';
-    }
-
-    this.claimTerritory(village);
+    const village = this.createVillage(kingdom, tile, founders);
 
     if (newKingdom) {
       this.events.onEvent(
@@ -309,6 +367,42 @@ export class SettlementSystem {
         { x: tile.x, y: tile.y },
       );
     }
+  }
+
+  /**
+   * Put a settlement on the map. Shared by spontaneous founding and by settler
+   * parties arriving at a colony site.
+   */
+  private createVillage(kingdom: Kingdom, tile: Tile, founders: Entity[]): Village {
+    const village: Village = {
+      id: mintId('village'),
+      name: generateVillageName(kingdom.race),
+      kingdomId: kingdom.id,
+      race: kingdom.race,
+      centerX: tile.x,
+      centerY: tile.y,
+      buildings: [],
+      store: { food: 4, wood: 4, stone: 2 },
+      territory: new Set(),
+      founded: { year: 0, season: simulation.season },
+      capital: kingdom.villageIds.length === 0,
+      claimBonus: 0,
+      age: 0,
+      emptyFor: 0,
+    };
+    this.villages.set(village.id, village);
+    kingdom.villageIds.push(village.id);
+
+    this.placeBuilding(village, 'bonfire', tile.x, tile.y);
+
+    for (const founder of founders) {
+      founder.villageId = village.id;
+      founder.kingdomId = kingdom.id;
+      founder.job = 'gatherer';
+    }
+
+    this.claimTerritory(village);
+    return village;
   }
 
   private findNearbyKingdom(race: Race, x: number, y: number): Kingdom | null {
@@ -332,7 +426,7 @@ export class SettlementSystem {
   private createKingdom(race: Race): Kingdom {
     const colorHex = pickKingdomColor(race);
     const kingdom: Kingdom = {
-      id: `kingdom-${this.nextId++}`,
+      id: mintId('kingdom'),
       name: generateKingdomName(race),
       ruler: generateRulerName(race),
       race,
@@ -354,39 +448,48 @@ export class SettlementSystem {
 
     const claimed = new Set<number>();
     for (const building of village.buildings) {
-      const radius = CLAIM_RADIUS[building.kind];
+      const radius = CLAIM_RADIUS[building.kind] + village.claimBonus;
+      const radiusSq = radius * radius;
       for (let dx = -radius; dx <= radius; dx++) {
         for (let dy = -radius; dy <= radius; dy++) {
-          if (Math.hypot(dx, dy) > radius) continue;
+          if (dx * dx + dy * dy > radiusSq) continue;
           const tile = this.tileAt(building.x + dx, building.y + dy);
           if (!tile || isWaterBiome(tile.type)) continue;
           // Never take a tile another kingdom already owns; borders only
           // change through war.
           if (tile.ownerId && tile.ownerId !== kingdom.id) continue;
           claimed.add(this.instanceId(tile));
-          tile.ownerId = kingdom.id;
         }
       }
     }
 
-    // Release tiles this village no longer reaches
+    // Only the difference needs repainting. Claims are recomputed every time a
+    // building goes up or a border creeps outward, and a mature village holds
+    // hundreds of tiles — repainting all of them each time was most of the cost.
+    const gained: Tile[] = [];
+    const lost: Tile[] = [];
+
+    for (const id of claimed) {
+      if (village.territory.has(id)) continue;
+      const tile = this.tileFromInstanceId(id);
+      if (!tile) continue;
+      tile.ownerId = kingdom.id;
+      gained.push(tile);
+    }
     for (const id of village.territory) {
       if (claimed.has(id)) continue;
       const tile = this.tileFromInstanceId(id);
-      if (tile && tile.ownerId === kingdom.id) tile.ownerId = null;
+      if (!tile) continue;
+      if (tile.ownerId === kingdom.id) tile.ownerId = null;
+      lost.push(tile);
     }
 
-    const previous = village.territory;
     village.territory = claimed;
 
-    // Repaint the union of old and new plus a one-tile skirt, because border
-    // highlighting depends on neighbours.
-    const dirty = new Set<number>([...previous, ...claimed]);
-    for (const id of dirty) {
-      const tile = this.tileFromInstanceId(id);
-      if (!tile) continue;
-      this.refreshOwnershipAround(tile);
-    }
+    // A tile's border highlight depends on its neighbours, so repaint a
+    // one-tile skirt around everything that changed hands.
+    for (const tile of gained) this.refreshOwnershipAround(tile);
+    for (const tile of lost) this.refreshOwnershipAround(tile);
   }
 
   private refreshOwnershipAround(tile: Tile): void {
@@ -485,6 +588,13 @@ export class SettlementSystem {
         this.deposit(village, entity.carrying.type, entity.carrying.quantity);
         entity.carrying = null;
       }
+      return;
+    }
+
+    if (order.purpose === 'settle') {
+      const party = Array.from(this.parties.values())
+        .find(candidate => candidate.memberIds.has(entity.id));
+      if (party) this.foundColony(entity, party);
       return;
     }
 
@@ -600,7 +710,7 @@ export class SettlementSystem {
     const size = kind === 'bonfire' ? 0.55 : recipe?.size ?? 0.5;
 
     const building: Building = {
-      id: `building-${this.nextId++}`,
+      id: mintId('building'),
       kind,
       x,
       y,
@@ -641,6 +751,227 @@ export class SettlementSystem {
   }
 
   // -- diplomacy and war -------------------------------------------------
+
+  // -- growth and colonisation -------------------------------------------
+
+  /**
+   * WorldBox's claim_land: leaders push their borders outward over time, so a
+   * settlement's territory visibly creeps rather than only jumping when a
+   * building appears. How far it can reach is capped by how built-up it is.
+   */
+  private expansionRound(): void {
+    for (const village of Array.from(this.villages.values())) {
+      // A settlement nobody lives in is not a settlement. Let it go rather
+      // than leaving dead borders painted across the map.
+      const residents = this.residentsOf(village).length;
+      if (residents === 0) {
+        village.emptyFor += 10;
+        if (village.emptyFor >= 25) {
+          this.abandonVillage(village);
+          continue;
+        }
+      } else {
+        village.emptyFor = 0;
+      }
+
+      const ceiling = Math.min(5, Math.floor(village.buildings.length / 3));
+      if (village.claimBonus >= ceiling) continue;
+      village.claimBonus += 1;
+      this.claimTerritory(village);
+    }
+  }
+
+  /** Tear down an empty village and give its land back to the wilderness. */
+  private abandonVillage(village: Village): void {
+    this.releaseVillage(village);
+    this.events.onEvent(
+      `${village.name} stands empty and falls to ruin`,
+      'kingdom',
+      { x: village.centerX, y: village.centerY },
+    );
+  }
+
+  /**
+   * Kingdoms grow by sending people out, not by inflating one village. A
+   * settled village with people to spare picks a site a good walk away and
+   * sends a party; the new village is founded when they arrive, so the player
+   * watches it happen (research doc section 3).
+   */
+  private colonyRound(_delta: number): void {
+    for (const kingdom of this.kingdoms.values()) {
+      if (kingdom.atWar.size > 0) continue; // nobody colonises mid-war
+      const limit = VILLAGE_LIMIT[kingdom.race] ?? 3;
+      const pending = Array.from(this.parties.values())
+        .filter(party => party.kingdomId === kingdom.id).length;
+      // One expedition at a time: three parties leaving at once empties the
+      // capital and none of the colonies gets enough people to survive.
+      if (pending > 0) continue;
+      if (kingdom.villageIds.length + pending >= limit) continue;
+
+      const source = this.pickSettlerSource(kingdom);
+      if (!source) continue;
+
+      const site = this.findSettlementSite(source);
+      if (!site) continue;
+
+      this.sendSettlers(kingdom, source, site);
+    }
+  }
+
+  /** A village old enough and populous enough to spare a few people. */
+  private pickSettlerSource(kingdom: Kingdom): Village | null {
+    let best: Village | null = null;
+    let bestPopulation = 0;
+
+    for (const villageId of kingdom.villageIds) {
+      const village = this.villages.get(villageId);
+      if (!village) continue;
+      // Don't hollow out a village that is still finding its feet
+      if (village.age < 25) continue;
+      const residents = this.residentsOf(village);
+      // Every reachable village has to be established before the kingdom
+      // spreads further — WorldBox blocks expansion while any of them is small.
+      if (residents.length < SETTLER_SOURCE_POPULATION) return null;
+      // Deliberately no granary requirement: a busy village feeds its stores
+      // to its people, so a food gate would mean only *poor* villages colonise.
+      if (residents.length > bestPopulation) {
+        bestPopulation = residents.length;
+        best = village;
+      }
+    }
+    return best;
+  }
+
+  private residentsOf(village: Village): Entity[] {
+    return this.entities.getAllEntities()
+      .filter(entity => entity.villageId === village.id);
+  }
+
+  /** Somewhere habitable, unclaimed, and far enough from every other village. */
+  private findSettlementSite(source: Village): { x: number; y: number } | null {
+    let best: { x: number; y: number } | null = null;
+    let bestScore = -Infinity;
+
+    for (let attempt = 0; attempt < 90; attempt++) {
+      const angle = Math.random() * Math.PI * 2;
+      const distance = MIN_VILLAGE_SPACING + Math.random() * (SETTLE_RANGE - MIN_VILLAGE_SPACING);
+      const x = Math.round(source.centerX + Math.cos(angle) * distance);
+      const y = Math.round(source.centerY + Math.sin(angle) * distance);
+
+      const tile = this.tileAt(x, y);
+      if (!tile) continue;
+      if (isWaterBiome(tile.type) || tile.height < 0.28) continue;
+      if (tile.type === 'mountains' || tile.type === 'snow' || tile.type === 'volcanic') continue;
+      if (tile.ownerId && tile.ownerId !== source.kingdomId) continue;
+      if (tile.villageId) continue;
+      if (this.tooCloseToVillage(x, y)) continue;
+
+      // Prefer fertile, unclaimed ground reasonably near home
+      const score = tile.fertility * 3
+        + (tile.ownerId === source.kingdomId ? 0.5 : 0)
+        - distance / SETTLE_RANGE;
+      if (score > bestScore) {
+        bestScore = score;
+        best = { x, y };
+      }
+    }
+    return best;
+  }
+
+  private sendSettlers(kingdom: Kingdom, source: Village, site: { x: number; y: number }): void {
+    const residents = this.residentsOf(source)
+      .filter(entity => entity.age > entity.maxAge * 0.2 && entity.health > entity.maxHealth * 0.5);
+    if (residents.length < SETTLER_SOURCE_POPULATION) return;
+
+    // Never send so many that the source village cannot look after itself
+    const spare = Math.max(0, residents.length - SETTLER_SOURCE_POPULATION + 1);
+    const size = Math.min(
+      spare,
+      SETTLER_PARTY_MIN + Math.floor(Math.random() * (SETTLER_PARTY_MAX - SETTLER_PARTY_MIN + 1)),
+    );
+    if (size < SETTLER_PARTY_MIN) return;
+    const party: SettlerParty = {
+      id: mintId('party'),
+      kingdomId: kingdom.id,
+      sourceVillageId: source.id,
+      target: site,
+      memberIds: new Set(),
+      timeout: SETTLE_TIMEOUT,
+    };
+
+    for (const settler of residents.slice(0, size)) {
+      settler.villageId = null;
+      settler.job = null;
+      party.memberIds.add(settler.id);
+      this.entities.giveOrder(settler, {
+        kind: 'goto',
+        x: site.x,
+        y: site.y,
+        purpose: 'settle',
+      });
+    }
+
+    if (party.memberIds.size === 0) return;
+    this.parties.set(party.id, party);
+    this.events.onEvent(
+      `Settlers leave ${source.name} to found a new home`,
+      'kingdom',
+      { x: source.centerX, y: source.centerY },
+    );
+  }
+
+  /** Abandon parties that never made it, and send their people home. */
+  private ageParties(delta: number): void {
+    for (const party of Array.from(this.parties.values())) {
+      party.timeout -= delta;
+
+      for (const id of Array.from(party.memberIds)) {
+        if (!this.entities.getEntityById(id)) party.memberIds.delete(id);
+      }
+
+      if (party.memberIds.size > 0 && party.timeout > 0) continue;
+
+      // Give up: survivors rejoin whichever settlement will take them
+      for (const id of party.memberIds) {
+        const settler = this.entities.getEntityById(id);
+        if (settler) settler.kingdomId = party.kingdomId;
+      }
+      this.parties.delete(party.id);
+    }
+  }
+
+  /** A settler reached the site. If it is still viable, the village is founded. */
+  private foundColony(settler: Entity, party: SettlerParty): void {
+    const tile = this.tileAt(party.target.x, party.target.y);
+    const kingdom = this.kingdoms.get(party.kingdomId);
+
+    if (!tile || !kingdom || tile.villageId || this.tooCloseToVillage(tile.x, tile.y)) {
+      // Site spoiled while they walked — dissolve the party
+      for (const id of party.memberIds) {
+        const member = this.entities.getEntityById(id);
+        if (member) member.kingdomId = party.kingdomId;
+      }
+      this.parties.delete(party.id);
+      return;
+    }
+
+    const founders = Array.from(party.memberIds)
+      .map(id => this.entities.getEntityById(id))
+      .filter((member): member is Entity => Boolean(member));
+
+    const village = this.createVillage(kingdom, tile, founders);
+    this.parties.delete(party.id);
+
+    const source = this.villages.get(party.sourceVillageId);
+    this.events.onEvent(
+      source
+        ? `${village.name} is founded by settlers from ${source.name}`
+        : `${village.name} is founded`,
+      'kingdom',
+      { x: tile.x, y: tile.y },
+    );
+    void settler;
+  }
 
   /**
    * Measure how much territory each pair of kingdoms shares a border with,
@@ -838,6 +1169,23 @@ export class SettlementSystem {
   }
 
   private destroyVillage(village: Village, conquerorId: string | null): void {
+    this.releaseVillage(village);
+
+    const conqueror = conquerorId ? this.kingdoms.get(conquerorId) : null;
+    this.events.onEvent(
+      conqueror
+        ? `${village.name} is razed by ${conqueror.name}`
+        : `${village.name} is razed`,
+      'war',
+      { x: village.centerX, y: village.centerY },
+    );
+  }
+
+  /**
+   * Common teardown: buildings gone, land unclaimed, residents freed, village
+   * struck from its kingdom. Used by conquest and by abandonment alike.
+   */
+  private releaseVillage(village: Village): void {
     for (const building of Array.from(village.buildings)) {
       this.removeBuilding(village, building);
     }
@@ -856,31 +1204,35 @@ export class SettlementSystem {
       entity.job = null;
     }
 
+    // Any expedition it had underway dies with it
+    for (const party of Array.from(this.parties.values())) {
+      if (party.sourceVillageId === village.id) this.parties.delete(party.id);
+    }
+
     const kingdom = this.kingdoms.get(village.kingdomId);
     if (kingdom) {
       const index = kingdom.villageIds.indexOf(village.id);
       if (index !== -1) kingdom.villageIds.splice(index, 1);
+      // The crown passes to whatever settlement is left
+      if (village.capital) {
+        const heir = kingdom.villageIds
+          .map(id => this.villages.get(id))
+          .find((candidate): candidate is Village => Boolean(candidate));
+        if (heir) heir.capital = true;
+      }
     }
     this.villages.delete(village.id);
-
-    const conqueror = conquerorId ? this.kingdoms.get(conquerorId) : null;
-    this.events.onEvent(
-      conqueror
-        ? `${village.name} is razed by ${conqueror.name}`
-        : `${village.name} is razed`,
-      'war',
-      { x: village.centerX, y: village.centerY },
-    );
   }
 
   // -- save / restore ----------------------------------------------------
 
   /** Rebuild settlements and kingdoms from a save (see saveSystem.ts). */
   restore(savedKingdoms: SavedKingdom[], savedVillages: SavedVillage[]): void {
-    let highestId = this.nextId;
+    // Keep the shared counter ahead of every id the save mentions, so newly
+    // founded villages can never collide with restored ones.
     const trackId = (id: string) => {
       const numeric = Number(id.split('-').pop());
-      if (Number.isFinite(numeric) && numeric >= highestId) highestId = numeric + 1;
+      if (Number.isFinite(numeric) && numeric >= nextIdentifier) nextIdentifier = numeric + 1;
     };
 
     for (const saved of savedKingdoms) {
@@ -911,6 +1263,10 @@ export class SettlementSystem {
         store: { ...saved.store },
         territory: new Set(),
         founded: { year: 0, season: simulation.season },
+        capital: saved.capital ?? false,
+        claimBonus: saved.claimBonus ?? 0,
+        age: 0,
+        emptyFor: 0,
       };
       this.villages.set(village.id, village);
 
@@ -927,7 +1283,6 @@ export class SettlementSystem {
       this.claimTerritory(village);
     }
 
-    this.nextId = highestId;
     this.publishSummaries();
   }
 
@@ -952,6 +1307,7 @@ export class SettlementSystem {
       store: { ...village.store },
       buildings: village.buildings.length,
       territory: village.territory.size,
+      capital: village.capital,
     };
   }
 
@@ -1035,6 +1391,8 @@ export class SettlementSystem {
   }
 
   dispose(): void {
+    this.unsubscribeOrders();
+    if (simulation.homePositionFor) simulation.homePositionFor = undefined;
     this.buildingCloud.points.removeFromParent();
     this.buildingCloud.dispose();
     this.villages.clear();

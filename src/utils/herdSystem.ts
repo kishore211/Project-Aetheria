@@ -15,6 +15,7 @@ import { isWaterBiome, type Entity, type EntityType, type Tile } from '../types/
 import type { EntityManager } from './entityManagerMinimal';
 import { isWalkableForEntity } from './pathfinding';
 import { isSentient } from './entitySystemMinimal';
+import { registerOrderHandler } from './simulation';
 
 export interface Herd {
   id: string;
@@ -56,6 +57,9 @@ const EXISTENCE_INTERVAL = 30;
 
 /** How far a loner will look for company. */
 const JOIN_RADIUS = 12;
+
+/** Shared id counter, so two herd systems cannot mint the same herd id. */
+let nextHerdId = 1;
 /** How far a herd spreads out behind its alpha before members catch up. */
 const FOLLOW_SLACK = 3.5;
 
@@ -68,11 +72,15 @@ export class HerdSystem {
   private followTimer = 0;
   private leaveTimer = 0;
   private existenceTimer = 0;
-  private nextId = 1;
+
+  private unsubscribeOrders: () => void;
 
   constructor(tiles: Tile[][], entities: EntityManager) {
     this.tiles = tiles;
     this.entities = entities;
+    this.unsubscribeOrders = registerOrderHandler((entity, order) => {
+      if (order.purpose === 'herd') this.handleArrival(entity);
+    });
   }
 
   update(delta: number): void {
@@ -147,12 +155,15 @@ export class HerdSystem {
 
   private createHerd(founder: Entity, companions: Entity[]): Herd {
     const herd: Herd = {
-      id: `herd-${this.nextId++}`,
+      id: `herd-${nextHerdId++}`,
       species: founder.type,
       alphaId: founder.id,
       members: new Set<string>(),
       destination: null,
-      moveCooldown: Math.random() * ALPHA_MOVE_INTERVAL,
+      // A newly gathered herd sets off soon rather than standing about for up
+      // to a full migration interval — that first move is what tells the
+      // player the animals are going somewhere.
+      moveCooldown: Math.random() * 12,
     };
     this.herds.set(herd.id, herd);
     this.addMember(herd, founder);
@@ -164,6 +175,8 @@ export class HerdSystem {
   private addMember(herd: Herd, entity: Entity): void {
     herd.members.add(entity.id);
     entity.herdId = herd.id;
+    // The eldest leads, so a newcomer older than the current alpha takes over
+    this.electAlpha(herd);
   }
 
   private removeMember(herd: Herd, entityId: string): void {
@@ -342,6 +355,7 @@ export class HerdSystem {
   }
 
   dispose(): void {
+    this.unsubscribeOrders();
     this.herds.clear();
   }
 }

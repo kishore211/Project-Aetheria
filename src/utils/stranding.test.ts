@@ -195,9 +195,18 @@ describe('rescue', () => {
     human.needs.thirst = 0.1;
     const ai = new EntityAI(human);
 
-    run(ai, grid, 40);
+    // Track the closest it ever got to home: once rescued it is free to wander
+    // again, so its position 40 seconds later says nothing about the rescue.
+    let closestToHome = Infinity;
+    for (let elapsed = 0; elapsed < 40; elapsed += 0.1) {
+      ai.update(grid, 0.1);
+      closestToHome = Math.min(
+        closestToHome,
+        Math.hypot(human.position.x - 24, human.position.y - 24),
+      );
+    }
 
     // Rescued toward home rather than dumped on the nearest rock
-    expect(Math.hypot(human.position.x - 24, human.position.y - 24)).toBeLessThan(20);
+    expect(closestToHome).toBeLessThan(6);
   });
 });

@@ -194,6 +194,9 @@ const InfoPanel = () => {
               <div className="flex items-center gap-2 mb-1">
                 <span className="w-3 h-3 rounded-sm border border-black/30" style={{ backgroundColor: village.kingdomColor }} />
                 <span className="font-medium text-sm text-foreground">{village.name}</span>
+                {village.capital && (
+                  <span className="text-[10px] uppercase tracking-wide text-amber-300">capital</span>
+                )}
               </div>
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <Crown size={11} /> {village.kingdomName}

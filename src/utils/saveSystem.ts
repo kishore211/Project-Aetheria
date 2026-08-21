@@ -75,6 +75,10 @@ export interface SavedVillage {
   centerY: number;
   store: Village['store'];
   buildings: SavedBuilding[];
+  /** The kingdom's founding settlement. */
+  capital?: boolean;
+  /** Territory the village has worked up beyond its buildings' base claim. */
+  claimBonus?: number;
 }
 
 export interface SavedKingdom {
@@ -190,6 +194,8 @@ export const buildSave = (options: {
       centerX: village.centerX,
       centerY: village.centerY,
       store: { ...village.store },
+      capital: village.capital,
+      claimBonus: village.claimBonus,
       buildings: village.buildings.map(building => ({
         id: building.id,
         kind: building.kind,

@@ -154,6 +154,22 @@ describe('kingdoms at war', () => {
       },
     ];
     harness.settlements.restore(kingdoms, villages);
+
+    // Villages need residents or the decay pass will (correctly) abandon them
+    for (const village of villages) {
+      for (let i = 0; i < 6; i++) {
+        const resident = harness.entities.spawnEntity(
+          village.race,
+          village.centerX + (i % 3),
+          village.centerY + 1 + Math.floor(i / 3),
+        );
+        if (resident) {
+          resident.villageId = village.id;
+          resident.kingdomId = village.kingdomId;
+          resident.job = 'gatherer';
+        }
+      }
+    }
   };
 
   it('grows friction along a shared border and eventually declares war', () => {
@@ -174,11 +190,20 @@ describe('kingdoms at war', () => {
     }
     expect(contact).toBeGreaterThan(0);
 
-    run(harness, 200, 1);
+    // Sample as it runs: by the end one side may have conquered the other, and
+    // a fallen kingdom's grudges are wiped from the survivor's ledger.
+    let peakTension = 0;
+    for (let elapsed = 0; elapsed < 200; elapsed++) {
+      harness.entities.update(1);
+      harness.settlements.update(1);
+      for (const kingdom of harness.settlements.kingdoms.values()) {
+        for (const value of kingdom.tension.values()) {
+          peakTension = Math.max(peakTension, value);
+        }
+      }
+    }
 
-    const kingdoms = Array.from(harness.settlements.kingdoms.values());
-    const tension = Math.max(...kingdoms.map((kingdom) => Math.max(0, ...kingdom.tension.values())));
-    expect(tension).toBeGreaterThan(0);
+    expect(peakTension).toBeGreaterThan(0);
     expect(harness.events.some((message) => message.includes('declares war'))).toBe(true);
   });
 
@@ -260,5 +285,111 @@ describe('save round trip', () => {
     expect(restored.buildings).toHaveLength(savedVillages[0].buildings.length);
     expect(restored.territory.size).toBeGreaterThan(0);
     expect(fresh.settlements.kingdomColorFor(restored.kingdomId)).toBe(savedKingdoms[0].colorHex);
+  });
+});
+
+describe('colonisation', () => {
+  it('sends settlers out and founds a second village from them', () => {
+    const harness = makeHarness(70);
+    // A healthy starting population: enough to spare a party
+    for (let i = 0; i < 14; i++) {
+      harness.entities.spawnEntity('human', 30 + (i % 4), 30 + Math.floor(i / 4));
+    }
+
+    run(harness, 20);
+    expect(harness.settlements.villages.size).toBe(1);
+
+    // Give the founding village time to settle in, then colonise
+    run(harness, 160, 1);
+
+    const kingdom = Array.from(harness.settlements.kingdoms.values())[0];
+    expect(kingdom.villageIds.length).toBeGreaterThan(1);
+    expect(harness.events.some((message) => message.includes('Settlers leave'))).toBe(true);
+    expect(harness.events.some((message) => message.includes('founded by settlers from'))).toBe(true);
+  });
+
+  it('marks exactly one capital per kingdom', () => {
+    const harness = makeHarness(70);
+    for (let i = 0; i < 14; i++) {
+      harness.entities.spawnEntity('human', 30 + (i % 4), 30 + Math.floor(i / 4));
+    }
+    run(harness, 180, 1);
+
+    for (const kingdom of harness.settlements.kingdoms.values()) {
+      const capitals = kingdom.villageIds
+        .map((id) => harness.settlements.villages.get(id))
+        .filter((village) => village?.capital);
+      expect(capitals.length).toBe(1);
+    }
+  });
+
+  it('keeps new villages a decent distance apart', () => {
+    const harness = makeHarness(70);
+    for (let i = 0; i < 14; i++) {
+      harness.entities.spawnEntity('human', 30 + (i % 4), 30 + Math.floor(i / 4));
+    }
+    run(harness, 200, 1);
+
+    const villages = Array.from(harness.settlements.villages.values());
+    for (let a = 0; a < villages.length; a++) {
+      for (let b = a + 1; b < villages.length; b++) {
+        expect(Math.hypot(
+          villages[a].centerX - villages[b].centerX,
+          villages[a].centerY - villages[b].centerY,
+        )).toBeGreaterThanOrEqual(16);
+      }
+    }
+  });
+});
+
+describe('territory', () => {
+  it('claims a village-sized area, not a handful of tiles', () => {
+    const harness = makeHarness();
+    for (let i = 0; i < 6; i++) harness.entities.spawnEntity('human', 20 + (i % 3), 20);
+    run(harness, 30);
+
+    const village = Array.from(harness.settlements.villages.values())[0];
+    // A WorldBox village starts at 3x3 zones of 8x8 tiles; ours should be in
+    // the same league rather than the ~50 tiles it used to claim.
+    expect(village.territory.size).toBeGreaterThan(120);
+  });
+
+  it('creeps outward as the village builds up', () => {
+    const harness = makeHarness();
+    for (let i = 0; i < 8; i++) harness.entities.spawnEntity('human', 20 + (i % 3), 20 + Math.floor(i / 3));
+    run(harness, 30);
+
+    const village = Array.from(harness.settlements.villages.values())[0];
+    const early = village.territory.size;
+
+    run(harness, 120, 1);
+    expect(village.claimBonus).toBeGreaterThan(0);
+    expect(village.territory.size).toBeGreaterThan(early);
+  });
+});
+
+describe('decay', () => {
+  it('abandons a village whose people are all gone and frees its land', () => {
+    const harness = makeHarness();
+    for (let i = 0; i < 6; i++) harness.entities.spawnEntity('human', 20 + (i % 3), 20);
+    run(harness, 30);
+
+    const village = Array.from(harness.settlements.villages.values())[0];
+    expect(village).toBeDefined();
+    const claimed = Array.from(village.territory);
+    expect(claimed.length).toBeGreaterThan(0);
+
+    for (const entity of harness.entities.getAllEntities()) {
+      harness.entities.killEntity(entity, 'divine');
+    }
+
+    run(harness, 60, 1);
+
+    expect(harness.settlements.villages.has(village.id)).toBe(false);
+    for (const instanceId of claimed) {
+      const { x, y } = harness.terrain.tileCoordsFromInstanceId(instanceId);
+      expect(harness.tiles[x][y].ownerId).toBeNull();
+    }
+    expect(harness.events.some((message) => message.includes('falls to ruin'))).toBe(true);
   });
 });
