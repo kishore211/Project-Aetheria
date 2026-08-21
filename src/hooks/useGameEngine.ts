@@ -31,6 +31,7 @@ import { chronicle } from '../utils/chronicle';
 import { applyScenario, type Scenario } from '../utils/scenarios';
 import { nudgeMood } from '../utils/mood';
 import { AGES, AGE_LENGTH, nextAge, type AgeAction } from '../utils/ages';
+import { resetPlotIds } from '../utils/plots';
 import { ageBridge } from '../utils/ageBridge';
 import { recordDeath, resetStats, sampleWorld } from '../utils/worldStats';
 
@@ -225,6 +226,7 @@ export const useGameEngine = () => {
     clearFloaters();
     clearImpacts();
     resetStats();
+    resetPlotIds();
     if (selectionIndicatorRef.current) {
       scene.remove(selectionIndicatorRef.current);
       selectionIndicatorRef.current.geometry.dispose();
@@ -328,6 +330,7 @@ export const useGameEngine = () => {
     };
     manager.onEntityDeath = (entity, cause) => {
       recordDeath(cause);
+      settlementRef.current?.forgetPlotter(entity.id);
       const state = useGameStore.getState();
       if (state.selectedEntity?.id === entity.id) state.setSelectedEntity(null);
       if (state.followEntityId === entity.id) state.setFollowEntity(null);
@@ -357,6 +360,9 @@ export const useGameEngine = () => {
       },
       onVillagesChanged: (summaries) => {
         useGameStore.getState().setVillages(summaries);
+      },
+      onPlotsChanged: (summaries) => {
+        useGameStore.getState().setPlots(summaries);
       },
     });
     settlementRef.current = settlements;
@@ -756,6 +762,16 @@ export const useGameEngine = () => {
         effectsManagerRef.current?.spawnAura(tileWorldPosition(tile), 0xffee88);
         soundManager.bless();
         reactNearby(tile, blessRadius, 'blessed');
+        // Divine light is the non-violent way to stop a scheme. Without a way
+        // to intervene, a plot is a countdown rather than a decision.
+        {
+          const settled = entityManagerRef.current?.query(tile.x, tile.y, blessRadius + 1) ?? [];
+          let calmed = 0;
+          for (const witness of settled) {
+            calmed += settlementRef.current?.cancelPlotsBy(witness.id, 'blessed') ?? 0;
+          }
+          if (calmed > 0) requestFlash('divine', 0.7);
+        }
         requestFlash('divine', 0.5);
         store.addEvent(
           chronicle('blessing') + (healed > 0 ? `, healing ${healed} creatures` : ''),
@@ -1653,7 +1669,13 @@ export const useGameEngine = () => {
     if (iconTimerRef.current >= 1 / 6) {
       iconTimerRef.current = 0;
       const manager = entityManagerRef.current;
-      if (manager) unitIconsRef.current?.update(manager.getAllEntities(), manager.detail);
+      if (manager) {
+        unitIconsRef.current?.update(
+          manager.getAllEntities(),
+          manager.detail,
+          settlementRef.current?.plottingIds(),
+        );
+      }
     }
 
     // Statistics run on simulated time, not the wall clock: at triple speed the

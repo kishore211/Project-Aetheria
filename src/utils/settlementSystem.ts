@@ -15,7 +15,7 @@ import {
   type ResourceType,
   type Tile,
 } from '../types/world';
-import type { KingdomSummary, VillageSummary, WorldLaws } from '../store/gameStore';
+import type { KingdomSummary, VillageSummary, PlotSummary, WorldLaws } from '../store/gameStore';
 import type { EntityManager } from './entityManagerMinimal';
 import { getBuildingAtlas } from './pixelAtlas';
 import { SpriteCloud } from './spriteCloud';
@@ -23,6 +23,14 @@ import type { TerrainRenderer } from './terrainRenderer';
 import { registerOrderHandler, simulation } from './simulation';
 import { emitFloater } from './floatBridge';
 import { applyScenario } from './scenarios';
+import {
+  PLOTS,
+  createPlot,
+  plotRate,
+  plotReady,
+  type Plot,
+  type PlotKind,
+} from './plots';
 import { requestFlash } from './impactBridge';
 import { chronicle } from './chronicle';
 import { applyStatus, clearStatus, type StatusId } from './statusEffects';
@@ -136,6 +144,8 @@ export interface Kingdom {
   tension: Map<string, number>;
   /** Seconds this kingdom has existed, for the new-kingdom loyalty bonus. */
   age: number;
+  /** Kingdoms bound by an alliance plot. Allies do not build tension. */
+  allies: Set<string>;
 }
 
 interface BuildingRecipe {
@@ -250,6 +260,7 @@ export interface SettlementEvents {
   onEvent: (message: string, kind: 'kingdom' | 'war' | 'info', position?: { x: number; y: number }) => void;
   onKingdomsChanged: (summaries: KingdomSummary[]) => void;
   onVillagesChanged?: (summaries: VillageSummary[]) => void;
+  onPlotsChanged?: (summaries: PlotSummary[]) => void;
 }
 
 export class SettlementSystem {
@@ -273,6 +284,10 @@ export class SettlementSystem {
   private colonyTimer = 0;
   private publishTimer = 0;
   private loyaltyTimer = 0;
+  private plotTimer = 0;
+  /** Live schemes, keyed by id. */
+  private plots = new Map<string, Plot>();
+  private plotterIds = new Set<string>();
   private laws: WorldLaws = simulation.laws;
   /** Diplomacy rounds each active war has lasted, keyed by kingdom pair. */
   private warTimers = new Map<string, number>();
@@ -364,6 +379,13 @@ export class SettlementSystem {
       this.loyaltyTimer = 0;
       this.succession();
       this.loyaltyRound(elapsed);
+    }
+
+    this.plotTimer += delta;
+    if (this.plotTimer >= 2) {
+      const elapsed = this.plotTimer;
+      this.plotTimer = 0;
+      this.plotRound(elapsed);
     }
 
     this.diplomacyTimer += delta;
@@ -520,6 +542,7 @@ export class SettlementSystem {
       atWar: new Set(),
       tension: new Map(),
       age: 0,
+      allies: new Set(),
     };
     this.kingdoms.set(kingdom.id, kingdom);
     return kingdom;
@@ -1187,6 +1210,313 @@ export class SettlementSystem {
     this.publishSummaries();
   }
 
+  // -- plots -------------------------------------------------------------
+
+  /** Every live scheme, for the interface. */
+  activePlots(): Array<Plot & { plotterName: string; subjectName: string; targetName: string | null }> {
+    const rows = [];
+    for (const plot of this.plots.values()) {
+      const plotter = this.entities.getEntityById(plot.plotterId);
+      if (!plotter) continue;
+      rows.push({
+        ...plot,
+        plotterName: plotter.name,
+        subjectName: this.villages.get(plot.subjectId)?.name
+          ?? this.kingdoms.get(plot.subjectId)?.name
+          ?? 'somewhere',
+        targetName: plot.targetKingdomId
+          ? this.kingdoms.get(plot.targetKingdomId)?.name ?? null
+          : null,
+      });
+    }
+    return rows.sort((a, b) => b.progress / PLOTS[b.kind].target - a.progress / PLOTS[a.kind].target);
+  }
+
+  /** Plots this creature is running, for the inspector. */
+  plotsBy(entityId: string): Plot[] {
+    return Array.from(this.plots.values()).filter(plot => plot.plotterId === entityId);
+  }
+
+  /**
+   * Ids of everyone currently scheming, refreshed once per plot round.
+   *
+   * The icon rail asks this every frame for every visible unit, so it must not
+   * walk the plot map each time — a Set built when plots change is the whole
+   * difference between "free" and "quadratic in the population".
+   */
+  plottingIds(): ReadonlySet<string> {
+    return this.plotterIds;
+  }
+
+  /**
+   * Break up a scheme.
+   *
+   * Public because the player is meant to be able to stop one — blessing the
+   * plotter is the non-violent option, and killing them is the other. Without
+   * a way to intervene, a plot is a countdown rather than a decision.
+   */
+  cancelPlotsBy(entityId: string, reason: 'dead' | 'blessed'): number {
+    let cancelled = 0;
+    for (const [id, plot] of this.plots) {
+      if (plot.plotterId !== entityId) continue;
+      this.plots.delete(id);
+      cancelled += 1;
+      if (reason === 'blessed') {
+        const plotter = this.entities.getEntityById(entityId);
+        this.events.onEvent(
+          chronicle('plot_abandoned', {
+            name: plotter?.name ?? 'Someone', type: PLOTS[plot.kind].label.toLowerCase(),
+          }),
+          'kingdom',
+        );
+      }
+    }
+    return cancelled;
+  }
+
+  /**
+   * Drop the schemes of a creature that has died.
+   *
+   * `plotRound` already skips plots whose plotter is gone, but leaving them in
+   * the map means the interface lists a conspiracy nobody is running — and the
+   * player's most direct way of stopping a plot should visibly work.
+   */
+  forgetPlotter(entityId: string): void {
+    this.cancelPlotsBy(entityId, 'dead');
+  }
+
+  /** Live schemes, flattened for the register. */
+  private plotSummaries(): PlotSummary[] {
+    const rows: PlotSummary[] = [];
+    for (const plot of this.plots.values()) {
+      const plotter = this.entities.getEntityById(plot.plotterId);
+      if (!plotter) continue;
+      const def = PLOTS[plot.kind];
+      rows.push({
+        id: plot.id,
+        kind: plot.kind,
+        label: def.label,
+        description: def.description,
+        glyph: def.glyph,
+        plotterName: plotter.name,
+        subjectName: this.villages.get(plot.subjectId)?.name
+          ?? this.kingdoms.get(plot.subjectId)?.name
+          ?? 'somewhere',
+        targetName: plot.targetKingdomId
+          ? this.kingdoms.get(plot.targetKingdomId)?.name ?? null
+          : null,
+        share: Math.max(0, Math.min(1, plot.progress / def.target)),
+        age: plot.age,
+        conspirators: plot.conspirators,
+        hostile: def.hostile,
+        x: Math.floor(plotter.position.x),
+        y: Math.floor(plotter.position.y),
+      });
+    }
+    // Furthest along first: the one about to fire is the one worth acting on.
+    return rows.sort((a, b) => b.share - a.share);
+  }
+
+  private plotRound(delta: number): void {
+    // Advance and resolve what is already running, before starting anything
+    // new — otherwise a plot could be created and fire in the same pass, which
+    // defeats the entire purpose of a plot being visible in advance.
+    for (const [id, plot] of [...this.plots]) {
+      const plotter = this.entities.getEntityById(plot.plotterId);
+      if (!plotter || plotter.health <= 0) {
+        this.plots.delete(id);
+        continue;
+      }
+
+      plot.age += delta;
+      plot.progress += plotRate(plot, civilStats(plotter)) * delta;
+
+      if (plotReady(plot)) {
+        this.plots.delete(id);
+        this.resolvePlot(plot, plotter);
+      }
+    }
+
+    this.considerNewPlots();
+
+    this.plotterIds.clear();
+    for (const plot of this.plots.values()) this.plotterIds.add(plot.plotterId);
+  }
+
+  /** Who has a reason to be scheming, and about what. */
+  private considerNewPlots(): void {
+    const plotting = new Set(Array.from(this.plots.values()).map(plot => plot.plotterId));
+
+    for (const kingdom of this.kingdoms.values()) {
+      // A governor with an unhappy province starts thinking about leaving.
+      for (const villageId of kingdom.villageIds) {
+        const village = this.villages.get(villageId);
+        if (!village || village.capital) continue;
+        const leader = this.villageLeader(village);
+        if (!leader || plotting.has(leader.id)) continue;
+
+        const loyalty = village.loyalty?.score ?? 100;
+        // Started well above the rebellion threshold, so the icon appears
+        // before the province is already lost. This is the whole point: a
+        // warning, not an obituary.
+        if (loyalty < 25 && Math.random() < 0.4) {
+          this.startPlot('rebellion', leader, village.id, null);
+          plotting.add(leader.id);
+        }
+      }
+
+      const king = kingdom.kingId ? this.entities.getEntityById(kingdom.kingId) : null;
+      if (!king || plotting.has(king.id)) continue;
+      const stats = civilStats(king);
+
+      // A king at war looks for a way out if he is not a fighter, and presses
+      // on if he is.
+      const enemies = Array.from(kingdom.atWar);
+      if (enemies.length > 0) {
+        if (stats.diplomacy > stats.warfare && Math.random() < 0.5) {
+          this.startPlot('peace', king, kingdom.id, enemies[0]);
+          plotting.add(king.id);
+          continue;
+        }
+      } else if (this.laws.warfare) {
+        // Otherwise a warlike king finds somebody to resent, and a diplomat
+        // finds somebody to bind.
+        const neighbour = this.mostTenseNeighbour(kingdom);
+        if (neighbour) {
+          if (stats.warfare >= 7 && Math.random() < 0.3) {
+            this.startPlot('war', king, kingdom.id, neighbour.id);
+            plotting.add(king.id);
+            continue;
+          }
+          if (stats.diplomacy >= 7 && Math.random() < 0.3) {
+            this.startPlot('alliance', king, kingdom.id, neighbour.id);
+            plotting.add(king.id);
+            continue;
+          }
+        }
+      }
+
+      // A capable steward with a miserable realm throws a party instead.
+      const misery = this.averageMoodOf(kingdom);
+      if (misery < -20 && stats.stewardship >= 6 && Math.random() < 0.35) {
+        this.startPlot('festival', king, kingdom.id, null);
+        plotting.add(king.id);
+      }
+    }
+  }
+
+  private startPlot(
+    kind: PlotKind, plotter: Entity, subjectId: string, targetKingdomId: string | null,
+  ): void {
+    const plot = createPlot(kind, plotter, subjectId, targetKingdomId);
+    // Anybody nearby who feels the same way joins in, which speeds it up. This
+    // is why a village that is uniformly wretched rebels faster than one with
+    // a single disgruntled governor.
+    const mood = plotter.happiness ?? 0;
+    plot.conspirators = 1 + this.entities
+      .query(plotter.position.x, plotter.position.y, 6)
+      .filter(other => other.id !== plotter.id
+        && other.villageId === plotter.villageId
+        && Math.abs((other.happiness ?? 0) - mood) < 30).length;
+
+    this.plots.set(plot.id, plot);
+  }
+
+  private resolvePlot(plot: Plot, plotter: Entity): void {
+    const def = PLOTS[plot.kind];
+    switch (plot.kind) {
+      case 'rebellion': {
+        const village = this.villages.get(plot.subjectId);
+        const kingdom = village ? this.kingdoms.get(village.kingdomId) : null;
+        // A plot that comes off skips the patience timer entirely: the whole
+        // point of scheming is that it is faster than waiting to be unhappy.
+        if (village && kingdom && !village.capital) this.secede(village, kingdom);
+        return;
+      }
+      case 'coup': {
+        const kingdom = this.kingdoms.get(plot.subjectId);
+        if (!kingdom) return;
+        const deposed = kingdom.kingId ? this.entities.getEntityById(kingdom.kingId) : null;
+        if (deposed) this.clearOffices(deposed);
+        kingdom.kingId = plotter.id;
+        kingdom.ruler = plotter.name;
+        applyStatus(plotter, 'king');
+        applyScenario(plotter, 'crowned');
+        this.events.onEvent(
+          chronicle('coup', { name: plotter.name, a: kingdom.name, b: deposed?.name ?? 'the throne' }),
+          'kingdom',
+          { x: Math.floor(plotter.position.x), y: Math.floor(plotter.position.y) },
+        );
+        return;
+      }
+      case 'war': {
+        const a = this.kingdoms.get(plot.subjectId);
+        const b = plot.targetKingdomId ? this.kingdoms.get(plot.targetKingdomId) : null;
+        if (a && b && !a.atWar.has(b.id)) this.declareWar(a, b);
+        return;
+      }
+      case 'peace': {
+        const a = this.kingdoms.get(plot.subjectId);
+        const b = plot.targetKingdomId ? this.kingdoms.get(plot.targetKingdomId) : null;
+        if (a && b && a.atWar.has(b.id)) this.makePeace(a, b);
+        return;
+      }
+      case 'alliance': {
+        const a = this.kingdoms.get(plot.subjectId);
+        const b = plot.targetKingdomId ? this.kingdoms.get(plot.targetKingdomId) : null;
+        if (!a || !b) return;
+        a.allies.add(b.id);
+        b.allies.add(a.id);
+        a.tension.set(b.id, 0);
+        b.tension.set(a.id, 0);
+        this.events.onEvent(chronicle('alliance', { a: a.name, b: b.name }), 'kingdom');
+        return;
+      }
+      case 'festival': {
+        const kingdom = this.kingdoms.get(plot.subjectId);
+        if (!kingdom) return;
+        for (const resident of this.entities.getAllEntities()) {
+          if (resident.kingdomId !== kingdom.id) continue;
+          applyScenario(resident, 'healed');
+        }
+        this.events.onEvent(
+          chronicle('festival', { a: kingdom.name, name: plotter.name }), 'kingdom',
+        );
+        return;
+      }
+      default: {
+        // Exhaustive above; this keeps a new PlotKind from failing silently.
+        void def;
+        return;
+      }
+    }
+  }
+
+  private mostTenseNeighbour(kingdom: Kingdom): Kingdom | null {
+    let best: Kingdom | null = null;
+    let bestTension = 0.25;
+    for (const [id, tension] of kingdom.tension) {
+      if (kingdom.allies.has(id)) continue;
+      if (tension <= bestTension) continue;
+      const other = this.kingdoms.get(id);
+      if (!other) continue;
+      best = other;
+      bestTension = tension;
+    }
+    return best;
+  }
+
+  private averageMoodOf(kingdom: Kingdom): number {
+    let total = 0;
+    let count = 0;
+    for (const entity of this.entities.getAllEntities()) {
+      if (entity.kingdomId !== kingdom.id) continue;
+      total += entity.happiness ?? 0;
+      count += 1;
+    }
+    return count === 0 ? 0 : total / count;
+  }
+
   // -- diplomacy and war -------------------------------------------------
 
   // -- growth and colonisation -------------------------------------------
@@ -1700,6 +2030,7 @@ export class SettlementSystem {
         villageIds: [...saved.villageIds],
         atWar: new Set(saved.atWar),
         tension: new Map(saved.tension),
+        allies: new Set(),
         // Restored kingdoms start past the new-kingdom loyalty honeymoon: a
         // loaded save is an established realm, not a freshly declared one.
         age: 600,
@@ -1850,6 +2181,8 @@ export class SettlementSystem {
     }
     // Restless provinces first: a town about to secede is the most interesting
     // row in the list, and burying it under the biggest towns hides the story.
+    this.events.onPlotsChanged?.(this.plotSummaries());
+
     villageRows.sort((a, b) => {
       if ((a.secedesIn === null) !== (b.secedesIn === null)) return a.secedesIn === null ? 1 : -1;
       if (a.secedesIn !== null && b.secedesIn !== null) return a.secedesIn - b.secedesIn;

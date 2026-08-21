@@ -83,6 +83,26 @@ export interface VillageSummary {
   y: number;
 }
 
+/** A live scheme, flattened for the register. */
+export interface PlotSummary {
+  id: string;
+  kind: string;
+  label: string;
+  description: string;
+  glyph: string;
+  plotterName: string;
+  subjectName: string;
+  targetName: string | null;
+  /** 0-1. */
+  share: number;
+  /** Simulated seconds since it began. */
+  age: number;
+  conspirators: number;
+  hostile: boolean;
+  x: number;
+  y: number;
+}
+
 export interface KingdomSummary {
   id: string;
   name: string;
@@ -210,6 +230,7 @@ interface GameState {
   uiHidden: boolean;
   kingdoms: KingdomSummary[];
   villages: VillageSummary[];
+  plots: PlotSummary[];
   /** Entity the camera is following (spectate mode). */
   followEntityId: string | null;
   /** Set by the minimap and chronicle to fly the camera somewhere. */
@@ -261,6 +282,7 @@ interface GameState {
   setWorldLaws: (laws: WorldLaws) => void;
   setKingdoms: (kingdoms: KingdomSummary[]) => void;
   setVillages: (villages: VillageSummary[]) => void;
+  setPlots: (plots: PlotSummary[]) => void;
   setFollowEntity: (id: string | null) => void;
   focusTile: (x: number, y: number) => void;
   setHoverTarget: (target: HoverTarget | null) => void;
@@ -338,6 +360,7 @@ export const useGameStore = create<GameState>((set) => ({
   uiHidden: false,
   kingdoms: [],
   villages: [],
+  plots: [],
   followEntityId: null,
   cameraTarget: null,
   hoverTarget: null,
@@ -424,6 +447,7 @@ export const useGameStore = create<GameState>((set) => ({
 
   setKingdoms: (kingdoms: KingdomSummary[]) => set({ kingdoms }),
   setVillages: (villages: VillageSummary[]) => set({ villages }),
+  setPlots: (plots: PlotSummary[]) => set({ plots }),
 
   setFollowEntity: (followEntityId: string | null) => set({ followEntityId }),
 
@@ -454,6 +478,7 @@ export const useGameStore = create<GameState>((set) => ({
     events: [],
     kingdoms: [],
     villages: [],
+    plots: [],
   })),
 
   clearPendingSave: () => set({ pendingSave: null }),
@@ -500,6 +525,7 @@ export const useGameStore = create<GameState>((set) => ({
     events: [],
     kingdoms: [],
     villages: [],
+    plots: [],
     timeOfDay: 'day',
     age: 'hope',
     ageProgress: 0,
@@ -513,5 +539,6 @@ export const useGameStore = create<GameState>((set) => ({
     events: [],
     kingdoms: [],
     villages: [],
+    plots: [],
   }),
 }));

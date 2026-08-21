@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Crown, Home, Swords, X } from 'lucide-react';
+import { Crown, Home, ScrollText, Swords, X } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
 
 /**
@@ -15,17 +15,19 @@ import { useGameStore } from '../../store/gameStore';
  * behaviour does not, and every row does the same thing when clicked.
  */
 
-type ListTab = 'realms' | 'villages' | 'wars';
+type ListTab = 'realms' | 'villages' | 'wars' | 'plots';
 
 const TABS: Array<{ id: ListTab; label: string; icon: typeof Crown }> = [
   { id: 'realms', label: 'Realms', icon: Crown },
   { id: 'villages', label: 'Towns', icon: Home },
   { id: 'wars', label: 'Wars', icon: Swords },
+  { id: 'plots', label: 'Plots', icon: ScrollText },
 ];
 
 const ListWindow = ({ open, onClose }: { open: boolean; onClose: () => void }) => {
   const kingdoms = useGameStore((state) => state.kingdoms);
   const villages = useGameStore((state) => state.villages);
+  const plots = useGameStore((state) => state.plots);
   const focusTile = useGameStore((state) => state.focusTile);
   const [tab, setTab] = useState<ListTab>('realms');
 
@@ -61,6 +63,7 @@ const ListWindow = ({ open, onClose }: { open: boolean; onClose: () => void }) =
     realms: kingdoms.length,
     villages: villages.length,
     wars: wars.length,
+    plots: plots.length,
   };
 
   return (
@@ -143,6 +146,49 @@ const ListWindow = ({ open, onClose }: { open: boolean; onClose: () => void }) =
                         )}
                         {village.kingdomName} · {village.population} living ·{' '}
                         {village.territory} tiles
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ))}
+
+          {tab === 'plots' && (plots.length === 0
+            ? (
+              <p className="list-empty">
+                Nobody is scheming. Give somebody a reason.
+              </p>
+            )
+            : (
+              <ul className="space-y-1.5">
+                {plots.map((plot) => (
+                  <li key={plot.id}>
+                    <button
+                      type="button"
+                      className="plot-row"
+                      title={plot.description}
+                      onClick={() => { focusTile(plot.x, plot.y); onClose(); }}
+                    >
+                      <span className="plot-glyph" aria-hidden>{plot.glyph}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="plot-head">
+                          <b>{plot.plotterName}</b> — {plot.label}
+                          {plot.targetName ? ` against ${plot.targetName}` : ` in ${plot.subjectName}`}
+                        </span>
+                        {/* A bar, not a percentage: how close it is matters more
+                            than the number, and the player is deciding whether
+                            there is time to intervene. */}
+                        <span className="plot-track">
+                          <i
+                            className={plot.hostile ? 'is-hostile' : 'is-benign'}
+                            style={{ width: `${Math.max(3, plot.share * 100)}%` }}
+                          />
+                        </span>
+                        <span className="plot-meta">
+                          {Math.round(plot.share * 100)}% · planning for{' '}
+                          {Math.round(plot.age)}s
+                          {plot.conspirators > 1 && ` · ${plot.conspirators} involved`}
+                        </span>
                       </span>
                     </button>
                   </li>

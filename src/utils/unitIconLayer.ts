@@ -73,6 +73,8 @@ const ACTIVITY_TINTS: Record<string, THREE.Color> = {
 export class UnitIconLayer {
   private cloud: SpriteCloud;
   private slots = new Map<string, number>();
+  /** Ids currently running a plot, refreshed by the caller. */
+  private plotters: ReadonlySet<string> | null = null;
   private freeSlots: number[] = [];
   private nextSlot = 0;
   private capacityUnits: number;
@@ -104,7 +106,8 @@ export class UnitIconLayer {
    * frame: icons change on the scale of seconds, and the positions are lerped
    * from the unit meshes anyway.
    */
-  update(entities: Entity[], detailLevel: number): void {
+  update(entities: Entity[], detailLevel: number, plotters?: ReadonlySet<string>): void {
+    this.plotters = plotters ?? null;
     if (!this.visible) return;
 
     // Icons are unreadable when the map is zoomed right out, and drawing a
@@ -164,6 +167,9 @@ export class UnitIconLayer {
   }
 
   private professionIcon(entity: Entity): string | null {
+    // Scheming outranks office: a plotting king is a more urgent thing to know
+    // about than a king.
+    if (this.plotters?.has(entity.id)) return 'plotting';
     if (entity.status.includes('king')) return 'king';
     if (entity.status.includes('leader')) return 'leader';
     if (entity.status.includes('captain')) return 'captain';

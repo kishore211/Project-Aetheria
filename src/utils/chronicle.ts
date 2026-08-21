@@ -28,6 +28,10 @@ export type ChronicleTopic =
   | 'hall_raised'
   | 'monument_raised'
   | 'secession'
+  | 'coup'
+  | 'alliance'
+  | 'festival'
+  | 'plot_abandoned'
   | 'crowned_king'
   | 'succession_none'
   | 'war_declared'
@@ -142,6 +146,27 @@ const TEMPLATES: Record<ChronicleTopic, string[]> = {
     '{a} has lost {name}. The banners over it read {b}',
     '{name} raises its own flag as {b}, and {a} will not forgive it',
   ],
+  coup: [
+    '{name} takes the throne of {a} out from under {b}',
+    '{b} is no longer ruler of {a}. {name} is.',
+    'The crown of {a} changes heads. {name} was ready; {b} was not.',
+  ],
+  alliance: [
+    '{a} and {b} swear to stand together',
+    '{a} and {b} sign something, and mean most of it',
+    'An alliance binds {a} to {b}',
+  ],
+  festival: [
+    '{a} holds a feast, and {name} pays for it',
+    '{name} throws {a} a festival it could not really afford',
+    'There is a feast in {a}. Nobody asks where the grain came from.',
+  ],
+  plot_abandoned: [
+    '{name} thinks better of the {type}',
+    '{name} lets the {type} go',
+    'Whatever {name} was planning, the {type} is off',
+  ],
+
   crowned_king: [
     '{name} takes the crown of {a}',
     '{name} is raised up to rule {a}',

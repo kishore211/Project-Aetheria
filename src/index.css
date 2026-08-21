@@ -1077,3 +1077,65 @@ canvas {
 @media (prefers-reduced-motion: reduce) {
   .age-clock > i { transition: none; }
 }
+
+/* ---------------------------------------------------------------------------
+   Plots
+--------------------------------------------------------------------------- */
+
+.plot-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid rgb(148 163 184 / 0.2);
+  border-radius: 9px;
+  background: rgb(2 6 23 / 0.35);
+  text-align: left;
+  transition: background 0.14s, border-color 0.14s;
+}
+.plot-row:hover {
+  background: rgb(51 65 85 / 0.5);
+  border-color: rgb(148 163 184 / 0.35);
+}
+
+.plot-glyph {
+  flex: 0 0 auto;
+  font-size: 1.05rem;
+  line-height: 1.2;
+}
+
+.plot-head {
+  display: block;
+  font-size: 0.74rem;
+  color: rgb(226 232 240);
+}
+.plot-head > b { color: rgb(248 250 252); }
+
+.plot-track {
+  display: block;
+  height: 0.35rem;
+  margin-top: 0.28rem;
+  border-radius: 999px;
+  background: rgb(2 6 23 / 0.7);
+  overflow: hidden;
+}
+.plot-track > i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.5s linear;
+}
+.plot-track > i.is-hostile { background: rgb(248 113 113 / 0.9); }
+.plot-track > i.is-benign { background: rgb(52 211 153 / 0.9); }
+
+.plot-meta {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.63rem;
+  color: rgb(148 163 184);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plot-track > i { transition: none; }
+}
