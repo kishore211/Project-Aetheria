@@ -303,6 +303,38 @@ export class EffectsManager {
     });
   }
 
+  /**
+   * A red cross where a power was refused. WorldBox pops an X when a power
+   * cannot be used somewhere; without it a rejected click is indistinguishable
+   * from a broken game.
+   */
+  spawnRefusal(position: THREE.Vector3): void {
+    const material = new THREE.LineBasicMaterial({
+      color: 0xff5a4a,
+      transparent: true,
+      opacity: 1,
+      depthWrite: false,
+      depthTest: false,
+    });
+    const arm = 0.22;
+    const geometry = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-arm, 0, -arm), new THREE.Vector3(arm, 0, arm),
+      new THREE.Vector3(-arm, 0, arm), new THREE.Vector3(arm, 0, -arm),
+    ]);
+    const cross = new THREE.LineSegments(geometry, material);
+    cross.position.copy(position);
+    cross.position.y += 0.3;
+    cross.renderOrder = 4;
+
+    this.add(cross, 0.55, (effect) => {
+      const t = effect.age / effect.lifetime;
+      material.opacity = 1 - t;
+      effect.object.position.y += 0.35 * (1 / 60);
+      const scale = 1 + t * 0.5;
+      effect.object.scale.set(scale, scale, scale);
+    });
+  }
+
   /** Soft rising glow for blessings and curses. */
   spawnAura(position: THREE.Vector3, color: number): void {
     this.spawnBurst(position, color, 20, 1.4);

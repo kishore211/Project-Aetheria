@@ -1519,6 +1519,16 @@ export class SettlementSystem {
     return { x: village.centerX, y: village.centerY };
   }
 
+  /** Village name by id, for tooltips and the inspector. */
+  villageName(id: string): string | null {
+    return this.villages.get(id)?.name ?? null;
+  }
+
+  /** Kingdom name by id, for tooltips and the inspector. */
+  kingdomName(id: string): string | null {
+    return this.kingdoms.get(id)?.name ?? null;
+  }
+
   kingdomColorFor(id: string): string | undefined {
     return this.kingdoms.get(id)?.colorHex;
   }

@@ -83,6 +83,10 @@ export const useGameEngine = () => {
   const ecologyTimerRef = useRef<number>(0);
   const autosaveTimerRef = useRef<number>(0);
   const lastCameraNonceRef = useRef<number>(0);
+  const hoverTimerRef = useRef<number>(0);
+  const hoverKeyRef = useRef<string>('');
+  const brushPreviewRef = useRef<THREE.Mesh | null>(null);
+  const hoverTileRef = useRef<Tile | null>(null);
 
   const [isInitialized, setIsInitialized] = useState<boolean>(false);
 
@@ -181,6 +185,12 @@ export const useGameEngine = () => {
       (selectionIndicatorRef.current.material as THREE.Material).dispose();
       selectionIndicatorRef.current = null;
     }
+    if (brushPreviewRef.current) {
+      scene.remove(brushPreviewRef.current);
+      brushPreviewRef.current.geometry.dispose();
+      (brushPreviewRef.current.material as THREE.Material).dispose();
+      brushPreviewRef.current = null;
+    }
     fireRef.current?.clear();
     fireRef.current = null;
 
@@ -212,6 +222,24 @@ export const useGameEngine = () => {
     indicator.renderOrder = 2;
     selectionIndicatorRef.current = indicator;
     scene.add(indicator);
+
+    // Brush preview: shows exactly which tiles a power will touch before the
+    // player commits. Area tools were previously a guess.
+    const previewGeometry = new THREE.RingGeometry(TILE_SIZE * 0.42, TILE_SIZE * 0.5, 40);
+    const previewMaterial = new THREE.MeshBasicMaterial({
+      color: 0xfff0c0,
+      transparent: true,
+      opacity: 0.55,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      depthTest: false,
+    });
+    const preview = new THREE.Mesh(previewGeometry, previewMaterial);
+    preview.rotation.x = -Math.PI / 2;
+    preview.visible = false;
+    preview.renderOrder = 2;
+    brushPreviewRef.current = preview;
+    scene.add(preview);
 
     // Frame the whole map, whatever shape the window is. A fixed distance looks
     // right on one aspect ratio and wrong on every other, so derive it from the
@@ -449,16 +477,21 @@ export const useGameEngine = () => {
     return ['bird', 'rabbit', 'chicken'];
   }, []);
 
-  const spawnRace = useCallback((tile: Tile, type: EntityType) => {
-    if (tile.height <= 0.25 || isWaterBiome(tile.type)) return;
+  const spawnRace = useCallback((tile: Tile, type: EntityType): boolean => {
+    if (tile.height <= 0.25 || isWaterBiome(tile.type)) return false;
     const spawned = entityManagerRef.current?.spawnEntity(type, tile.x, tile.y);
-    if (spawned) tile.population += 1;
+    if (!spawned) return false;
+    tile.population += 1;
+    return true;
   }, []);
 
-  const applyToolEffect = useCallback((tile: Tile, tool: string | null) => {
-    if (!tile || !tool) return;
+  const applyToolEffect = useCallback((tile: Tile, tool: string | null): boolean => {
+    if (!tile || !tool) return false;
     const store = useGameStore.getState();
     const radius = BRUSH_TOOLS.has(tool) ? store.brushRadius : 0;
+    // Powers report whether they actually did something, so a refused click can
+    // say so instead of looking like a broken game.
+    let acted = true;
 
     switch (tool) {
       case 'raise-terrain':
@@ -493,8 +526,10 @@ export const useGameEngine = () => {
 
       case 'place-forest':
       case 'plant-trees':
+        acted = false;
         forEachBrushTile(tile, radius, (target) => {
           if (target.height <= 0.28 || target.height >= 0.78 || isWaterBiome(target.type)) return;
+          acted = true;
           target.type = target.temperature < 0.32 ? 'coniferous_forest' : 'deciduous_forest';
           target.structure = { type: 'mature_tree', health: 100, level: 2 };
           if (!target.resources.some(r => r.type === 'wood')) {
@@ -505,19 +540,20 @@ export const useGameEngine = () => {
           }
           syncTile(target);
         });
+        if (!acted) break;
         effectsManagerRef.current?.spawnBurst(tileWorldPosition(tile), 0x55cc55, 14, 1.5);
         soundManager.terraform();
         break;
 
-      case 'spawn-human': forEachBrushTile(tile, 0, (t) => spawnRace(t, 'human')); break;
-      case 'spawn-elf': forEachBrushTile(tile, 0, (t) => spawnRace(t, 'elf')); break;
-      case 'spawn-dwarf': forEachBrushTile(tile, 0, (t) => spawnRace(t, 'dwarf')); break;
-      case 'spawn-orc': forEachBrushTile(tile, 0, (t) => spawnRace(t, 'orc')); break;
+      case 'spawn-human': acted = spawnRace(tile, 'human'); break;
+      case 'spawn-elf': acted = spawnRace(tile, 'elf'); break;
+      case 'spawn-dwarf': acted = spawnRace(tile, 'dwarf'); break;
+      case 'spawn-orc': acted = spawnRace(tile, 'orc'); break;
 
       case 'spawn-animal': {
         const candidates = spawnableAnimalsFor(tile);
         const chosen = candidates[Math.floor(Math.random() * candidates.length)];
-        entityManagerRef.current?.spawnEntity(chosen, tile.x, tile.y);
+        acted = Boolean(entityManagerRef.current?.spawnEntity(chosen, tile.x, tile.y));
         break;
       }
 
@@ -530,7 +566,7 @@ export const useGameEngine = () => {
           const monsters: EntityType[] = ['zombie', 'skeleton', 'demon', 'bandit'];
           monsterType = monsters[Math.floor(Math.random() * monsters.length)];
         }
-        entityManagerRef.current?.spawnEntity(monsterType, tile.x, tile.y);
+        acted = Boolean(entityManagerRef.current?.spawnEntity(monsterType, tile.x, tile.y));
         break;
       }
 
@@ -561,7 +597,11 @@ export const useGameEngine = () => {
       }
 
       case 'fire': {
-        forEachBrushTile(tile, radius, (target) => igniteTile(target));
+        acted = false;
+        forEachBrushTile(tile, radius, (target) => {
+          if (fireRef.current?.ignite(target)) acted = true;
+        });
+        if (!acted) break;
         soundManager.fire();
         store.addEvent(`Divine fire ignites (${tile.x}, ${tile.y})`, 'disaster', { x: tile.x, y: tile.y });
         break;
@@ -663,6 +703,12 @@ export const useGameEngine = () => {
         break;
       }
     }
+
+    if (!acted) {
+      effectsManagerRef.current?.spawnRefusal(tileWorldPosition(tile));
+      soundManager.refused();
+    }
+    return acted;
   }, [forEachBrushTile, reshapeTile, igniteTile, extinguishTile, syncTile, tileWorldPosition, spawnRace, spawnableAnimalsFor]);
 
   /**
@@ -737,6 +783,127 @@ export const useGameEngine = () => {
       indicator.visible = false;
     }
   }, [selectedTile, tileWorldPosition]);
+
+
+  /**
+   * Work out what the cursor is over, and publish it. Throttled: this runs on a
+   * timer from the frame loop rather than on every mousemove event, so a fast
+   * flick across the map costs a handful of raycasts rather than hundreds.
+   */
+  const updateHover = useCallback(() => {
+    const terrain = terrainRef.current;
+    const manager = entityManagerRef.current;
+    const store = useGameStore.getState();
+    if (!terrain) return;
+
+    const mouse = new THREE.Vector2(mousePositionRef.current.x, mousePositionRef.current.y);
+    raycasterRef.current.setFromCamera(mouse, camera);
+
+    // Units first — they are what the player is usually asking about
+    if (manager) {
+      const entities = manager.getAllEntities().filter(entity => entity.mesh);
+      const hits = raycasterRef.current.intersectObjects(entities.map(entity => entity.mesh!), true);
+      if (hits.length > 0) {
+        const hit = hits[0].object;
+        const unit = entities.find(entity => entity.mesh === hit || entity.mesh === hit.parent);
+        if (unit) {
+          const key = `unit:${unit.id}:${unit.activity}:${Math.round(unit.health)}`;
+          if (key !== hoverKeyRef.current) {
+            hoverKeyRef.current = key;
+            const settlements = settlementRef.current;
+            const village = unit.villageId
+              ? settlements?.villageName(unit.villageId) ?? null
+              : null;
+            const kingdom = unit.kingdomId
+              ? settlements?.kingdomName(unit.kingdomId) ?? null
+              : null;
+            const office = ['king', 'leader', 'captain'].find(rank => unit.status.includes(rank))
+              ?? (unit.job ? unit.job : null);
+            store.setHoverTarget({
+              kind: 'unit',
+              id: unit.id,
+              name: unit.name,
+              species: unit.type,
+              activity: unit.activity ?? 'idle',
+              office: office ?? null,
+              health: unit.health,
+              maxHealth: unit.maxHealth,
+              traits: unit.traits ?? [],
+              village,
+              kingdom,
+              kingdomColor: unit.kingdomId
+                ? settlements?.kingdomColorFor(unit.kingdomId) ?? null
+                : null,
+              herd: herdRef.current?.describe(unit)?.size ?? null,
+            });
+          }
+          hoverTileRef.current = null;
+          return;
+        }
+      }
+    }
+
+    // Otherwise the ground
+    const hits = raycasterRef.current.intersectObject(terrain.pickTarget);
+    const instanceId = hits[0]?.instanceId;
+    if (instanceId === undefined) {
+      hoverTileRef.current = null;
+      if (hoverKeyRef.current !== '') {
+        hoverKeyRef.current = '';
+        store.setHoverTarget(null);
+      }
+      return;
+    }
+
+    const { x, y } = terrain.tileCoordsFromInstanceId(instanceId);
+    if (!inBounds(x, y)) return;
+    const tile = tilesRef.current[x][y];
+    hoverTileRef.current = tile;
+
+    const key = `tile:${x}:${y}:${tile.type}:${tile.isOnFire}:${tile.ownerId ?? ''}`;
+    if (key === hoverKeyRef.current) return;
+    hoverKeyRef.current = key;
+
+    const settlements = settlementRef.current;
+    store.setHoverTarget({
+      kind: 'tile',
+      x,
+      y,
+      biome: tile.type,
+      elevation: tile.height,
+      fertility: tile.fertility,
+      resources: tile.resources
+        .filter(resource => resource.quantity > 0)
+        .map(resource => ({ type: resource.type, quantity: resource.quantity })),
+      village: tile.villageId ? settlements?.villageName(tile.villageId) ?? null : null,
+      kingdom: tile.ownerId ? settlements?.kingdomName(tile.ownerId) ?? null : null,
+      kingdomColor: tile.ownerId ? settlements?.kingdomColorFor(tile.ownerId) ?? null : null,
+      onFire: tile.isOnFire,
+      occupants: tile.entities.length,
+    });
+  }, [camera, inBounds]);
+
+  /** Show the player exactly which tiles the current power will touch. */
+  const updateBrushPreview = useCallback(() => {
+    const preview = brushPreviewRef.current;
+    if (!preview) return;
+
+    const store = useGameStore.getState();
+    const tile = hoverTileRef.current;
+    const tool = store.selectedTool;
+
+    if (!tile || !tool || tool === 'select') {
+      preview.visible = false;
+      return;
+    }
+
+    const radius = BRUSH_TOOLS.has(tool) ? store.brushRadius : 0;
+    const position = tileWorldPosition(tile);
+    preview.visible = true;
+    preview.position.set(position.x, position.y + 0.04, position.z);
+    const span = (radius * 2 + 1) * 0.94;
+    preview.scale.set(span, span, 1);
+  }, [tileWorldPosition]);
 
   /** Advance the fire system with the current weather and world laws. */
   const simulateFire = useCallback((delta: number) => {
@@ -1068,6 +1235,16 @@ export const useGameEngine = () => {
     settlementRef.current?.setViewportScale(pixelScale);
     unitIconsRef.current?.setViewportScale(pixelScale);
     updateSelectionIndicator();
+
+    // Hover is sampled ~15x a second: often enough to feel instant, rarely
+    // enough that flicking the mouse does not cost hundreds of raycasts.
+    hoverTimerRef.current += deltaTime;
+    if (hoverTimerRef.current >= 1 / 15) {
+      hoverTimerRef.current = 0;
+      updateHover();
+      updateBrushPreview();
+    }
+
     gameTick(Math.min(deltaTime, 0.1));
   });
 

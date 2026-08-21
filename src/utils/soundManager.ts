@@ -100,6 +100,8 @@ class SoundManager {
   curse(): void { this.tone(220, 0.7, 'sawtooth', 0.35, 55); }
   death(): void { this.tone(330, 0.25, 'triangle', 0.2, 110); }
   birth(): void { this.tone(784, 0.2, 'sine', 0.2, 1568); }
+  /** A power was refused — a flat, unmistakable thunk. */
+  refused(): void { this.tone(180, 0.12, 'square', 0.18, 120); }
 
   startRain(): void {
     if (this.muted || this.rainNode) return;

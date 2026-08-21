@@ -7,6 +7,7 @@ import HelpOverlay from './components/ui/HelpOverlay';
 import RightRail from './components/ui/RightRail';
 import WorldLawsPanel from './components/ui/WorldLawsPanel';
 import AchievementWatcher from './components/ui/AchievementWatcher';
+import HoverTooltip from './components/ui/HoverTooltip';
 
 function App() {
   return (
@@ -28,6 +29,7 @@ function App() {
           <RightRail />
           <WorldLawsPanel />
           <AchievementWatcher />
+          <HoverTooltip />
           <HelpOverlay />
         </div>
       </div>

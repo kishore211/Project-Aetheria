@@ -15,6 +15,43 @@ export interface GameEvent {
   position?: { x: number; y: number };
 }
 
+/**
+ * What the cursor is currently over. Published by the engine so the tooltip can
+ * render it without the rest of the HUD re-rendering: WorldBox lets you read the
+ * world by hovering, and clicking to find anything out is most of what makes an
+ * interface feel heavy.
+ */
+export type HoverTarget =
+  | {
+      kind: 'unit';
+      id: string;
+      name: string;
+      species: string;
+      activity: string;
+      office: string | null;
+      health: number;
+      maxHealth: number;
+      traits: string[];
+      village: string | null;
+      kingdom: string | null;
+      kingdomColor: string | null;
+      herd: number | null;
+    }
+  | {
+      kind: 'tile';
+      x: number;
+      y: number;
+      biome: string;
+      elevation: number;
+      fertility: number;
+      resources: Array<{ type: string; quantity: number }>;
+      village: string | null;
+      kingdom: string | null;
+      kingdomColor: string | null;
+      onFire: boolean;
+      occupants: number;
+    };
+
 /** Summary of a kingdom, published by the settlement system for the HUD. */
 export interface KingdomSummary {
   id: string;
@@ -121,6 +158,8 @@ interface GameState {
   followEntityId: string | null;
   /** Set by the minimap and chronicle to fly the camera somewhere. */
   cameraTarget: { x: number; y: number; nonce: number } | null;
+  /** What the cursor is over right now, for the hover tooltip. */
+  hoverTarget: HoverTarget | null;
   /** Bumped to force a world rebuild without changing the seed. */
   worldRevision: number;
   /** A save waiting to be applied by the engine on the next world build. */
@@ -155,6 +194,7 @@ interface GameState {
   setKingdoms: (kingdoms: KingdomSummary[]) => void;
   setFollowEntity: (id: string | null) => void;
   focusTile: (x: number, y: number) => void;
+  setHoverTarget: (target: HoverTarget | null) => void;
   bumpWorldRevision: () => void;
   /** Load a save: sets world parameters and queues the snapshot. */
   requestLoad: (save: SaveGame) => void;
@@ -224,6 +264,7 @@ export const useGameStore = create<GameState>((set) => ({
   kingdoms: [],
   followEntityId: null,
   cameraTarget: null,
+  hoverTarget: null,
   worldRevision: 0,
   pendingSave: null,
   achievements: loadUnlocked(),
@@ -298,6 +339,8 @@ export const useGameStore = create<GameState>((set) => ({
   focusTile: (x: number, y: number) => set({
     cameraTarget: { x, y, nonce: nextCameraNonce++ },
   }),
+
+  setHoverTarget: (hoverTarget: HoverTarget | null) => set({ hoverTarget }),
 
   bumpWorldRevision: () => set((state) => ({ worldRevision: state.worldRevision + 1 })),
 
