@@ -9,7 +9,7 @@ export const MAP_SIZES = {
 
 export const TILE_SIZE = 0.5;
 export const MIN_TILE_HEIGHT = 0.05;
-export const BASE_TILE_SCALED_HEIGHT_MULTIPLIER = 2.0;
+export const BASE_TILE_SCALED_HEIGHT_MULTIPLIER = 3.0;
 
 // Time definitions
 export type TimeOfDay = 'dawn' | 'day' | 'dusk' | 'night';

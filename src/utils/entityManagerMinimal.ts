@@ -11,6 +11,9 @@ export class EntityManager {
   private entityAIs: Map<string, EntityAI> = new Map();
   private tiles: Tile[][];
   private scene: THREE.Scene;
+  onLifeEvent?: (message: string, kind: 'life' | 'death') => void;
+  onEntityDeath?: (entity: Entity) => void;
+  onEntitySpawn?: (entity: Entity) => void;
   
   // Lifecycle settings
   private reproductionProbability = 0.001; // Base chance per update
@@ -67,6 +70,7 @@ export class EntityManager {
     // Add to tile's entity list
     tile.entities.push(entity);
     
+    this.onEntitySpawn?.(entity);
     return entity;
   }
 
@@ -76,18 +80,46 @@ export class EntityManager {
   update(delta: number): void {
     // Process each entity
     this.entities.forEach((entity, id) => {
+      const previousTileX = Math.floor(entity.position.x);
+      const previousTileY = Math.floor(entity.position.y);
+
       // First, run the entity's AI
       const ai = this.entityAIs.get(id);
       if (ai) {
         ai.update(this.tiles, delta);
       }
 
+      this.syncTileOccupancy(entity, previousTileX, previousTileY);
+
       // Then, handle lifecycle events
       this.processLifecycleEvents(entity, delta);
       
       // Update entity visual
-      this.updateEntityVisual(entity);
+      this.updateEntityVisual(entity, delta);
     });
+  }
+
+  /** Keep tile entity lists accurate as entities move between tiles. */
+  private syncTileOccupancy(entity: Entity, previousX: number, previousY: number): void {
+    const currentX = Math.floor(entity.position.x);
+    const currentY = Math.floor(entity.position.y);
+    if (currentX === previousX && currentY === previousY) return;
+
+    if (this.isInBounds(previousX, previousY)) {
+      const oldTile = this.tiles[previousX][previousY];
+      const index = oldTile.entities.findIndex(e => e.id === entity.id);
+      if (index !== -1) oldTile.entities.splice(index, 1);
+    }
+    if (this.isInBounds(currentX, currentY)) {
+      const newTile = this.tiles[currentX][currentY];
+      if (!newTile.entities.some(e => e.id === entity.id)) {
+        newTile.entities.push(entity);
+      }
+    }
+  }
+
+  private isInBounds(x: number, y: number): boolean {
+    return x >= 0 && x < this.tiles.length && y >= 0 && y < this.tiles[0].length;
   }
   
   /**
@@ -152,7 +184,10 @@ export class EntityManager {
     const chosenTile = suitableTiles[Math.floor(Math.random() * suitableTiles.length)];
     
     // Create new entity
-    this.spawnEntity(entity.type, chosenTile.x, chosenTile.y);
+    const child = this.spawnEntity(entity.type, chosenTile.x, chosenTile.y);
+    if (child) {
+      this.onLifeEvent?.(`${child.name} the ${child.type} was born`, 'life');
+    }
     
     // Add status effect to parent
     entity.status.push('reproduced');
@@ -166,7 +201,7 @@ export class EntityManager {
   /**
    * Kill an entity and handle its removal
    */
-  private killEntity(entity: Entity, cause: 'old_age' | 'health' | 'random'): void {
+  killEntity(entity: Entity, cause: 'old_age' | 'health' | 'random' | 'divine'): void {
     const { x, y } = entity.position;
     
     // Find the tile this entity is on
@@ -184,15 +219,88 @@ export class EntityManager {
     this.entities.delete(entity.id);
     this.entityAIs.delete(entity.id);
     
-    // Remove visual from scene
+    // Remove visual from scene and free GPU resources
     if (entity.mesh) {
       this.scene.remove(entity.mesh);
+      entity.mesh.traverse((child) => {
+        const mesh = child as THREE.Mesh;
+        if (mesh.geometry) mesh.geometry.dispose();
+        const material = mesh.material as THREE.Material | THREE.Material[] | undefined;
+        if (Array.isArray(material)) material.forEach(m => m.dispose());
+        else if (material) material.dispose();
+      });
+      entity.mesh = null;
     }
-    
-    // Handle remains or create resources from the death
-    if (cause === 'old_age' || cause === 'health') {
-      // Maybe add some resources or create a corpse entity in the future
+
+    this.onEntityDeath?.(entity);
+    const causeText = cause === 'old_age' ? 'died of old age'
+      : cause === 'divine' ? 'was struck down by divine power'
+      : cause === 'health' ? 'perished'
+      : 'died suddenly';
+    this.onLifeEvent?.(`${entity.name} the ${entity.type} ${causeText}`, 'death');
+  }
+
+  /** Damage every entity within a tile radius; returns kill count. */
+  damageArea(centerX: number, centerY: number, radius: number, damage: number): number {
+    let kills = 0;
+    const victims: Entity[] = [];
+    this.entities.forEach(entity => {
+      const dx = entity.position.x - centerX;
+      const dy = entity.position.y - centerY;
+      if (Math.sqrt(dx * dx + dy * dy) <= radius) victims.push(entity);
+    });
+    for (const victim of victims) {
+      victim.health -= damage;
+      if (!victim.status.includes('wounded')) victim.status.push('wounded');
+      if (victim.health <= 0) {
+        this.killEntity(victim, 'divine');
+        kills++;
+      }
     }
+    return kills;
+  }
+
+  /** Heal every entity within a tile radius. */
+  healArea(centerX: number, centerY: number, radius: number, amount: number): number {
+    let healed = 0;
+    this.entities.forEach(entity => {
+      const dx = entity.position.x - centerX;
+      const dy = entity.position.y - centerY;
+      if (Math.sqrt(dx * dx + dy * dy) <= radius) {
+        entity.health = Math.min(entity.maxHealth, entity.health + amount);
+        entity.needs.hunger = 1.0;
+        entity.needs.thirst = 1.0;
+        const woundedIndex = entity.status.indexOf('wounded');
+        if (woundedIndex !== -1) entity.status.splice(woundedIndex, 1);
+        if (!entity.status.includes('blessed')) entity.status.push('blessed');
+        healed++;
+      }
+    });
+    return healed;
+  }
+
+  /** Total number of living entities. */
+  getPopulation(): number {
+    return this.entities.size;
+  }
+
+  /** Remove every entity and dispose meshes (world reset). */
+  clear(): void {
+    this.entities.forEach(entity => {
+      if (entity.mesh) {
+        this.scene.remove(entity.mesh);
+        entity.mesh.traverse((child) => {
+          const mesh = child as THREE.Mesh;
+          if (mesh.geometry) mesh.geometry.dispose();
+          const material = mesh.material as THREE.Material | THREE.Material[] | undefined;
+          if (Array.isArray(material)) material.forEach(m => m.dispose());
+          else if (material) material.dispose();
+        });
+        entity.mesh = null;
+      }
+    });
+    this.entities.clear();
+    this.entityAIs.clear();
   }
   
   /**
@@ -267,71 +375,16 @@ export class EntityManager {
   }
   
   /**
-   * Check if a tile is suitable for a specific entity type
+   * Check if a tile is suitable for a specific entity type.
+   * Deliberately permissive so god-tools always feel responsive:
+   * fish need water, everyone else needs land.
    */
   private isSuitableTileForEntity(type: EntityType, tile: Tile): boolean {
-    // Base check - non-walkable tiles aren't suitable for any entity
-    if (tile.walkable === false) return false;
-    
-    // Deep water is only suitable for fish
-    if (tile.type === 'deep_ocean' || tile.type === 'ocean') {
-      return type === 'fish';
-    }
-    
-    // Shallow water is suitable for amphibious entities and fish
-    if (tile.type === 'shallow_water' || tile.type === 'river' || tile.type === 'lake') {
-      return type === 'fish';
-    }
-    
-    // Specific biome preferences for intelligent races
-    if (type === 'elf') {
-      return tile.type === 'deciduous_forest' || tile.type === 'coniferous_forest' || tile.type === 'enchanted_forest';
-    }
-    
-    if (type === 'dwarf') {
-      return tile.type === 'mountains' || tile.type === 'hills';
-    }
-    
-    if (type === 'orc') {
-      return tile.type === 'badlands' || tile.type === 'savanna';
-    }
-    
-    // Animals have their biome preferences
-    if (type === 'wolf') {
-      return tile.type === 'deciduous_forest' || tile.type === 'coniferous_forest' || tile.type === 'taiga';
-    }
-    
-    if (type === 'bear') {
-      return tile.type === 'deciduous_forest' || tile.type === 'coniferous_forest' || tile.type === 'mountains' || tile.type === 'taiga';
-    }
-    
-    if (type === 'deer') {
-      return tile.type === 'deciduous_forest' || tile.type === 'coniferous_forest' || tile.type === 'grassland';
-    }
-    
-    if (type === 'rabbit') {
-      return tile.type === 'grassland' || tile.type === 'savanna';
-    }
-    
-    if (type === 'bird') {
-      return tile.type === 'deciduous_forest' || tile.type === 'coniferous_forest' || tile.type === 'grassland';
-    }
-    
-    // For monsters
-    if (type === 'dragon') {
-      return tile.type === 'mountains' || tile.type === 'volcanic';
-    }
-    
-    if (type === 'demon') {
-      return tile.type === 'volcanic' || tile.type === 'corrupted';
-    }
-    
-    if (type === 'zombie' || type === 'skeleton') {
-      return tile.type === 'corrupted' || Math.random() < 0.2; // Can spawn anywhere with low probability
-    }
-    
-    // Default - most entities can go on most land tiles
-    return tile.height > 0.25; // Basic check that it's not water
+    const isWater = ['deep_ocean', 'ocean', 'shallow_water', 'river', 'lake'].includes(tile.type);
+
+    if (type === 'fish') return isWater;
+    if (isWater || tile.walkable === false) return false;
+    return tile.height > 0.25;
   }
   
   /**
@@ -365,7 +418,7 @@ export class EntityManager {
   /**
    * Update the visual representation of an entity
    */
-  private updateEntityVisual(entity: Entity): void {
+  private updateEntityVisual(entity: Entity, delta: number): void {
     if (!entity.mesh) return;
     
     // Get the tile at the entity's position
@@ -398,7 +451,7 @@ export class EntityManager {
     entity.mesh.position.y = worldY;
     
     // Update the mesh appearance based on health, status, etc.
-    updateEntityMesh(entity);
+    updateEntityMesh(entity, delta);
   }
   
   /**

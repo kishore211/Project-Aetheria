@@ -208,7 +208,7 @@ function getTerrainModifier(biomeType: BiomeType, entityType: EntityType): numbe
 /**
  * Check if a tile is walkable for a specific entity type
  */
-function isWalkableForEntity(tile: Tile, entityType: EntityType): boolean {
+export function isWalkableForEntity(tile: Tile, entityType: EntityType): boolean {
   // Explicit walkable flag overrides everything
   if (tile.walkable === false) return false;
   

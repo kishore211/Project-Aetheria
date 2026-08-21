@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pause, Play, FastForward, FastForwardIcon } from 'lucide-react';
+import { Pause, Play, FastForward } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
 
 const TimeControls: React.FC = () => {
@@ -13,7 +13,7 @@ const TimeControls: React.FC = () => {
   } = useGameStore();
   
   return (
-    <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-secondary px-4 py-2 rounded-md flex items-center space-x-4">
+    <div className="ui-timebar fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-secondary px-4 py-2 rounded-md flex items-center space-x-4">
       {/* Time controls */}
       <div className="flex items-center space-x-2">
         <button

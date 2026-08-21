@@ -67,3 +67,50 @@ body {
   height: 100%;
   position: relative;
 }
+
+/* --- Game UI motion --- */
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes fadeUp {
+  from { transform: translate(-50%, 12px); opacity: 0; }
+  to { transform: translate(-50%, 0); opacity: 1; }
+}
+
+@keyframes fadeInRight {
+  from { transform: translateX(16px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes popIn {
+  0% { transform: scale(0.92); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes chronicleIn {
+  from { transform: translateY(-6px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.ui-sidebar { animation: slideInLeft 0.45s cubic-bezier(0.22, 1, 0.36, 1); }
+.ui-topbar { animation: fadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1); }
+.ui-timebar { animation: fadeUp 0.55s cubic-bezier(0.22, 1, 0.36, 1); }
+.ui-panel-right { animation: fadeInRight 0.4s cubic-bezier(0.22, 1, 0.36, 1); }
+.ui-modal { animation: popIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.chronicle-item { animation: chronicleIn 0.3s ease-out; }
+
+.tool-btn {
+  transition: transform 0.12s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+.tool-btn:hover { transform: translateY(-1px) scale(1.03); }
+.tool-btn:active { transform: scale(0.96); }
+.tool-btn-active {
+  box-shadow: 0 0 0 1px rgb(251 191 36 / 0.6), 0 0 14px rgb(251 191 36 / 0.25);
+}
+
+/* Slim dark scrollbars for HUD panels */
+.game-ui ::-webkit-scrollbar { width: 6px; }
+.game-ui ::-webkit-scrollbar-track { background: transparent; }
+.game-ui ::-webkit-scrollbar-thumb { background: rgb(100 116 139 / 0.5); border-radius: 3px; }

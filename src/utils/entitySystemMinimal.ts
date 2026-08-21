@@ -4,19 +4,13 @@ import { v4 as uuidv4 } from 'uuid';
 import {
   Entity,
   EntityType,
-  Race,
   Tile,
-  BiomeType,
-  ResourceType,
 } from '../types/world';
 import {
-  createPlaceholderSprite,
-  animateSprite,
   getAnimationForEntityStatus,
-  getSpriteDataForEntity,
-  loadSpriteTextureWithFallback,
-  createSpriteMaterial
 } from './spriteHandler';
+import { getPixelSpriteTexture, getPixelSpriteFrames } from './pixelSprites';
+import { findPath, isWalkableForEntity } from './pathfinding';
 
 /**
  * AI States for entities
@@ -250,88 +244,30 @@ export function createEntity(type: EntityType, x: number, y: number): Entity {
  */
 export function createEntityMesh(entity: Entity): THREE.Object3D {
   // Base configuration
-  const color = getEntityColor(entity.type);
   const size = getEntitySize(entity.type);
   
   // Create a container for all parts of the entity mesh
   const container = new THREE.Object3D();
   
-  // Create a pixel art sprite for the entity based on type
-  let sprite: THREE.Sprite;
-  
-  // Check if we can get sprite data for this entity
-  const spriteData = getSpriteDataForEntity(entity.type);
-  
-  // Try to use the advanced sprite system first
-  if (spriteData) {
-    // Get the current animation based on entity status
-    entity.currentAnimation = getAnimationForEntityStatus(entity);
-    
-    // Determine the frame to show 
-    const frameIndex = spriteData.animations?.[entity.currentAnimation]?.startFrame || 0;
-    entity.animationFrame = frameIndex;
-    
-    // Create the sprite material
-    const material = createSpriteMaterial(spriteData, frameIndex);
-    
-    // Create the sprite
-    sprite = new THREE.Sprite(material);
-    sprite.scale.set(size * 2, size * 2, 1); // Adjust scale based on entity size
-  } else {
-    // If no sprite data, use the fallback loading mechanism
-    try {
-      // Try to load from file or fallback to base64
-      const texture = loadSpriteTextureWithFallback(entity.type);
-      
-      const material = new THREE.SpriteMaterial({ 
-        map: texture,
-        transparent: true,
-        alphaTest: 0.1
-      });
-      
-      sprite = new THREE.Sprite(material);
-      sprite.scale.set(size * 2, size * 2, 1); // Adjust scale based on entity size
-    } catch (error) {
-      // Last resort: colored placeholder
-      sprite = createPlaceholderSprite(color, size * 2);
-    }
-  }
+  // Procedurally generated pixel-art sprite (no file assets required)
+  const texture = getPixelSpriteTexture(entity.type);
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    alphaTest: 0.1,
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(size * 3, size * 3, 1);
+  sprite.position.y = size * 1.5;
   
   container.add(sprite);
   
   // Add a health bar
   const healthBar = createHealthBar(entity);
-  healthBar.position.y = size * 1.2;
+  healthBar.position.y = size * 3.4;
   container.add(healthBar);
   
   return container;
-}
-
-/**
- * Get a color based on entity type
- */
-function getEntityColor(type: EntityType): number {
-  // Choose color based on entity type
-  const colorMap: Record<string, number> = {
-    human: 0xe0ac69,     // Tan
-    elf: 0xc2e085,       // Light green
-    dwarf: 0xad6f3b,     // Brown
-    orc: 0x758a52,       // Olive green
-    wolf: 0x808080,      // Gray
-    bear: 0x8b4513,      // Brown
-    deer: 0xd2b48c,      // Tan
-    rabbit: 0xffffff,    // White
-    bird: 0x00aaff,      // Blue
-    fish: 0x80cbc4,      // Teal
-    dragon: 0xff4444,    // Red
-    demon: 0x8b0000,     // Dark red
-    zombie: 0x95a561,    // Greenish gray
-    skeleton: 0xf5f5dc,  // Bone
-    elemental: 0x00ffaa, // Bright cyan
-    bandit: 0x424242     // Dark gray
-  };
-  
-  return colorMap[type] || 0xffffff; // White as default
 }
 
 /**
@@ -362,41 +298,28 @@ function getEntitySize(type: EntityType): number {
 }
 
 /**
- * Create a health bar indicator for an entity
+ * Create a billboarded health bar indicator for an entity
  */
 function createHealthBar(entity: Entity): THREE.Object3D {
   const container = new THREE.Object3D();
+  container.name = 'healthBar';
   
-  // Background (gray bar)
-  const bgGeometry = new THREE.BoxGeometry(0.2, 0.03, 0.01);
-  const bgMaterial = new THREE.MeshBasicMaterial({ color: 0x333333 });
-  const background = new THREE.Mesh(bgGeometry, bgMaterial);
+  // Background (dark bar)
+  const bgMaterial = new THREE.SpriteMaterial({ color: 0x222222, depthTest: false });
+  const background = new THREE.Sprite(bgMaterial);
+  background.scale.set(0.34, 0.05, 1);
   container.add(background);
   
-  // Health indicator (green to red based on health percentage)
+  // Health fill (green to red based on health percentage)
   const healthPercent = entity.health / entity.maxHealth;
-  const healthWidth = 0.2 * healthPercent;
+  const fillMaterial = new THREE.SpriteMaterial({ color: 0x00dd44, depthTest: false });
+  const fill = new THREE.Sprite(fillMaterial);
+  fill.scale.set(0.3 * healthPercent, 0.035, 1);
+  fill.position.z = 0.001;
+  container.add(fill);
   
-  const healthGeometry = new THREE.BoxGeometry(healthWidth, 0.03, 0.015);
-  
-  // Color based on health percentage (green to yellow to red)
-  let healthColor: number;
-  if (healthPercent > 0.7) {
-    healthColor = 0x00ff00; // Green
-  } else if (healthPercent > 0.3) {
-    healthColor = 0xffff00; // Yellow
-  } else {
-    healthColor = 0xff0000; // Red
-  }
-  
-  const healthMaterial = new THREE.MeshBasicMaterial({ color: healthColor });
-  const healthBar = new THREE.Mesh(healthGeometry, healthMaterial);
-  
-  // Position the health bar to align left with the background
-  healthBar.position.x = (healthWidth - 0.2) / 2;
-  healthBar.position.z = 0.005;
-  
-  container.add(healthBar);
+  // Hidden until the entity takes damage
+  container.visible = healthPercent < 0.99;
   
   return container;
 }
@@ -410,32 +333,23 @@ export function updateEntityMesh(entity: Entity, deltaTime: number = 1/60): void
   if (!entity.mesh) return;
   
   // Update health bar
-  const healthBar = entity.mesh.children.find(child => 
-    child instanceof THREE.Object3D && child.children.length === 2);
+  const healthBar = entity.mesh.children.find(child => child.name === 'healthBar');
     
   if (healthBar) {
     // Get the current health percentage
-    const healthPercent = entity.health / entity.maxHealth;
+    const healthPercent = Math.max(0, entity.health / entity.maxHealth);
+    healthBar.visible = healthPercent < 0.99;
     
-    // Update the health bar width
-    const healthBarFill = healthBar.children[1];
-    if (healthBarFill instanceof THREE.Mesh) {
-      // Scale the health bar to the current percentage
-      healthBarFill.scale.x = healthPercent;
-      
-      // Update the position to keep it left-aligned
-      healthBarFill.position.x = (0.2 * healthPercent - 0.2) / 2;
-      
-      // Update the color based on health percentage
-      const material = healthBarFill.material as THREE.MeshBasicMaterial;
-      if (material) {
-        if (healthPercent > 0.7) {
-          material.color.setHex(0x00ff00); // Green
-        } else if (healthPercent > 0.3) {
-          material.color.setHex(0xffff00); // Yellow
-        } else {
-          material.color.setHex(0xff0000); // Red
-        }
+    const fill = healthBar.children[1] as THREE.Sprite | undefined;
+    if (fill) {
+      fill.scale.x = Math.max(0.001, 0.3 * healthPercent);
+      const material = fill.material as THREE.SpriteMaterial;
+      if (healthPercent > 0.7) {
+        material.color.setHex(0x00dd44);
+      } else if (healthPercent > 0.3) {
+        material.color.setHex(0xffcc00);
+      } else {
+        material.color.setHex(0xff3322);
       }
     }
   }
@@ -455,6 +369,7 @@ export function updateEntityMesh(entity: Entity, deltaTime: number = 1/60): void
     }
     
     // Add a small bounce effect while moving
+    const baseY = getEntitySize(entity.type) * 1.5;
     if (entity.lastPosition && 
         (entity.position.x !== entity.lastPosition.x || entity.position.y !== entity.lastPosition.y)) {
       // Add movement status for animation selection
@@ -463,13 +378,31 @@ export function updateEntityMesh(entity: Entity, deltaTime: number = 1/60): void
       }
       
       // Small bounce effect while moving
-      const bounceHeight = 0.03;
+      const bounceHeight = 0.05;
       const bounceFrequency = 5;
-      sprite.position.y = Math.abs(Math.sin(Date.now() / 200 * bounceFrequency)) * bounceHeight;
-    } else if (entity.status.includes('moving')) {
-      // Remove movement status when stopped
-      const index = entity.status.indexOf('moving');
-      if (index !== -1) entity.status.splice(index, 1);
+      sprite.position.y = baseY + Math.abs(Math.sin(Date.now() / 200 * bounceFrequency)) * bounceHeight;
+
+      // Two-frame walk cycle synced to the bounce
+      const frames = getPixelSpriteFrames(entity.type);
+      const frameIndex = Math.floor(Date.now() / 180) % 2;
+      const material = sprite.material as THREE.SpriteMaterial;
+      if (material.map !== frames[frameIndex]) {
+        material.map = frames[frameIndex];
+        material.needsUpdate = true;
+      }
+    } else {
+      sprite.position.y = baseY;
+      const frames = getPixelSpriteFrames(entity.type);
+      const material = sprite.material as THREE.SpriteMaterial;
+      if (material.map !== frames[0]) {
+        material.map = frames[0];
+        material.needsUpdate = true;
+      }
+      if (entity.status.includes('moving')) {
+        // Remove movement status when stopped
+        const index = entity.status.indexOf('moving');
+        if (index !== -1) entity.status.splice(index, 1);
+      }
     }
   }
   
@@ -483,7 +416,7 @@ export function updateEntityMesh(entity: Entity, deltaTime: number = 1/60): void
  * @param entity The entity to update
  * @param deltaTime Time elapsed since last update (for animations)
  */
-function updateEntityVisualization(entity: Entity, deltaTime: number): void {
+function updateEntityVisualization(entity: Entity, _deltaTime: number): void {
   if (!entity.mesh) return;
   
   // Get sprite component
@@ -496,27 +429,8 @@ function updateEntityVisualization(entity: Entity, deltaTime: number): void {
   // Reset any previous effects
   material.opacity = 1.0;
   
-  // Get the current animation based on entity status
-  const animationName = getAnimationForEntityStatus(entity);
-  
-  // Try to get sprite data for this entity type
-  const entityType = entity.type as string;
-  const spriteData = getSpriteDataForEntity(entityType);
-  
-  // If we have sprite data with animations, animate the sprite
-  if (spriteData?.animations?.[animationName]) {
-    // Initialize animation frame if not set
-    if (entity.animationFrame === undefined) entity.animationFrame = 0;
-    
-    // Update the animation
-    entity.animationFrame = animateSprite(
-      sprite,
-      spriteData,
-      animationName,
-      deltaTime,
-      entity.animationFrame
-    );
-  }
+  // Track the current animation name for future sheet-based sprites
+  entity.currentAnimation = getAnimationForEntityStatus(entity);
   
   // Apply visual effects based on status
   if (entity.status.includes('dead')) {
@@ -658,6 +572,7 @@ export class EntityAI {
       const waterTile = this.findNearbyWater(tiles);
       if (waterTile) {
         this.targetTile = waterTile;
+        this.path = [];
         this.currentState = 'moving';
         this.ticksSinceLastAction = 0;
         return;
@@ -682,6 +597,7 @@ export class EntityAI {
       const foodTile = this.findNearbyFood(tiles);
       if (foodTile) {
         this.targetTile = foodTile;
+        this.path = [];
         this.currentState = 'moving';
         this.ticksSinceLastAction = 0;
         return;
@@ -711,14 +627,17 @@ export class EntityAI {
       const currentX = Math.floor(this.entity.position.x);
       const currentY = Math.floor(this.entity.position.y);
       
-      const moveX = Math.floor(Math.random() * 3) - 1; // -1, 0, or 1
-      const moveY = Math.floor(Math.random() * 3) - 1; // -1, 0, or 1
+      const range = 3;
+      const moveX = Math.floor(Math.random() * (range * 2 + 1)) - range;
+      const moveY = Math.floor(Math.random() * (range * 2 + 1)) - range;
       
       const targetX = Math.max(0, Math.min(tiles.length - 1, currentX + moveX));
       const targetY = Math.max(0, Math.min(tiles[0].length - 1, currentY + moveY));
       
-      if (tiles[targetX][targetY].walkable !== false) {
-        this.targetTile = tiles[targetX][targetY];
+      const candidate = tiles[targetX][targetY];
+      if (candidate.walkable !== false && isWalkableForEntity(candidate, this.entity.type)) {
+        this.targetTile = candidate;
+        this.path = [];
         this.currentState = 'moving';
       }
       
@@ -727,68 +646,68 @@ export class EntityAI {
   }
 
   /**
-   * Handle the moving state - move towards target
+   * Handle the moving state - follow an A* path towards the target
    */
-  private handleMovingState(_tiles: Tile[][]): void {
+  private handleMovingState(tiles: Tile[][]): void {
     if (!this.targetTile) {
       this.currentState = 'idle';
       return;
     }
-    
-    // Simple direct movement (no pathfinding)
+
+    // Compute a path once per target using A*
+    if (this.path.length === 0) {
+      const startX = Math.max(0, Math.min(tiles.length - 1, Math.floor(this.entity.position.x)));
+      const startY = Math.max(0, Math.min(tiles[0].length - 1, Math.floor(this.entity.position.y)));
+      const startTile = tiles[startX][startY];
+      if (startTile !== this.targetTile) {
+        this.path = findPath(startTile, this.targetTile, tiles, this.entity.type);
+      }
+      if (this.path.length === 0) {
+        // Unreachable or adjacent: walk directly at the target
+        this.path = [this.targetTile];
+      }
+    }
+
+    const waypoint = this.path[0];
     const { x, y } = this.entity.position;
-    const targetX = this.targetTile.x;
-    const targetY = this.targetTile.y;
-    
-    // Update the entity's last position before moving
-    this.entity.lastPosition = { x, y };
-    
-    // Calculate direction to move
-    const dx = targetX - x;
-    const dy = targetY - y;
-    
-    // Normalize the direction and apply speed
+    const dx = waypoint.x - x;
+    const dy = waypoint.y - y;
     const length = Math.sqrt(dx * dx + dy * dy);
-    
-    if (length < 0.1) {
-      // We've reached the target
-      this.entity.position = { x: targetX, y: targetY };
-      
-      // Check what we've reached and take appropriate action
+
+    this.entity.lastPosition = { x, y };
+
+    if (length < 0.15) {
+      // Waypoint reached; advance along the path
+      this.path.shift();
+      if (this.path.length > 0) return;
+
+      // Full path complete: arrive at the target tile
+      this.entity.position = { x: waypoint.x, y: waypoint.y };
       const targetType = this.targetTile.type;
-      
+
       if (['shallow_water', 'river', 'lake'].includes(targetType)) {
-        // We've reached water, drink
         this.entity.needs.thirst = 1.0;
         this.entity.status.push('drinking');
-        
-        // Remove the status after a short time
         setTimeout(() => {
           const index = this.entity.status.indexOf('drinking');
           if (index !== -1) this.entity.status.splice(index, 1);
         }, 3000);
-        
       } else if (this.targetTile.resources.some(r => r.type === 'food')) {
-        // We've reached food, start gathering
         this.currentState = 'gathering';
         return;
       }
-      
+
       this.targetTile = null;
       this.currentState = 'idle';
       return;
     }
-    
-    // Apply movement scaled by entity speed
+
     let speed = this.entity.attributes.speed / 100;
-    
-    // Reduce speed if exhausted
     if (this.entity.status.includes('exhausted')) {
       speed *= 0.5;
     }
-    
-    const stepSize = 0.05 * speed; // Base movement adjusted by speed attribute
-    
+    const stepSize = Math.min(0.05 * speed * 60 * (1 / 60) * 4, length);
+
     this.entity.position = {
       x: x + (dx / length) * stepSize,
       y: y + (dy / length) * stepSize,

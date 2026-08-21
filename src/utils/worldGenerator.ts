@@ -3,6 +3,15 @@
 import * as THREE from 'three';
 import SimplexNoise from './simplexNoise'; // Or import from 'simplex-noise' if installed
 import seedrandom from 'seedrandom'; // Or import from 'seedrandom' if installed
+import type {
+  BiomeType,
+  Resource,
+  ResourceType as ResourceTypeName,
+  Season as SeasonName,
+  Structure,
+  Tile,
+  TimeOfDay as TimeOfDayName,
+} from '../types/world';
 
 // Assuming these constants are defined elsewhere or here
 // Example definitions (replace with your actual values if different)
@@ -12,9 +21,10 @@ export const MAP_SIZES = {
     large: 256, // Keep this for a large map
     custom: 128 // Custom placeholder, overwritten by input
 };
-export const TILE_SIZE = 10;
-export const MIN_TILE_HEIGHT = 0.5;
-export const BASE_TILE_SCALED_HEIGHT_MULTIPLIER = 20; // How much height variation affects scale
+// Must match the engine-side constants in types/world.ts
+export const TILE_SIZE = 0.5;
+export const MIN_TILE_HEIGHT = 0.05;
+export const BASE_TILE_SCALED_HEIGHT_MULTIPLIER = 3.0; // How much height variation affects scale
 
 export const TimeOfDay = ['dawn', 'day', 'dusk', 'night']; // Make this an array or union type if needed elsewhere
 export const Season = ['spring', 'summer', 'autumn', 'winter']; // Same
@@ -23,12 +33,29 @@ export const ResourceType = ['wood', 'stone', 'food', 'water', 'iron', 'gold', '
 // Define types if not already done in types/world.ts
 // import { Tile, BiomeType, TimeOfDay, Season, ResourceType, Resource, Structure } from '../types/world';
 
+const createDefaultTile = (x: number, y: number): Tile => ({
+  x,
+  y,
+  height: 0,
+  scaledHeight: 0,
+  moisture: 0,
+  temperature: 0,
+  fertility: 0,
+  type: 'ocean',
+  population: 0,
+  resources: [],
+  structure: null,
+  entities: [],
+  isOnFire: false,
+  walkable: false,
+});
+
 
 /**
  * Determines the biome type based on height, moisture, temperature
  * Using a more sophisticated biome distribution system
  */
-export const determineBiome = (height, moisture, temperature) => {
+export const determineBiome = (height: number, moisture: number, temperature: number): BiomeType => {
   // All values normalized between 0-1
 
   // Deep ocean and ocean
@@ -96,12 +123,12 @@ export const determineBiome = (height, moisture, temperature) => {
  * Returns a color for the biome based on the time of day and season
  */
 export const getBiomeColor = (
-  type,
-  timeOfDay = 'day',
-  season = 'summer'
-) => {
+  type: BiomeType,
+  timeOfDay: TimeOfDayName = 'day',
+  season: SeasonName = 'summer'
+): THREE.Color => {
   // Base colors for biomes
-  const baseColors = {
+  const baseColors: Record<BiomeType, THREE.Color> = {
     deep_ocean: new THREE.Color(0x0D47A1),
     ocean: new THREE.Color(0x1565C0),
     shallow_water: new THREE.Color(0x1976D2),
@@ -119,10 +146,10 @@ export const getBiomeColor = (
     snow: new THREE.Color(0xEEEEEE),
     ice: new THREE.Color(0xBBDEFB),
     glacier: new THREE.Color(0xB3E5FC),
-    desert: new THREE.Color(0xFFD54F),
-    savanna: new THREE.Color(0xCDDC39),
-    mesa: new THREE.Color(0xD84315),
-    badlands: new THREE.Color(0xE65100),
+    desert: new THREE.Color(0xE8C976),
+    savanna: new THREE.Color(0xB5B45A),
+    mesa: new THREE.Color(0xB06B42),
+    badlands: new THREE.Color(0xA9683F),
     swamp: new THREE.Color(0x33691E),
     marsh: new THREE.Color(0x558B2F),
     rainforest: new THREE.Color(0x2E7D32),
@@ -137,7 +164,7 @@ export const getBiomeColor = (
   const baseColor = (baseColors[type] || new THREE.Color(0x9E9E9E)).clone();
 
   // Apply time of day modifications
-  const timeFactors = {
+  const timeFactors: Record<TimeOfDayName, number> = {
     dawn: 0.85,
     day: 1.0,
     dusk: 0.7,
@@ -145,7 +172,8 @@ export const getBiomeColor = (
   };
 
   // Apply seasonal modifications
-  const seasonFactors = {
+  type SeasonColorFactors = Partial<Record<BiomeType, number>> & { brightness: number };
+  const seasonFactors: Partial<Record<SeasonName, SeasonColorFactors>> = {
     spring: {
       grassland: 1.1,
       deciduous_forest: 1.1,
@@ -187,7 +215,10 @@ export const getBiomeColor = (
 /**
  * Calculate resource probabilities for a given biome and elevation
  */
-const calculateResourceProbabilities = (biome, elevation) => {
+const calculateResourceProbabilities = (
+  biome: BiomeType,
+  elevation: number
+): Record<ResourceTypeName, number> => {
   // Default probabilities
   const baseProbabilities = {
     wood: 0.1,
@@ -213,7 +244,6 @@ const calculateResourceProbabilities = (biome, elevation) => {
       baseProbabilities.coal = 0.25;
       baseProbabilities.gem = 0.1;
       break;
-    case 'forest': // Assuming 'forest' might be a generic type or covered by others
     case 'deciduous_forest':
     case 'coniferous_forest':
       baseProbabilities.wood = 0.8;
@@ -240,15 +270,17 @@ const calculateResourceProbabilities = (biome, elevation) => {
 /**
  * Generates random resources for a tile based on its biome and elevation
  */
-const generateResources = (tile, random) => {
-  const resources = [];
+type RandomSource = () => number;
+
+const generateResources = (tile: Tile, random: RandomSource): Resource[] => {
+  const resources: Resource[] = [];
   const probabilities = calculateResourceProbabilities(tile.type, tile.height);
 
   Object.entries(probabilities).forEach(([type, probability]) => {
     if (random() < probability) {
       const quantity = Math.floor(random() * 10) + 1; // 1-10 quantity
       resources.push({
-        type: type, // type as ResourceType, // Cast if using TypeScript
+        type: type as ResourceTypeName,
         quantity,
         discovered: false
       });
@@ -261,7 +293,7 @@ const generateResources = (tile, random) => {
 /**
  * Determine if a tile should have a natural structure (tree, rock, etc.)
  */
-const determineNaturalStructure = (tile, random) => {
+const determineNaturalStructure = (tile: Tile, random: RandomSource): Structure | null => {
   // Forests and similar biomes have trees
   if (['deciduous_forest', 'coniferous_forest', 'taiga', 'rainforest', 'tropical_forest', 'enchanted_forest'].includes(tile.type)) {
     const treeType = random() < 0.7 ? 'mature_tree' : random() < 0.9 ? 'young_tree' : 'ancient_tree';
@@ -308,12 +340,12 @@ const determineNaturalStructure = (tile, random) => {
  * Generate the terrain for the game world
  */
 export const generateTerrain = (
-  seed,
-  worldSize = 'medium',
-  customSize,
-  timeOfDay = 'day',
-  season = 'summer'
-) => {
+  seed: number,
+  worldSize: keyof typeof MAP_SIZES = 'medium',
+  customSize?: number,
+  timeOfDay: TimeOfDayName = 'day',
+  season: SeasonName = 'summer'
+): { worldGroup: THREE.Group; tilesData: Tile[][] } => {
   console.log(`[WorldGen] Generating terrain with seed: ${seed}, size: ${worldSize}, custom: ${customSize}, time: ${timeOfDay}, season: ${season}`);
 
   // Determine map size
@@ -321,50 +353,38 @@ export const generateTerrain = (
     if (!mapSize) {
         console.error(`[WorldGen] Invalid world size '${worldSize}' or custom size '${customSize}'. Using default medium.`);
         const defaultSize = MAP_SIZES['medium'];
-        return { worldGroup: new THREE.Group(), tilesData: Array(defaultSize).fill(0).map(() => Array(defaultSize)) };
+        return {
+          worldGroup: new THREE.Group(),
+          tilesData: Array.from({ length: defaultSize }, (_, x) =>
+            Array.from({ length: defaultSize }, (_, y) => createDefaultTile(x, y))
+          ),
+        };
     }
 
 
   const worldGroup = new THREE.Group();
   const simplex = new SimplexNoise(seed);
-  const tilesData = [];
+  const tilesData: Tile[][] = [];
 
   // Create a seeded random function
   const seededRandom = seedrandom(seed.toString());
   const random = () => seededRandom();
 
-  // Noise parameters for world generation
-  const continentScale = 0.08; // Large scale landmasses
-  const landformScale = 0.2;   // Medium scale terrain features
-  const detailScale = 0.6;     // Small scale terrain details
+  // Noise parameters: frequencies are cycles across the whole map
+  const continentScale = 3;    // Large scale landmasses
+  const landformScale = 8;     // Medium scale terrain features
+  const detailScale = 20;      // Small scale terrain details
 
-  const moistureFreq = 0.15;   // Moisture map frequency
-  const tempBaseFreq = 0.05;   // Base temperature frequency (latitude-based)
-  const tempDetailFreq = 0.2;  // Local temperature variations
-  const fertilityFreq = 0.25;  // Soil fertility variations
+  const moistureFreq = 5;      // Moisture map frequency
+  const tempDetailFreq = 7;    // Local temperature variations
+  const fertilityFreq = 9;     // Soil fertility variations
 
   // Initialize the tiles array
   for (let x = 0; x < mapSize; x++) {
     tilesData[x] = [];
     for (let y = 0; y < mapSize; y++) {
       // Initial tile with default values
-      tilesData[x][y] = {
-        x, y,
-        height: 0,
-        scaledHeight: 0,
-        moisture: 0,
-        temperature: 0,
-        fertility: 0,
-        type: 'ocean', // Default, will be calculated later
-        population: 0,
-        resources: [],
-        structure: null,
-        entities: [],
-        isOnFire: false,
-        mesh: null, // Will store the THREE.Mesh reference
-        color: null, // Will store the THREE.Color instance
-        walkable: false // Default, will be calculated
-      };
+      tilesData[x][y] = createDefaultTile(x, y);
     }
   }
 
@@ -391,7 +411,7 @@ export const generateTerrain = (
       height = Math.pow(height, 1.3); // More water, sharper mountains
 
       // Make the edges of the map water
-      const edgeFactor = 0.03;
+      const edgeFactor = 0.12;
       const edgeX = Math.min(nx, 1 - nx) / edgeFactor;
       const edgeY = Math.min(ny, 1 - ny) / edgeFactor;
       const edgeValue = Math.min(Math.min(edgeX, edgeY), 1);
@@ -413,15 +433,13 @@ export const generateTerrain = (
       // Calculate temperature (based on height and "latitude")
       // Base temperature decreases from equator to poles
       const latitudeFactor = Math.abs(ny - 0.5) * 2; // 0 at equator, 1 at poles
-      let baseTemp = 1 - Math.pow(latitudeFactor, 1.2) * 0.8; // Weighted curve
+      const baseTemp = 1 - Math.pow(latitudeFactor, 1.2) * 0.85; // 0.15..1
 
-      // Local temperature variations
-      const tempVariation = (simplex.noise2D(nx * tempDetailFreq, ny * tempDetailFreq) + 1) / 2 * 0.2;
+      // Local temperature variations of ±0.1
+      const tempVariation = ((simplex.noise2D(nx * tempDetailFreq, ny * tempDetailFreq) + 1) / 2) * 0.2 - 0.1;
 
-      // Height decreases temperature
-      const heightTemp = Math.max(0, 1 - tilesData[x][y].height * 1.5);
-
-      let temperature = (baseTemp * 0.6 + tempVariation + heightTemp * 0.3) / 1.9;
+      // Elevation cools the climate
+      const temperature = baseTemp + tempVariation - tilesData[x][y].height * 0.35;
       tilesData[x][y].temperature = Math.max(0, Math.min(1, temperature));
 
       // Calculate fertility

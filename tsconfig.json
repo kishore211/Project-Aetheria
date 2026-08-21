@@ -15,11 +15,15 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     }
   },
   "include": ["src"],
+  "exclude": [
+    "src/utils/animatedSpriteFactory.ts",
+    "src/utils/entityManager.ts",
+    "src/utils/entitySystem.ts"
+  ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

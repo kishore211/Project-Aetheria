@@ -13,10 +13,18 @@ import {
   Zap,
   Rocket,
   Heart,
-  SkullIcon
+  SkullIcon,
+  Sprout,
+  Axe,
+  Swords,
+  PawPrint,
+  Ghost,
+  HelpCircle,
+  Trees
 } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
 import type { Tool } from '../../store/gameStore';
+import { soundManager } from '../../utils/soundManager';
 
 // List of tools available to the player
 const toolsList: { id: Tool; name: string; icon: React.ReactNode; category: string }[] = [
@@ -32,14 +40,14 @@ const toolsList: { id: Tool; name: string; icon: React.ReactNode; category: stri
   
   // Entity/Life tools
   { id: 'spawn-human', name: 'Humans', icon: <Users size={20} />, category: 'life' },
-  { id: 'spawn-elf', name: 'Elves', icon: <Users size={20} />, category: 'life' },
-  { id: 'spawn-dwarf', name: 'Dwarves', icon: <Users size={20} />, category: 'life' },
-  { id: 'spawn-orc', name: 'Orcs', icon: <Users size={20} />, category: 'life' },
-  { id: 'spawn-animal', name: 'Animals', icon: <Users size={20} />, category: 'life' },
-  { id: 'spawn-monster', name: 'Monsters', icon: <SkullIcon size={20} />, category: 'life' },
+  { id: 'spawn-elf', name: 'Elves', icon: <Sprout size={20} />, category: 'life' },
+  { id: 'spawn-dwarf', name: 'Dwarves', icon: <Axe size={20} />, category: 'life' },
+  { id: 'spawn-orc', name: 'Orcs', icon: <Swords size={20} />, category: 'life' },
+  { id: 'spawn-animal', name: 'Animals', icon: <PawPrint size={20} />, category: 'life' },
+  { id: 'spawn-monster', name: 'Monsters', icon: <Ghost size={20} />, category: 'life' },
   
   // Nature tools
-  { id: 'plant-trees', name: 'Trees', icon: <TreePine size={20} />, category: 'nature' },
+  { id: 'plant-trees', name: 'Trees', icon: <Trees size={20} />, category: 'nature' },
   { id: 'unearth-minerals', name: 'Minerals', icon: <Gem size={20} />, category: 'nature' },
   { id: 'summon-rain', name: 'Rain', icon: <CloudSunRain size={20} />, category: 'weather' },
   
@@ -61,11 +69,11 @@ const Sidebar = () => {
   const { 
     selectedTool, 
     setSelectedTool,
-    timeOfDay, 
-    toggleDayNight,
     setWorldSeed,
+    worldSeed,
     entityPopulationDensity,
-    setEntityPopulationDensity
+    setEntityPopulationDensity,
+    setShowHelp
   } = useGameStore();
   
   // Group tools by category
@@ -89,16 +97,29 @@ const Sidebar = () => {
   };
   
   return (
-    <div className="fixed left-0 top-0 bottom-0 w-64 bg-secondary p-4 overflow-y-auto">
-      <h1 className="text-xl font-bold mb-4 text-foreground">Project Aetheria</h1>
+    <div className="ui-sidebar fixed left-0 top-0 bottom-0 w-64 bg-secondary/95 backdrop-blur p-4 overflow-y-auto border-r border-muted/40">
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-xl font-bold text-foreground">Aetheria</h1>
+        <button
+          type="button"
+          title="How to play"
+          className="text-muted-foreground hover:text-foreground"
+          onClick={() => setShowHelp(true)}
+        >
+          <HelpCircle size={20} />
+        </button>
+      </div>
       
       {/* New World Button */}
       <button 
         type="button"
-        className="w-full bg-primary text-white py-2 px-4 rounded mb-6"
-        onClick={() => setWorldSeed(Math.floor(Math.random() * 1000000))}
+        className="tool-btn w-full bg-primary hover:bg-primary/80 transition-colors text-white py-2 px-4 rounded mb-6 font-medium"
+        onClick={() => {
+          soundManager.uiClick();
+          setWorldSeed(Math.floor(Math.random() * 1000000));
+        }}
       >
-        New World
+        ✦ New World
       </button>
       
       {/* Tool Categories */}
@@ -113,10 +134,13 @@ const Sidebar = () => {
                 <button
                   type="button"
                   key={tool.id}
-                  onClick={() => setSelectedTool(tool.id)}
-                  className={`flex items-center justify-center py-2 px-3 rounded text-sm ${
+                  onClick={() => {
+                    soundManager.uiClick();
+                    setSelectedTool(tool.id);
+                  }}
+                  className={`tool-btn flex items-center justify-center py-2 px-3 rounded text-sm ${
                     selectedTool === tool.id 
-                      ? 'bg-accent text-accent-foreground' 
+                      ? 'tool-btn-active bg-accent text-accent-foreground' 
                       : 'bg-secondary text-foreground hover:bg-muted'
                   }`}
                   title={tool.name}
@@ -177,16 +201,7 @@ const Sidebar = () => {
       {/* Bottom info */}
       <div className="mt-6 text-sm text-muted-foreground">
         <p>Click on the world to interact</p>
-        <p className="mt-1">
-          Time of day: <span className="text-foreground">{timeOfDay}</span>
-        </p>
-        <button
-          type="button"
-          onClick={toggleDayNight}
-          className="mt-2 text-xs py-1 px-2 bg-muted hover:bg-muted/80 rounded"
-        >
-          Toggle Day/Night
-        </button>
+        <p className="mt-1 text-xs">Seed: <span className="text-foreground">{worldSeed}</span></p>
       </div>
     </div>
   );

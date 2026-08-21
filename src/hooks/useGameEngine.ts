@@ -1,20 +1,28 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { useThree, useFrame } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
 
 import { useGameStore } from '../store/gameStore';
 import { generateTerrain, determineBiome, getBiomeColor } from '../utils/worldGenerator';
-import { Tile, BiomeType, MAP_SIZES, TILE_SIZE, EntityType } from '../types/world';
+import { Tile, MAP_SIZES, TILE_SIZE, MIN_TILE_HEIGHT, BASE_TILE_SCALED_HEIGHT_MULTIPLIER, EntityType, TimeOfDay } from '../types/world';
 import { EntityManager } from '../utils/entityManagerMinimal';
+import { EffectsManager } from '../utils/effectsManager';
+import { soundManager } from '../utils/soundManager';
 
 // Constants for game engine
-const CAMERA_PAN_SPEED = 0.5;
-const CAMERA_ZOOM_SPEED = 0.1;
-const MIN_CAMERA_HEIGHT = 3;
-const MAX_CAMERA_HEIGHT = 100;
 const SELECTION_INDICATOR_HEIGHT = 0.1;
-const TERRAIN_ADJUST_AMOUNT = TILE_SIZE * 0.3;
+const SECONDS_PER_DAY_PHASE = 20; // Game seconds per dawn/day/dusk/night phase
+const TIME_PHASES: TimeOfDay[] = ['dawn', 'day', 'dusk', 'night'];
+const SKY_COLORS: Record<TimeOfDay, THREE.Color> = {
+  dawn: new THREE.Color('#43325e'),
+  day: new THREE.Color('#6f9fc8'),
+  dusk: new THREE.Color('#53304e'),
+  night: new THREE.Color('#0b1120'),
+};
+const FLAMMABLE_BIOMES = [
+  'deciduous_forest', 'coniferous_forest', 'taiga', 'rainforest',
+  'tropical_forest', 'enchanted_forest', 'grassland', 'savanna', 'hills',
+];
 
 /**
  * Custom hook for the game engine logic
@@ -28,9 +36,9 @@ export const useGameEngine = () => {
     season,
     gameSpeed,
     isGamePaused,
+    weather,
     selectedTool,
-    selectedTile,
-    setSelectedTile
+    selectedTile
   } = useGameStore();
   
   // Three.js references and state
@@ -40,8 +48,12 @@ export const useGameEngine = () => {
   const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
   const selectionIndicatorRef = useRef<THREE.Mesh | null>(null);
   const tickTimerRef = useRef<number>(0);
-  const lastTimeRef = useRef<number>(0);
   const entityManagerRef = useRef<EntityManager | null>(null);
+  const effectsManagerRef = useRef<EffectsManager | null>(null);
+  const burningTilesRef = useRef<Set<Tile>>(new Set());
+  const phaseTimerRef = useRef<number>(0);
+  const weatherTimerRef = useRef<number>(0);
+  const statsTimerRef = useRef<number>(0);
   
   const [isInitialized, setIsInitialized] = useState<boolean>(false);
   
@@ -54,39 +66,64 @@ export const useGameEngine = () => {
   const initializeWorld = useCallback(() => {
     console.log('Initializing world...');
     
-    // Clear any existing world
+    // Tear down any existing world and free GPU resources
+    if (entityManagerRef.current) {
+      entityManagerRef.current.clear();
+      entityManagerRef.current = null;
+    }
+    if (effectsManagerRef.current) {
+      effectsManagerRef.current.dispose();
+      effectsManagerRef.current = null;
+    }
     if (worldRef.current) {
+      worldRef.current.traverse((child) => {
+        const mesh = child as THREE.Mesh;
+        if (mesh.geometry) mesh.geometry.dispose();
+        const material = mesh.material as THREE.Material | THREE.Material[] | undefined;
+        if (Array.isArray(material)) material.forEach(m => m.dispose());
+        else if (material) material.dispose();
+      });
       scene.remove(worldRef.current);
     }
+    if (selectionIndicatorRef.current) {
+      scene.remove(selectionIndicatorRef.current);
+      selectionIndicatorRef.current.geometry.dispose();
+      (selectionIndicatorRef.current.material as THREE.Material).dispose();
+      selectionIndicatorRef.current = null;
+    }
+    burningTilesRef.current.clear();
     
     // Create new world
     worldRef.current = new THREE.Group();
     scene.add(worldRef.current);
     
-    // Generate terrain
+    // Generate terrain using the time/season at generation moment
+    const storeState = useGameStore.getState();
     const mapSize = worldSize === 'custom' ? customWorldSize : MAP_SIZES[worldSize];
     const { worldGroup, tilesData } = generateTerrain(
       worldSeed,
       worldSize,
       customWorldSize,
-      timeOfDay,
-      season
+      storeState.timeOfDay,
+      storeState.season
     );
     
     // Store the tiles data and add the world group to the scene
     tilesRef.current = tilesData;
     worldRef.current.add(worldGroup);
     
-    // Create selection indicator (a simple wireframe box)
-    const indicatorGeometry = new THREE.BoxGeometry(TILE_SIZE, SELECTION_INDICATOR_HEIGHT, TILE_SIZE);
+    // Create selection indicator (pulsing ring)
+    const indicatorGeometry = new THREE.RingGeometry(TILE_SIZE * 0.45, TILE_SIZE * 0.6, 24);
     const indicatorMaterial = new THREE.MeshBasicMaterial({
-      color: 0xffff00,
-      wireframe: true,
+      color: 0xffee66,
       transparent: true,
-      opacity: 0.8,
+      opacity: 0.85,
+      side: THREE.DoubleSide,
+      depthWrite: false,
     });
     
     selectionIndicatorRef.current = new THREE.Mesh(indicatorGeometry, indicatorMaterial);
+    selectionIndicatorRef.current.rotation.x = -Math.PI / 2;
     selectionIndicatorRef.current.visible = false;
     scene.add(selectionIndicatorRef.current);
     
@@ -98,17 +135,42 @@ export const useGameEngine = () => {
     // Set up lights
     setupLights();
     
-    // Initialize entity manager
+    // Initialize entity manager and wire world events
     entityManagerRef.current = new EntityManager(tilesData, scene);
+    entityManagerRef.current.setPopulationDensity(storeState.entityPopulationDensity);
+    entityManagerRef.current.onLifeEvent = (message, kind) => {
+      useGameStore.getState().addEvent(message, kind);
+    };
+    entityManagerRef.current.onEntityDeath = (entity) => {
+      const state = useGameStore.getState();
+      if (state.selectedEntity?.id === entity.id) {
+        state.setSelectedEntity(null);
+      }
+      // Soul puff at the point of death
+      const ex = Math.floor(entity.position.x);
+      const ey = Math.floor(entity.position.y);
+      if (ex >= 0 && ex < tilesData.length && ey >= 0 && ey < tilesData[0].length) {
+        effectsManagerRef.current?.spawnBurst(tileWorldPosition(tilesData[ex][ey]), 0x9aa4b5, 12, 1.4);
+      }
+      soundManager.death();
+    };
+    entityManagerRef.current.onEntitySpawn = (entity) => {
+      const ex = Math.floor(entity.position.x);
+      const ey = Math.floor(entity.position.y);
+      if (ex >= 0 && ex < tilesData.length && ey >= 0 && ey < tilesData[0].length) {
+        effectsManagerRef.current?.spawnBurst(tileWorldPosition(tilesData[ex][ey]), 0x9fe8a0, 10, 1.2);
+      }
+      soundManager.spawn();
+    };
     
-    // Set population density
-    if (entityManagerRef.current) {
-      entityManagerRef.current.setPopulationDensity('medium');
-    }
+    // Initialize the visual effects system
+    effectsManagerRef.current = new EffectsManager(scene);
+    effectsManagerRef.current.initAtmosphere(mapSize * TILE_SIZE);
     
     setIsInitialized(true);
+    useGameStore.getState().addEvent(`A new world awakens (seed ${worldSeed})`, 'info');
     console.log('World initialization complete.');
-  }, [worldSeed, worldSize, customWorldSize, timeOfDay, season, scene, camera]);
+  }, [worldSeed, worldSize, customWorldSize, scene, camera]); // eslint-disable-line react-hooks/exhaustive-deps
   
   /**
    * Sets up scene lighting based on time of day
@@ -192,9 +254,11 @@ export const useGameEngine = () => {
   /**
    * Handles mouse click on the game world
    */
-  const handleMouseClick = useCallback(() => {
+  const handleMouseClick = useCallback((event: MouseEvent) => {
     // Nothing to do if not initialized
     if (!isInitialized) return;
+    // Ignore clicks on UI panels; only act on the 3D canvas itself
+    if (event.target !== gl.domElement) return;
     
     // Get mouse position vector for raycast
     const mousePos = new THREE.Vector2(mousePositionRef.current.x, mousePositionRef.current.y);
@@ -221,11 +285,14 @@ export const useGameEngine = () => {
             // Select the entity
             useGameStore.getState().setSelectedEntity(clickedEntity);
             return;
-          } else {
-            // Apply tool effects to entity (if implemented)
-            // applyToolEffectToEntity(clickedEntity, selectedTool);
-            return;
           }
+          // Non-select tools fall through and act on the tile under the entity
+          const ex = Math.floor(clickedEntity.position.x);
+          const ey = Math.floor(clickedEntity.position.y);
+          if (ex >= 0 && ex < tilesRef.current.length && ey >= 0 && ey < tilesRef.current[0].length) {
+            applyToolEffect(tilesRef.current[ex][ey], selectedTool);
+          }
+          return;
         }
       }
     }
@@ -254,22 +321,62 @@ export const useGameEngine = () => {
         }
       }
     }
-  }, [isInitialized, selectedTool, camera, worldSize, customWorldSize]);
+  }, [isInitialized, selectedTool, camera, gl, worldSize, customWorldSize]); // eslint-disable-line react-hooks/exhaustive-deps
   
   /**
    * Applies the effect of a tool on a tile
    */
+  const tileWorldPosition = useCallback((tile: Tile): THREE.Vector3 => {
+    const mapWidth = tilesRef.current.length;
+    const mapHeight = tilesRef.current[0]?.length ?? 0;
+    return new THREE.Vector3(
+      (tile.x - mapWidth / 2) * TILE_SIZE,
+      tile.scaledHeight,
+      (tile.y - mapHeight / 2) * TILE_SIZE,
+    );
+  }, []);
+
+  const igniteTile = useCallback((tile: Tile) => {
+    if (tile.isOnFire || tile.height <= 0.25) return;
+    tile.isOnFire = true;
+    tile.fireIntensity = 1;
+    tile.fireFuel = FLAMMABLE_BIOMES.includes(tile.type) ? 6 : 2.5;
+    burningTilesRef.current.add(tile);
+    effectsManagerRef.current?.spawnFlame(tileWorldPosition(tile), tile.fireFuel);
+    if (tile.mesh) {
+      const material = (tile.mesh as THREE.Mesh).material as THREE.MeshStandardMaterial;
+      material.emissive = new THREE.Color(0xff4400);
+      material.emissiveIntensity = 0.6;
+    }
+  }, [tileWorldPosition]);
+
+  const extinguishTile = useCallback((tile: Tile, burned: boolean) => {
+    tile.isOnFire = false;
+    tile.fireIntensity = 0;
+    burningTilesRef.current.delete(tile);
+    if (burned && tile.height > 0.25) {
+      tile.type = 'badlands';
+      tile.structure = null;
+      tile.fertility = Math.max(0, tile.fertility - 0.4);
+      tile.resources = tile.resources.filter(r => !['wood', 'food'].includes(r.type));
+    }
+    if (tile.mesh) {
+      const material = (tile.mesh as THREE.Mesh).material as THREE.MeshStandardMaterial;
+      material.emissiveIntensity = 0;
+      const state = useGameStore.getState();
+      material.color.copy(getBiomeColor(tile.type, state.timeOfDay, state.season));
+    }
+  }, []);
+
   const applyToolEffect = useCallback((tile: Tile, tool: string | null) => {
     if (!tile || !tool) return;
-    
-    const x = tile.x;
-    const y = tile.y;
     
     switch (tool) {
       case 'raise-terrain':
         if (tile.height < 0.95) {
           tile.height = Math.min(1.0, tile.height + 0.1);
           updateTileHeight(tile);
+          soundManager.terraform();
         }
         break;
         
@@ -277,6 +384,7 @@ export const useGameEngine = () => {
         if (tile.height > 0.05) {
           tile.height = Math.max(0.0, tile.height - 0.1);
           updateTileHeight(tile);
+          soundManager.terraform();
         }
         break;
         
@@ -286,6 +394,7 @@ export const useGameEngine = () => {
           tile.type = 'shallow_water';
           updateTileHeight(tile);
           updateTileAppearance(tile);
+          soundManager.terraform();
         }
         break;
         
@@ -294,6 +403,7 @@ export const useGameEngine = () => {
         tile.type = 'mountains';
         updateTileHeight(tile);
         updateTileAppearance(tile);
+        soundManager.terraform();
         break;
         
       case 'place-forest':
@@ -305,6 +415,7 @@ export const useGameEngine = () => {
             level: 2
           };
           updateTileAppearance(tile);
+          soundManager.terraform();
         }
         break;
         
@@ -318,7 +429,7 @@ export const useGameEngine = () => {
         break;
         
       case 'spawn-elf':
-        if (tile.height > 0.25 && tile.type.includes('forest')) {
+        if (tile.height > 0.25 && !['deep_ocean', 'ocean', 'shallow_water'].includes(tile.type)) {
           if (entityManagerRef.current) {
             entityManagerRef.current.spawnEntity('elf', tile.x, tile.y);
             tile.population += 1;
@@ -327,7 +438,7 @@ export const useGameEngine = () => {
         break;
         
       case 'spawn-dwarf':
-        if (tile.height > 0.4 && ['mountains', 'hills', 'rock'].includes(tile.type)) {
+        if (tile.height > 0.25 && !['deep_ocean', 'ocean', 'shallow_water'].includes(tile.type)) {
           if (entityManagerRef.current) {
             entityManagerRef.current.spawnEntity('dwarf', tile.x, tile.y);
             tile.population += 1;
@@ -336,7 +447,7 @@ export const useGameEngine = () => {
         break;
         
       case 'spawn-orc':
-        if (tile.height > 0.25 && ['badlands', 'savanna', 'hills'].includes(tile.type)) {
+        if (tile.height > 0.25 && !['deep_ocean', 'ocean', 'shallow_water'].includes(tile.type)) {
           if (entityManagerRef.current) {
             entityManagerRef.current.spawnEntity('orc', tile.x, tile.y);
             tile.population += 1;
@@ -347,28 +458,20 @@ export const useGameEngine = () => {
       case 'spawn-animal':
         if (tile.height > 0.25 && !['deep_ocean', 'ocean'].includes(tile.type)) {
           if (entityManagerRef.current) {
-            // Choose a random animal based on the biome
-            const animalTypes: EntityType[] = ['wolf', 'bear', 'deer', 'rabbit', 'bird'];
-            
-            // Bias selection based on biome
-            let selectedType: EntityType;
-            
-            if (tile.type.includes('forest')) {
-              // Forest biomes have more wolves, bears, and deer
-              selectedType = animalTypes[Math.floor(Math.random() * 3)];
+            // Choose a biome-appropriate animal so spawning always succeeds
+            let candidates: EntityType[];
+            if (['shallow_water', 'river', 'lake'].includes(tile.type)) {
+              candidates = ['fish'];
+            } else if (tile.type.includes('forest') || tile.type === 'taiga') {
+              candidates = ['wolf', 'bear', 'deer', 'bird'];
             } else if (tile.type === 'grassland' || tile.type === 'savanna') {
-              // Grasslands have more rabbits and deer
-              selectedType = Math.random() < 0.7 ? 
-                (Math.random() < 0.5 ? 'rabbit' : 'deer') : 
-                animalTypes[Math.floor(Math.random() * 3)];
-            } else if (['shallow_water', 'river', 'lake'].includes(tile.type)) {
-              // Water bodies have fish
-              selectedType = 'fish';
+              candidates = ['rabbit', 'deer', 'bird'];
+            } else if (tile.type === 'mountains' || tile.type === 'hills') {
+              candidates = ['bear', 'bird'];
             } else {
-              // Random selection for other biomes
-              selectedType = animalTypes[Math.floor(Math.random() * animalTypes.length)];
+              candidates = ['bird', 'rabbit'];
             }
-            
+            const selectedType = candidates[Math.floor(Math.random() * candidates.length)];
             entityManagerRef.current.spawnEntity(selectedType, tile.x, tile.y);
             tile.population += 1;
           }
@@ -396,10 +499,178 @@ export const useGameEngine = () => {
           tile.population += 1;
         }
         break;
-        
-      // Add other tool implementations here
+
+      case 'plant-trees': {
+        if (tile.height > 0.28 && tile.height < 0.75 && !tile.type.includes('water')) {
+          tile.type = tile.temperature < 0.3 ? 'coniferous_forest' : 'deciduous_forest';
+          tile.structure = { type: 'young_tree', health: 100, level: 1 };
+          tile.resources.push({ type: 'wood', quantity: 5, discovered: true });
+          updateTileAppearance(tile);
+          effectsManagerRef.current?.spawnBurst(tileWorldPosition(tile), 0x44cc44, 14, 1.5);
+        }
+        break;
+      }
+
+      case 'unearth-minerals': {
+        const mineralTypes = ['iron', 'gold', 'stone', 'coal', 'gem'] as const;
+        const mineral = mineralTypes[Math.floor(Math.random() * mineralTypes.length)];
+        tile.resources.push({ type: mineral, quantity: 5 + Math.floor(Math.random() * 10), discovered: true });
+        effectsManagerRef.current?.spawnBurst(tileWorldPosition(tile), 0xffdd55, 16, 2);
+        useGameStore.getState().addEvent(`A vein of ${mineral} surfaced at (${tile.x}, ${tile.y})`, 'divine');
+        break;
+      }
+
+      case 'summon-rain': {
+        const store = useGameStore.getState();
+        if (store.weather === 'clear') {
+          store.setWeather('rain');
+          store.addEvent('Rain begins to fall across the land', 'divine');
+        } else {
+          store.setWeather('clear');
+          store.addEvent('The skies clear', 'divine');
+        }
+        break;
+      }
+
+      case 'fire': {
+        igniteTile(tile);
+        soundManager.fire();
+        useGameStore.getState().addEvent(`Divine fire ignites (${tile.x}, ${tile.y})`, 'disaster');
+        break;
+      }
+
+      case 'earthquake': {
+        const radius = 4;
+        for (let dx = -radius; dx <= radius; dx++) {
+          for (let dy = -radius; dy <= radius; dy++) {
+            const nx = tile.x + dx;
+            const ny = tile.y + dy;
+            if (nx < 0 || nx >= tilesRef.current.length || ny < 0 || ny >= tilesRef.current[0].length) continue;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance > radius) continue;
+            const target = tilesRef.current[nx][ny];
+            const shift = (Math.random() - 0.5) * 0.25 * (1 - distance / radius);
+            target.height = Math.max(0, Math.min(1, target.height + shift));
+            target.structure = null;
+            updateTileHeight(target);
+            updateTileAppearance(target);
+          }
+        }
+        const kills = entityManagerRef.current?.damageArea(tile.x, tile.y, radius, 35) ?? 0;
+        effectsManagerRef.current?.spawnShockwave(tileWorldPosition(tile), 0xaa8855, 6);
+        soundManager.earthquake();
+        useGameStore.getState().addEvent(
+          `An earthquake reshapes the land${kills > 0 ? `, claiming ${kills} lives` : ''}`,
+          'disaster'
+        );
+        break;
+      }
+
+      case 'meteor': {
+        const impact = tileWorldPosition(tile);
+        effectsManagerRef.current?.spawnMeteor(impact, () => {
+          const radius = 3;
+          for (let dx = -radius; dx <= radius; dx++) {
+            for (let dy = -radius; dy <= radius; dy++) {
+              const nx = tile.x + dx;
+              const ny = tile.y + dy;
+              if (nx < 0 || nx >= tilesRef.current.length || ny < 0 || ny >= tilesRef.current[0].length) continue;
+              const distance = Math.sqrt(dx * dx + dy * dy);
+              if (distance > radius) continue;
+              const target = tilesRef.current[nx][ny];
+              target.height = Math.max(0.05, target.height - 0.3 * (1 - distance / radius));
+              target.structure = null;
+              if (distance < 1.5) {
+                target.type = 'volcanic';
+              }
+              updateTileHeight(target);
+              updateTileAppearance(target);
+              if (distance < 2 && FLAMMABLE_BIOMES.includes(target.type)) {
+                igniteTile(target);
+              }
+            }
+          }
+          const kills = entityManagerRef.current?.damageArea(tile.x, tile.y, radius + 1, 80) ?? 0;
+          soundManager.meteor();
+          useGameStore.getState().addEvent(
+            `A meteor devastates the region${kills > 0 ? ` — ${kills} perished` : ''}`,
+            'disaster'
+          );
+        });
+        break;
+      }
+
+      case 'lightning': {
+        effectsManagerRef.current?.spawnLightning(tileWorldPosition(tile));
+        soundManager.lightning();
+        const kills = entityManagerRef.current?.damageArea(tile.x, tile.y, 1.2, 60) ?? 0;
+        if (FLAMMABLE_BIOMES.includes(tile.type) && Math.random() < 0.6) {
+          igniteTile(tile);
+        }
+        useGameStore.getState().addEvent(
+          `Lightning strikes (${tile.x}, ${tile.y})${kills > 0 ? ` — ${kills} slain` : ''}`,
+          'disaster'
+        );
+        break;
+      }
+
+      case 'blessing': {
+        const healed = entityManagerRef.current?.healArea(tile.x, tile.y, 4, 50) ?? 0;
+        const radius = 3;
+        for (let dx = -radius; dx <= radius; dx++) {
+          for (let dy = -radius; dy <= radius; dy++) {
+            const nx = tile.x + dx;
+            const ny = tile.y + dy;
+            if (nx < 0 || nx >= tilesRef.current.length || ny < 0 || ny >= tilesRef.current[0].length) continue;
+            const target = tilesRef.current[nx][ny];
+            target.fertility = Math.min(1, target.fertility + 0.3);
+            if (target.type === 'corrupted') {
+              target.type = determineBiome(target.height, target.moisture, target.temperature);
+              updateTileAppearance(target);
+            }
+            if (Math.random() < 0.3 && target.height > 0.25 && !target.resources.some(r => r.type === 'food')) {
+              target.resources.push({ type: 'food', quantity: 5, discovered: true });
+            }
+          }
+        }
+        effectsManagerRef.current?.spawnAura(tileWorldPosition(tile), 0xffee88);
+        soundManager.bless();
+        useGameStore.getState().addEvent(
+          `A blessing radiates outward${healed > 0 ? `, healing ${healed} creatures` : ''}`,
+          'divine'
+        );
+        break;
+      }
+
+      case 'curse': {
+        const radius = 3;
+        for (let dx = -radius; dx <= radius; dx++) {
+          for (let dy = -radius; dy <= radius; dy++) {
+            const nx = tile.x + dx;
+            const ny = tile.y + dy;
+            if (nx < 0 || nx >= tilesRef.current.length || ny < 0 || ny >= tilesRef.current[0].length) continue;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance > radius) continue;
+            const target = tilesRef.current[nx][ny];
+            if (target.height > 0.25) {
+              target.type = 'corrupted';
+              target.fertility = Math.max(0, target.fertility - 0.5);
+              target.structure = null;
+              updateTileAppearance(target);
+            }
+          }
+        }
+        const kills = entityManagerRef.current?.damageArea(tile.x, tile.y, radius, 25) ?? 0;
+        effectsManagerRef.current?.spawnAura(tileWorldPosition(tile), 0x9922cc);
+        soundManager.curse();
+        useGameStore.getState().addEvent(
+          `Dark corruption spreads${kills > 0 ? ` — ${kills} souls claimed` : ''}`,
+          'disaster'
+        );
+        break;
+      }
     }
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   
   /**
    * Updates tile height and mesh
@@ -408,9 +679,7 @@ export const useGameEngine = () => {
     if (!tile.mesh) return;
     
     // Recalculate scaled height
-    const minHeight = 0.05;
-    const heightRange = 2.0;
-    tile.scaledHeight = minHeight + tile.height * heightRange;
+    tile.scaledHeight = MIN_TILE_HEIGHT + tile.height * BASE_TILE_SCALED_HEIGHT_MULTIPLIER;
     
     // Update geometry
     const geometry = new THREE.BoxGeometry(TILE_SIZE, tile.scaledHeight, TILE_SIZE);
@@ -446,13 +715,16 @@ export const useGameEngine = () => {
     if (selectedTile && selectedTile.mesh) {
       selectionIndicatorRef.current.visible = true;
       
-      // Position just above the selected tile
+      // Position just above the selected tile, spin and pulse
       const yPos = selectedTile.scaledHeight + SELECTION_INDICATOR_HEIGHT / 2;
       selectionIndicatorRef.current.position.set(
         selectedTile.mesh.position.x,
         yPos,
         selectedTile.mesh.position.z
       );
+      selectionIndicatorRef.current.rotation.z = Date.now() / 900;
+      const pulse = 1 + Math.sin(Date.now() / 250) * 0.12;
+      selectionIndicatorRef.current.scale.set(pulse, pulse, 1);
     } else {
       selectionIndicatorRef.current.visible = false;
     }
@@ -464,31 +736,136 @@ export const useGameEngine = () => {
   const gameTick = useCallback((deltaTime: number) => {
     if (isGamePaused) return;
     
-    // Time accumulator for ticks
-    tickTimerRef.current += deltaTime * gameSpeed;
+    const scaledDelta = deltaTime * gameSpeed;
+    tickTimerRef.current += scaledDelta;
     
     // Update entities every frame for smooth movement
     if (entityManagerRef.current) {
-      entityManagerRef.current.update(deltaTime);
+      entityManagerRef.current.update(scaledDelta);
     }
-    
-    // Perform game simulation every ~250ms of game time
+
+    // Update visual effects in real time
+    effectsManagerRef.current?.update(deltaTime);
+
+    // Advance the day/night cycle
+    phaseTimerRef.current += scaledDelta;
+    if (phaseTimerRef.current >= SECONDS_PER_DAY_PHASE) {
+      phaseTimerRef.current = 0;
+      const store = useGameStore.getState();
+      const nextPhase = TIME_PHASES[(TIME_PHASES.indexOf(store.timeOfDay) + 1) % TIME_PHASES.length];
+      store.setTimeOfDay(nextPhase);
+      if (nextPhase === 'dawn') {
+        store.advanceDay();
+      }
+      refreshWorldColors();
+    }
+
+    // Weather evolution: rain slowly fades, storms may spark
+    weatherTimerRef.current += scaledDelta;
+    if (weatherTimerRef.current >= 12) {
+      weatherTimerRef.current = 0;
+      const store = useGameStore.getState();
+      if (store.weather !== 'clear' && Math.random() < 0.3) {
+        store.setWeather('clear');
+        store.addEvent('The rain subsides', 'info');
+      } else if (store.weather === 'clear' && Math.random() < 0.08) {
+        store.setWeather('rain');
+        store.addEvent('Clouds gather; rain begins to fall', 'info');
+      }
+    }
+
+    // Simulation steps at fixed cadence
     const tickInterval = 0.25;
     while (tickTimerRef.current >= tickInterval) {
       tickTimerRef.current -= tickInterval;
-      
-      // Perform other simulation logic (environment, civilizations, etc.)
-      // This will be expanded later with more game simulation logic
+      simulateFire(tickInterval);
     }
-  }, [isGamePaused, gameSpeed]);
+
+    // Publish population and moisture effects periodically
+    statsTimerRef.current += deltaTime;
+    if (statsTimerRef.current >= 1) {
+      statsTimerRef.current = 0;
+      const store = useGameStore.getState();
+      store.setPopulation(entityManagerRef.current?.getPopulation() ?? 0);
+      if (store.weather !== 'clear') {
+        effectsManagerRef.current?.startRain();
+        soundManager.startRain();
+      } else {
+        effectsManagerRef.current?.stopRain();
+        soundManager.stopRain();
+      }
+    }
+
+    // Smoothly blend the sky and fog toward the current phase
+    const currentPhase = useGameStore.getState().timeOfDay;
+    const targetSky = SKY_COLORS[currentPhase];
+    if (scene.background instanceof THREE.Color) {
+      scene.background.lerp(targetSky, Math.min(1, deltaTime * 0.8));
+    } else {
+      scene.background = targetSky.clone();
+    }
+    if (scene.fog?.color) {
+      scene.fog.color.lerp(targetSky, Math.min(1, deltaTime * 0.8));
+    }
+    effectsManagerRef.current?.setStarVisibility(currentPhase === 'night' || currentPhase === 'dusk');
+  }, [isGamePaused, gameSpeed, scene]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Spread, burn down, and extinguish fires. */
+  const simulateFire = useCallback((delta: number) => {
+    if (burningTilesRef.current.size === 0) return;
+    const store = useGameStore.getState();
+    const raining = store.weather !== 'clear';
+    const toExtinguish: { tile: Tile; burned: boolean }[] = [];
+
+    burningTilesRef.current.forEach(tile => {
+      tile.fireFuel = (tile.fireFuel ?? 1) - delta * (raining ? 3 : 1);
+      if (tile.fireFuel <= 0) {
+        toExtinguish.push({ tile, burned: !raining });
+        return;
+      }
+      // Damage entities standing in the fire
+      entityManagerRef.current?.damageArea(tile.x, tile.y, 0.8, 8 * delta * 4);
+      // Chance to spread to flammable neighbors
+      if (!raining && Math.random() < 0.12) {
+        const dx = Math.floor(Math.random() * 3) - 1;
+        const dy = Math.floor(Math.random() * 3) - 1;
+        const nx = tile.x + dx;
+        const ny = tile.y + dy;
+        if (nx >= 0 && nx < tilesRef.current.length && ny >= 0 && ny < tilesRef.current[0].length) {
+          const neighbor = tilesRef.current[nx][ny];
+          if (!neighbor.isOnFire && FLAMMABLE_BIOMES.includes(neighbor.type)) {
+            igniteTile(neighbor);
+          }
+        }
+      }
+    });
+
+    for (const { tile, burned } of toExtinguish) {
+      extinguishTile(tile, burned);
+    }
+  }, [igniteTile, extinguishTile]);
+
+  /** Re-tint every tile after a time-of-day or season change. */
+  const refreshWorldColors = useCallback(() => {
+    const state = useGameStore.getState();
+    for (const row of tilesRef.current) {
+      for (const tile of row) {
+        if (!tile.mesh || tile.isOnFire) continue;
+        const material = (tile.mesh as THREE.Mesh).material as THREE.MeshStandardMaterial;
+        material.color.copy(getBiomeColor(tile.type, state.timeOfDay, state.season));
+      }
+    }
+  }, []);
   
-  // Initialize the world on component mount or when relevant props change
+  // Initialize the world only when the seed or dimensions change
   useEffect(() => {
     if (!scene) return;
     
     initializeWorld();
-    
-    // Event listeners
+  }, [scene, initializeWorld]);
+
+  // Mouse listeners bind independently of world regeneration
+  useEffect(() => {
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('click', handleMouseClick);
     
@@ -496,14 +873,25 @@ export const useGameEngine = () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('click', handleMouseClick);
     };
-  }, [scene, worldSeed, worldSize, customWorldSize, timeOfDay, season, initializeWorld, handleMouseMove, handleMouseClick]);
+  }, [handleMouseMove, handleMouseClick]);
   
-  // Update lights when time of day changes
+  // Update lights and terrain tint when time of day or season changes
   useEffect(() => {
     if (isInitialized) {
       setupLights();
+      refreshWorldColors();
     }
-  }, [isInitialized, timeOfDay, setupLights]);
+  }, [isInitialized, timeOfDay, season, setupLights, refreshWorldColors]);
+
+  // React to manual weather changes from the toolbar
+  useEffect(() => {
+    if (!isInitialized) return;
+    if (weather !== 'clear') {
+      effectsManagerRef.current?.startRain();
+    } else {
+      effectsManagerRef.current?.stopRain();
+    }
+  }, [isInitialized, weather]);
   
   // Animation frame update
   useFrame((_, deltaTime) => {

@@ -1,59 +1,13 @@
 import { create } from 'zustand';
-import * as THREE from 'three';
-// Define types locally to avoid circular imports
-export type TimeOfDay = 'dawn' | 'day' | 'dusk' | 'night';
-export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
+import type { Entity, Race, Season, Tile, TimeOfDay } from '../types/world';
 
-// Entity types 
-export type EntityType = 
-  // Sentient races
-  | 'human' 
-  | 'elf' 
-  | 'dwarf' 
-  | 'orc'
-  // Animals
-  | 'wolf' 
-  | 'bear' 
-  | 'deer' 
-  | 'rabbit' 
-  | 'bird' 
-  | 'fish'
-  // Monsters
-  | 'dragon' 
-  | 'demon' 
-  | 'zombie' 
-  | 'skeleton' 
-  | 'elemental' 
-  | 'bandit';
+export type Weather = 'clear' | 'rain' | 'storm';
 
-// Define Tile and Entity interfaces locally
-interface Tile {
-  x: number;
-  y: number;
-  height: number;
-  scaledHeight: number;
-  type: string;
-  entities: Entity[];
-  walkable?: boolean;
-  mesh?: THREE.Mesh;
-  [key: string]: any;
-}
-
-interface Entity {
-  id: string;
-  type: EntityType;
-  name: string;
-  position: { x: number; y: number };
-  health: number;
-  maxHealth: number;
-  age: number;
-  maxAge: number;
-  attributes: { [key: string]: number };
-  needs: { [key: string]: number };
-  status: string[];
-  inventory: any[];
-  mesh?: THREE.Object3D | null;
-  [key: string]: any;
+export interface GameEvent {
+  id: number;
+  message: string;
+  kind: 'info' | 'life' | 'death' | 'disaster' | 'divine';
+  time: number;
 }
 
 // Tools available to the player
@@ -86,8 +40,6 @@ export type Tool =
   | 'curse'
   | null;
 
-export type Race = 'human' | 'elf' | 'dwarf' | 'orc';
-
 // Main game state
 interface GameState {
   // World parameters
@@ -95,8 +47,10 @@ interface GameState {
   worldSize: 'small' | 'medium' | 'large' | 'custom';
   customWorldSize: number;
   timeOfDay: TimeOfDay;
-  season: 'spring' | 'summer' | 'autumn' | 'winter';
+  season: Season;
   year: number;
+  day: number;
+  weather: Weather;
   
   // Game state
   isGamePaused: boolean;
@@ -109,6 +63,9 @@ interface GameState {
   selectedEntity: Entity | null;
   showDebugInfo: boolean;
   entityPopulationDensity: 'low' | 'medium' | 'high';
+  population: number;
+  events: GameEvent[];
+  showHelp: boolean;
   
   // Actions
   setSelectedTool: (tool: Tool) => void;
@@ -118,15 +75,25 @@ interface GameState {
   setCustomWorldSize: (size: number) => void;
   setTimeOfDay: (time: TimeOfDay) => void;
   toggleDayNight: () => void;
-  setSeason: (season: 'spring' | 'summer' | 'autumn' | 'winter') => void;
+  setSeason: (season: Season) => void;
   advanceSeason: () => void;
   advanceYear: () => void;
+  advanceDay: () => void;
+  setWeather: (weather: Weather) => void;
+  setPopulation: (population: number) => void;
+  addEvent: (message: string, kind?: GameEvent['kind']) => void;
+  setShowHelp: (show: boolean) => void;
   
   setSelectedTile: (tile: Tile | null) => void;
   setSelectedEntity: (entity: Entity | null) => void;
   setEntityPopulationDensity: (density: 'low' | 'medium' | 'high') => void;
   togglePause: () => void;
+  setGameSpeed: (speed: number) => void;
+  toggleDebugInfo: () => void;
+  resetWorld: () => void;
 }
+
+let nextEventId = 1;
 
 export const useGameStore = create<GameState>((set) => ({
   // Initial world parameters
@@ -136,6 +103,8 @@ export const useGameStore = create<GameState>((set) => ({
   timeOfDay: 'day',
   season: 'spring',
   year: 1,
+  day: 1,
+  weather: 'clear',
   
   // Initial game state
   isGamePaused: false,
@@ -148,6 +117,9 @@ export const useGameStore = create<GameState>((set) => ({
   selectedEntity: null,
   showDebugInfo: false,
   entityPopulationDensity: 'medium',
+  population: 0,
+  events: [],
+  showHelp: true,
   
   // Actions
   setSelectedTool: (tool: Tool) => set({ selectedTool: tool }),
@@ -166,7 +138,7 @@ export const useGameStore = create<GameState>((set) => ({
     timeOfDay: state.timeOfDay === 'day' ? 'night' : 'day' 
   })),
   
-  setSeason: (season: 'spring' | 'summer' | 'autumn' | 'winter') => set({ season }),
+  setSeason: (season: Season) => set({ season }),
   advanceSeason: () => set((state) => {
     const seasons = ['spring', 'summer', 'autumn', 'winter'] as const;
     const currentIndex = seasons.indexOf(state.season);
@@ -181,6 +153,33 @@ export const useGameStore = create<GameState>((set) => ({
   }),
   
   advanceYear: () => set((state) => ({ year: state.year + 1 })),
+
+  advanceDay: () => set((state) => {
+    const nextDay = state.day + 1;
+    if (nextDay > 4) {
+      const seasons = ['spring', 'summer', 'autumn', 'winter'] as const;
+      const nextSeasonIndex = (seasons.indexOf(state.season) + 1) % seasons.length;
+      return {
+        day: 1,
+        season: seasons[nextSeasonIndex],
+        year: nextSeasonIndex === 0 ? state.year + 1 : state.year,
+      };
+    }
+    return { day: nextDay };
+  }),
+
+  setWeather: (weather: Weather) => set({ weather }),
+
+  setPopulation: (population: number) => set({ population }),
+
+  addEvent: (message: string, kind: GameEvent['kind'] = 'info') => set((state) => ({
+    events: [
+      { id: nextEventId++, message, kind, time: Date.now() },
+      ...state.events,
+    ].slice(0, 50),
+  })),
+
+  setShowHelp: (show: boolean) => set({ showHelp: show }),
   
   setSelectedTile: (tile: Tile | null) => set({ selectedTile: tile }),
   
@@ -213,6 +212,9 @@ export const useGameStore = create<GameState>((set) => ({
     gameSpeed: 1,
     season: 'spring',
     year: 1,
+    day: 1,
+    weather: 'clear',
+    events: [],
     timeOfDay: 'day',
   }),
 }));

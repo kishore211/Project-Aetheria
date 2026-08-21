@@ -1,7 +1,6 @@
 import { useRef, useEffect } from 'react';
 import { OrbitControls } from '@react-three/drei';
 import { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
-import { useThree } from '@react-three/fiber';
 import { useGameEngine } from '../../hooks/useGameEngine';
 import { MAP_SIZES } from '../../types/world';
 import { useGameStore } from '../../store/gameStore';
@@ -11,13 +10,10 @@ const GameContainer = () => {
   const controlsRef = useRef<OrbitControlsImpl>(null);
   
   // Game state
-  const { worldSize, customWorldSize, isGamePaused } = useGameStore();
+  const { worldSize, customWorldSize } = useGameStore();
   
   // Get game engine state and methods
-  const { isInitialized, worldRef } = useGameEngine();
-  
-  // Get Three.js camera
-  const { camera } = useThree();
+  const { isInitialized } = useGameEngine();
   
   // Configure orbit controls based on world size
   useEffect(() => {

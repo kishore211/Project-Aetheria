@@ -1,7 +1,6 @@
 // src/utils/spriteHandler.ts
 import * as THREE from 'three';
 import { 
-  DEFAULT_ENTITY_SPRITE,
   HUMAN_SPRITE,
   WOLF_SPRITE, 
   DEER_SPRITE,
