@@ -18,6 +18,9 @@ export const isAquatic = (type: EntityType): boolean => AQUATIC.includes(type);
 export const isAirborne = (type: EntityType): boolean => AIRBORNE.includes(type);
 export const canSwim = (type: EntityType): boolean => SWIMMERS.includes(type);
 
+/** Bumped once per search so tile costs can be invalidated lazily. */
+let searchGeneration = 0;
+
 /**
  * A* Pathfinding algorithm for entities to navigate the world
  */
@@ -27,29 +30,38 @@ export function findPath(
   tiles: Tile[][],
   entityType: EntityType
 ): Tile[] {
-  // Reset pathfinding properties
-  for (let x = 0; x < tiles.length; x++) {
-    for (let y = 0; y < tiles[0].length; y++) {
-      tiles[x][y].fCost = undefined;
-      tiles[x][y].gCost = undefined;
-      tiles[x][y].hCost = undefined;
-      tiles[x][y].parent = undefined;
+  // Every search gets its own stamp instead of wiping the whole grid first.
+  // Clearing 16,384 tiles per call cost more than the search itself once a few
+  // dozen creatures were routing at once.
+  const search = ++searchGeneration;
+  const visit = (tile: Tile) => {
+    if (tile.searchStamp !== search) {
+      tile.searchStamp = search;
+      tile.gCost = undefined;
+      tile.hCost = undefined;
+      tile.fCost = undefined;
+      tile.parent = undefined;
+      tile.closed = false;
     }
-  }
-  
-  // Lists for A* algorithm
+    return tile;
+  };
+
   const openSet: Tile[] = [];
-  const closedSet: Tile[] = [];
-  
-  // Add starting tile to open set
+
+  visit(startTile);
+  visit(targetTile);
   openSet.push(startTile);
-  
-  // Set initial costs
+
   startTile.gCost = 0;
   startTile.hCost = calculateHeuristic(startTile, targetTile);
   startTile.fCost = startTile.hCost;
-  
+
+  // A hard ceiling keeps one hopeless search from stalling a frame
+  let expansions = 0;
+  const maxExpansions = 4000;
+
   while (openSet.length > 0) {
+    if (++expansions > maxExpansions) return [];
     // Find tile with lowest F cost
     let currentIndex = 0;
     for (let i = 1; i < openSet.length; i++) {
@@ -72,17 +84,27 @@ export function findPath(
     
     // Move current tile from open set to closed set
     openSet.splice(currentIndex, 1);
-    closedSet.push(currentTile);
-    
-    // Process neighbors
+    currentTile.closed = true;
+
     const neighbors = getNeighbors(currentTile, tiles);
-    
-    for (const neighbor of neighbors) {
-      // Skip if neighbor is in closed set
-      if (closedSet.includes(neighbor)) continue;
-      
+
+    for (const raw of neighbors) {
+      const neighbor = visit(raw);
+      if (neighbor.closed) continue;
+
       // Skip if tile is not walkable for this entity type
       if (!isWalkableForEntity(neighbor, entityType)) continue;
+
+      // Never cut a corner: a diagonal step needs both orthogonal tiles to be
+      // passable too. Without this, movement between two diagonal tile centres
+      // clips the corner of the tile between them — which is how creatures end
+      // up briefly standing in the sea while walking around a bay.
+      if (neighbor.x !== currentTile.x && neighbor.y !== currentTile.y) {
+        const sideA = tiles[neighbor.x]?.[currentTile.y];
+        const sideB = tiles[currentTile.x]?.[neighbor.y];
+        if (!sideA || !isWalkableForEntity(sideA, entityType)) continue;
+        if (!sideB || !isWalkableForEntity(sideB, entityType)) continue;
+      }
       
       // Calculate tentative G cost (distance from start)
       const tentativeGCost = (currentTile.gCost || 0) + getMovementCost(currentTile, neighbor, entityType);

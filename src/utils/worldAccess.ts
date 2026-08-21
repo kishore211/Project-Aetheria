@@ -16,6 +16,8 @@ export interface WorldAccess {
   cameraFocus: () => { x: number; y: number; span: number };
   /** Snapshot the world for a save slot or a file export. */
   captureSave: (label: string) => SaveGame;
+  /** Herd this creature travels with, for the inspector. */
+  herdInfo: (entity: Entity) => { size: number; isAlpha: boolean } | null;
   /** Village occupying a tile, for the inspector. */
   villageInfo: (x: number, y: number) => {
     name: string;

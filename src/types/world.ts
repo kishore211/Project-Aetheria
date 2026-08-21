@@ -234,6 +234,8 @@ export interface Entity {
   kingdomId?: string | null;
   /** Village this unit calls home. */
   villageId?: string | null;
+  /** Herd or pack this animal travels with. */
+  herdId?: string | null;
   /** What the unit is hauling back to its village store. */
   carrying?: { type: ResourceType; quantity: number } | null;
   /** Assigned village role. */
@@ -299,8 +301,11 @@ export interface Tile {
   /** Id of the village whose buildings occupy this tile, if any. */
   villageId?: string | null;
   
-  // For pathfinding
+  // For pathfinding. `searchStamp` marks which A* run last touched these
+  // scratch fields, so a search never has to clear the whole grid first.
   walkable?: boolean;
+  searchStamp?: number;
+  closed?: boolean;
   fCost?: number;
   gCost?: number;
   hCost?: number;

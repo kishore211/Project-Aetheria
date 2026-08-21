@@ -1,4 +1,4 @@
-import { Crown, Eye, EyeOff, MapPin, Skull, X } from 'lucide-react';
+import { Crown, Eye, EyeOff, MapPin, PawPrint, Skull, X } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
 import type { Entity, Resource, TraitId } from '../../types/world';
 import { TRAITS } from '../../utils/traits';
@@ -59,6 +59,9 @@ const InfoPanel = () => {
     : null;
 
   const isFollowing = selectedEntity && followEntityId === selectedEntity.id;
+  const herd = selectedEntity
+    ? worldAccess.current?.herdInfo(selectedEntity) ?? null
+    : null;
 
   return (
     <div className="ui-panel-right relative w-full max-h-[46vh] overflow-y-auto bg-secondary/95 backdrop-blur border border-muted/40 p-4 rounded-md shadow-lg">
@@ -106,6 +109,13 @@ const InfoPanel = () => {
               value={selectedEntity.health / selectedEntity.maxHealth}
               tone="bg-red-500"
             />
+
+            {herd && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <PawPrint size={11} />
+                {herd.isAlpha ? 'Leads' : 'Travels with'} a herd of {herd.size}
+              </p>
+            )}
 
             <div className="text-xs text-muted-foreground">
               Age {Math.round(selectedEntity.age)} of {Math.round(selectedEntity.maxAge)} years

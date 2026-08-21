@@ -135,23 +135,31 @@ describe('predators and prey', () => {
   });
 
   it('sends a hungry wolf after a nearby rabbit', () => {
-    const grid = makeGrid(16);
+    const grid = makeGrid(24);
     const scene = new THREE.Scene();
     const manager = new EntityManager(grid, scene);
 
-    const wolf = manager.spawnEntity('wolf', 4, 4);
-    const rabbit = manager.spawnEntity('rabbit', 7, 4);
+    const wolf = manager.spawnEntity('wolf', 8, 8);
+    const rabbit = manager.spawnEntity('rabbit', 11, 8);
     expect(wolf && rabbit).toBeTruthy();
     if (!wolf || !rabbit) return;
     wolf.needs.hunger = 0.1;
     rabbit.needs.hunger = 1;
 
-    const startDistance = Math.hypot(wolf.position.x - rabbit.position.x, wolf.position.y - rabbit.position.y);
-    for (let i = 0; i < 60; i++) manager.update(0.2);
-    const rabbitHurt = rabbit.health < rabbit.maxHealth;
-    const closed = Math.hypot(wolf.position.x - rabbit.position.x, wolf.position.y - rabbit.position.y) < startDistance;
+    // The rabbit flees, so end-of-run distance is a poor signal — the chase is
+    // what matters. Track how close the wolf ever got.
+    let closest = Infinity;
+    for (let i = 0; i < 120; i++) {
+      manager.update(0.2);
+      if (!manager.getEntityById(rabbit.id)) break; // caught and eaten
+      closest = Math.min(closest, Math.hypot(
+        wolf.position.x - rabbit.position.x,
+        wolf.position.y - rabbit.position.y,
+      ));
+    }
 
-    expect(rabbitHurt || closed).toBe(true);
+    const caught = !manager.getEntityById(rabbit.id);
+    expect(caught || rabbit.health < rabbit.maxHealth || closest < 2.5).toBe(true);
   });
 
   it('knows which types are civilised', () => {

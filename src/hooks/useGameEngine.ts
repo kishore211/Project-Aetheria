@@ -17,6 +17,7 @@ import { EntityManager } from '../utils/entityManagerMinimal';
 import { EffectsManager } from '../utils/effectsManager';
 import { TerrainRenderer } from '../utils/terrainRenderer';
 import { SettlementSystem } from '../utils/settlementSystem';
+import { HerdSystem } from '../utils/herdSystem';
 import { publishWorldAccess } from '../utils/worldAccess';
 import { writeSave } from '../utils/saveSystem';
 import { worldAccess } from '../utils/worldAccess';
@@ -75,6 +76,7 @@ export const useGameEngine = () => {
   const entityManagerRef = useRef<EntityManager | null>(null);
   const effectsManagerRef = useRef<EffectsManager | null>(null);
   const settlementRef = useRef<SettlementSystem | null>(null);
+  const herdRef = useRef<HerdSystem | null>(null);
   const burningTilesRef = useRef<Set<Tile>>(new Set());
   const phaseTimerRef = useRef<number>(0);
   const weatherTimerRef = useRef<number>(0);
@@ -167,6 +169,8 @@ export const useGameEngine = () => {
     effectsManagerRef.current = null;
     settlementRef.current?.dispose();
     settlementRef.current = null;
+    herdRef.current?.dispose();
+    herdRef.current = null;
     terrainRef.current?.dispose();
     terrainRef.current = null;
     publishWorldAccess(null);
@@ -273,7 +277,15 @@ export const useGameEngine = () => {
     });
     settlementRef.current = settlements;
     settlements.setWorldLaws(storeState.worldLaws);
-    simulation.onOrderComplete = (entity, order) => settlements.handleOrderComplete(entity, order);
+
+    // Animals travel in families; see utils/herdSystem.ts
+    const herds = new HerdSystem(tilesData, manager);
+    herdRef.current = herds;
+
+    simulation.onOrderComplete = (entity, order) => {
+      if (order.purpose === 'herd') herds.handleArrival(entity);
+      else settlements.handleOrderComplete(entity, order);
+    };
     // Lets the AI walk a stranded villager back to somewhere it belongs
     simulation.homePositionFor = (entity) => settlements.homePositionFor(entity);
 
@@ -322,6 +334,7 @@ export const useGameEngine = () => {
           kingdoms: snapshot.kingdoms,
         });
       },
+      herdInfo: (entity) => herds.describe(entity),
       villageInfo: (x: number, y: number) => settlements.describeVillage(x, y),
     });
 
@@ -930,6 +943,7 @@ export const useGameEngine = () => {
     tickTimerRef.current += scaledDelta;
 
     entityManagerRef.current?.update(scaledDelta);
+    herdRef.current?.update(scaledDelta);
     settlementRef.current?.update(scaledDelta);
 
     // Advance the day/night cycle
@@ -1077,6 +1091,7 @@ export const useGameEngine = () => {
         applyToolEffect(tilesRef.current[x][y], tool);
       },
       get settlements() { return settlementRef.current; },
+      get herds() { return herdRef.current; },
       /** Move the camera to a tile at a given height, for tests and debugging. */
       lookAt: (x: number, y: number, height = 6) => {
         if (!inBounds(x, y)) return;

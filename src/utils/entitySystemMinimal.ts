@@ -32,6 +32,7 @@ import type { EntityIndex } from './entityManagerMinimal';
 export type AIState =
   | 'idle'
   | 'moving'
+  | 'following'
   | 'gathering'
   | 'hunting'
   | 'fleeing'
@@ -45,7 +46,7 @@ export interface AIOrder {
   kind: 'goto';
   x: number;
   y: number;
-  purpose: 'deliver' | 'build' | 'raid' | 'return';
+  purpose: 'deliver' | 'build' | 'raid' | 'return' | 'herd';
 }
 
 // Predator-Prey relationships
@@ -368,6 +369,9 @@ export class EntityAI {
   targetEntity: Entity | null = null;
   path: Tile[] = [];
   order: AIOrder | null = null;
+  /** Creature this one trails (its herd alpha), and how far behind it stays. */
+  anchor: Entity | null = null;
+  anchorSlack = 3.5;
   ticksSinceLastAction = 0;
   private index: EntityIndex | null;
   private repathCooldown = 0;
@@ -418,6 +422,7 @@ export class EntityAI {
     switch (this.currentState) {
       case 'idle': this.handleIdleState(tiles); break;
       case 'moving': this.handleMovingState(tiles, deltaTime); break;
+      case 'following': this.handleFollowingState(tiles, deltaTime); break;
       case 'gathering': this.handleGatheringState(); break;
       case 'hunting': this.handleHuntingState(tiles, deltaTime); break;
       case 'fleeing': this.handleFleeingState(tiles, deltaTime); break;
@@ -454,6 +459,7 @@ export class EntityAI {
   /** Notice a creature that means to move but is not moving. */
   private trackStuck(tiles: Tile[][], deltaTime: number): void {
     const trying = this.currentState === 'moving'
+      || this.currentState === 'following'
       || this.currentState === 'hunting'
       || this.currentState === 'fleeing'
       || this.currentState === 'fighting';
@@ -640,6 +646,20 @@ export class EntityAI {
       this.order = null;
     }
 
+    // A straggler this far behind rejoins before doing anything else, or the
+    // herd smears across the map and stops reading as a group.
+    if (this.anchor && this.anchor.health > 0 && this.anchor.id !== this.entity.id && !desperate) {
+      const gap = Math.hypot(
+        this.anchor.position.x - this.entity.position.x,
+        this.anchor.position.y - this.entity.position.y,
+      );
+      if (gap > this.anchorSlack * 3) {
+        this.currentState = 'following';
+        this.ticksSinceLastAction = 0;
+        return;
+      }
+    }
+
     // Thirst. Land animals drink from the bank; only swimmers wade in, which
     // is what stops the whole population ending up in the water.
     if (this.entity.needs.thirst <= 0.35) {
@@ -714,6 +734,21 @@ export class EntityAI {
       if (threat) {
         this.targetEntity = threat;
         this.currentState = 'fleeing';
+        this.ticksSinceLastAction = 0;
+        return;
+      }
+    }
+
+    // Keep up with the herd. This sits below survival needs and above idle
+    // wandering, so an animal will still break off to drink but will otherwise
+    // travel with its family instead of milling about on the spot.
+    if (this.anchor && this.anchor.health > 0 && this.anchor.id !== this.entity.id) {
+      const gap = Math.hypot(
+        this.anchor.position.x - this.entity.position.x,
+        this.anchor.position.y - this.entity.position.y,
+      );
+      if (gap > this.anchorSlack) {
+        this.currentState = 'following';
         this.ticksSinceLastAction = 0;
         return;
       }
@@ -811,6 +846,52 @@ export class EntityAI {
       x: x + (dx / length) * step,
       y: y + (dy / length) * step,
     };
+  }
+
+  /**
+   * Trail the herd alpha. Deliberately direct steps rather than A*: the target
+   * moves every frame, so a route would be stale before it was walked, and a
+   * herd of nine re-planning constantly is pure cost for no benefit.
+   */
+  private handleFollowingState(tiles: Tile[][], deltaTime: number): void {
+    const anchor = this.anchor;
+    if (!anchor || anchor.health <= 0) {
+      this.anchor = null;
+      this.currentState = 'idle';
+      return;
+    }
+
+    const dx = anchor.position.x - this.entity.position.x;
+    const dy = anchor.position.y - this.entity.position.y;
+    const gap = Math.hypot(dx, dy);
+
+    if (gap <= this.anchorSlack * 0.7) {
+      this.removeStatus('moving');
+      this.currentState = 'idle';
+      this.ticksSinceLastAction = 0;
+      return;
+    }
+
+    this.addStatus('moving');
+    this.entity.lastPosition = { ...this.entity.position };
+    const step = this.tilesPerSecond() * deltaTime;
+    const nextX = this.entity.position.x + (dx / gap) * step;
+    const nextY = this.entity.position.y + (dy / gap) * step;
+
+    if (this.canStand(tiles, nextX, nextY)) {
+      this.entity.position = { x: nextX, y: nextY };
+      return;
+    }
+
+    // Something is in the way — walk to the alpha's tile properly instead
+    const target = this.tileAt(tiles, Math.floor(anchor.position.x), Math.floor(anchor.position.y));
+    if (target && isWalkableForEntity(target, this.entity.type)) {
+      this.targetTile = target;
+      this.path = [];
+      this.currentState = 'moving';
+    } else {
+      this.currentState = 'idle';
+    }
   }
 
   /** Resolve whatever the unit walked here to do. */

@@ -540,6 +540,15 @@ export class EntityManager implements EntityIndex {
     this.entityAIs.get(entity.id)?.engage(target);
   }
 
+  /** Make a creature trail another one (herd following). */
+  setHerdAnchor(entity: Entity, anchor: Entity | null, slack = 3.5): void {
+    const ai = this.entityAIs.get(entity.id);
+    if (!ai) return;
+    ai.anchor = anchor;
+    ai.anchorSlack = slack;
+    if (!anchor && ai.currentState === 'following') ai.currentState = 'idle';
+  }
+
   /** Population by kingdom id, used by the settlement system. */
   getEntitiesByKingdom(): Map<string, Entity[]> {
     const grouped = new Map<string, Entity[]>();

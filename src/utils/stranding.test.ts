@@ -120,15 +120,24 @@ describe('a creature never walks into water it cannot cross', () => {
     const grid = makeGrid(16);
     flood(grid, 8, 6, 11, 9, 'lake');
 
-    const sheep = createEntity('sheep', 2.5, 7.5, ['swift']);
+    const sheep = createEntity('sheep', 2.5, 7.5, []);
     sheep.needs.thirst = 0.1;
     const ai = new EntityAI(sheep);
 
-    run(ai, grid, 60);
+    // Track the peak: thirst starts draining again the moment it finishes
+    // drinking, so the end-of-run value says nothing about whether it drank.
+    let peakThirst = sheep.needs.thirst;
+    let everInLake = false;
+    for (let elapsed = 0; elapsed < 60; elapsed += 0.1) {
+      ai.update(grid, 0.1);
+      peakThirst = Math.max(peakThirst, sheep.needs.thirst);
+      if (grid[Math.floor(sheep.position.x)][Math.floor(sheep.position.y)].type === 'lake') {
+        everInLake = true;
+      }
+    }
 
-    expect(sheep.needs.thirst).toBeGreaterThan(0.5);
-    const tile = grid[Math.floor(sheep.position.x)][Math.floor(sheep.position.y)];
-    expect(tile.type).not.toBe('lake');
+    expect(peakThirst).toBeGreaterThan(0.9);
+    expect(everInLake).toBe(false);
   });
 });
 
