@@ -33,6 +33,7 @@ export type AIState =
   | 'idle'
   | 'moving'
   | 'following'
+  | 'socialising'
   | 'gathering'
   | 'hunting'
   | 'fleeing'
@@ -423,6 +424,7 @@ export class EntityAI {
       case 'idle': this.handleIdleState(tiles); break;
       case 'moving': this.handleMovingState(tiles, deltaTime); break;
       case 'following': this.handleFollowingState(tiles, deltaTime); break;
+      case 'socialising': this.handleSocialisingState(tiles, deltaTime); break;
       case 'gathering': this.handleGatheringState(); break;
       case 'hunting': this.handleHuntingState(tiles, deltaTime); break;
       case 'fleeing': this.handleFleeingState(tiles, deltaTime); break;
@@ -754,13 +756,44 @@ export class EntityAI {
       }
     }
 
-    // Wander
+    // Company. Villagers who have eaten and drunk want to be around other
+    // people, and the bonfire is where they go — which is what makes a
+    // settlement look lived in rather than like empty scenery.
+    if (this.entity.needs.social <= 0.45 && this.entity.villageId) {
+      const gathering = simulation.gatheringPointFor?.(this.entity);
+      if (gathering) {
+        const spot = this.tileAt(tiles, gathering.x, gathering.y);
+        if (spot) {
+          const distance = Math.hypot(
+            spot.x + 0.5 - this.entity.position.x,
+            spot.y + 0.5 - this.entity.position.y,
+          );
+          if (distance < 2.5) {
+            this.currentState = 'socialising';
+            this.ticksSinceLastAction = 0;
+            return;
+          }
+          this.targetTile = spot;
+          this.path = [];
+          this.currentState = 'moving';
+          this.ticksSinceLastAction = 0;
+          return;
+        }
+      }
+    }
+
+    // Wander. Villagers stay near home — the old behaviour let them drift off
+    // across the map and left their own village looking abandoned.
     if (Math.random() < 0.35) {
-      const currentX = Math.floor(this.entity.position.x);
-      const currentY = Math.floor(this.entity.position.y);
-      const range = 4;
-      const targetX = Math.max(0, Math.min(tiles.length - 1, currentX + Math.floor(Math.random() * (range * 2 + 1)) - range));
-      const targetY = Math.max(0, Math.min(tiles[0].length - 1, currentY + Math.floor(Math.random() * (range * 2 + 1)) - range));
+      const home = this.entity.villageId ? simulation.homePositionFor?.(this.entity) : null;
+      const anchorX = home ? home.x : Math.floor(this.entity.position.x);
+      const anchorY = home ? home.y : Math.floor(this.entity.position.y);
+      const range = home ? 7 : 4;
+
+      const targetX = Math.max(0, Math.min(tiles.length - 1,
+        anchorX + Math.floor(Math.random() * (range * 2 + 1)) - range));
+      const targetY = Math.max(0, Math.min(tiles[0].length - 1,
+        anchorY + Math.floor(Math.random() * (range * 2 + 1)) - range));
       const candidate = tiles[targetX][targetY];
       if (candidate.walkable !== false && isWalkableForEntity(candidate, this.entity.type)) {
         this.targetTile = candidate;
@@ -771,9 +804,48 @@ export class EntityAI {
     }
   }
 
+  /**
+   * Stand around the bonfire and talk. Restores the social need for everyone
+   * taking part, so villagers naturally cluster there between errands.
+   */
+  private handleSocialisingState(tiles: Tile[][], deltaTime: number): void {
+    this.removeStatus('moving');
+    this.addStatus('talking');
+
+    this.entity.needs.social = Math.min(1, this.entity.needs.social + 0.18 * deltaTime);
+
+    // Anyone standing here is part of the conversation
+    if (this.index) {
+      for (const other of this.index.query(this.entity.position.x, this.entity.position.y, 2.5)) {
+        if (other.id === this.entity.id) continue;
+        if (other.villageId !== this.entity.villageId) continue;
+        other.needs.social = Math.min(1, other.needs.social + 0.09 * deltaTime);
+      }
+    }
+
+    const gathering = simulation.gatheringPointFor?.(this.entity);
+    if (!gathering || this.entity.needs.social > 0.9) {
+      this.removeStatus('talking');
+      this.currentState = 'idle';
+      this.ticksSinceLastAction = 0;
+      return;
+    }
+
+    // Drift a little so a crowd is not a single stacked sprite
+    if (Math.random() < 0.02) {
+      const spot = this.tileAt(tiles, gathering.x + Math.round(Math.random() * 2 - 1), gathering.y + Math.round(Math.random() * 2 - 1));
+      if (spot && isWalkableForEntity(spot, this.entity.type)) {
+        this.entity.lastPosition = { ...this.entity.position };
+        this.entity.position = { x: spot.x + 0.5, y: spot.y + 0.5 };
+      }
+    }
+  }
+
   private tilesPerSecond(): number {
     let speed = this.entity.attributes.speed * 0.12;
     if (this.entity.status.includes('exhausted')) speed *= 0.5;
+    // A captain deliberately marches slower so its warband stays with it
+    if (this.entity.status.includes('captain')) speed *= 0.72;
     return speed;
   }
 

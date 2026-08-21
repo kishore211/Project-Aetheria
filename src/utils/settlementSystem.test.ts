@@ -393,3 +393,70 @@ describe('decay', () => {
     expect(harness.events.some((message) => message.includes('falls to ruin'))).toBe(true);
   });
 });
+
+describe('village life', () => {
+  it('gives villagers somewhere to be — they stay near home', () => {
+    const harness = makeHarness(60);
+    for (let i = 0; i < 10; i++) harness.entities.spawnEntity('human', 30 + (i % 3), 30 + Math.floor(i / 3));
+    run(harness, 30);
+
+    const village = Array.from(harness.settlements.villages.values())[0];
+    expect(village).toBeDefined();
+
+    run(harness, 120, 1);
+
+    const residents = harness.entities.getAllEntities().filter(e => e.villageId === village.id);
+    expect(residents.length).toBeGreaterThan(0);
+    // Nobody should have drifted to the far side of the map
+    for (const resident of residents) {
+      expect(Math.hypot(
+        resident.position.x - village.centerX,
+        resident.position.y - village.centerY,
+      )).toBeLessThan(26);
+    }
+  });
+
+  it('satisfies the social need at the bonfire instead of letting it drain away', () => {
+    const harness = makeHarness(60);
+    for (let i = 0; i < 10; i++) harness.entities.spawnEntity('human', 30 + (i % 3), 30 + Math.floor(i / 3));
+    run(harness, 30);
+
+    // Empty everyone out socially and let the village get on with it
+    for (const entity of harness.entities.getAllEntities()) entity.needs.social = 0.05;
+    run(harness, 90, 1);
+
+    const residents = harness.entities.getAllEntities().filter(e => e.villageId);
+    expect(residents.length).toBeGreaterThan(0);
+    const best = Math.max(...residents.map(r => r.needs.social));
+    expect(best).toBeGreaterThan(0.3);
+  });
+
+  it('staffs fewer gatherers once the granary is full', () => {
+    const harness = makeHarness(60);
+    for (let i = 0; i < 12; i++) harness.entities.spawnEntity('human', 30 + (i % 4), 30 + Math.floor(i / 4));
+    run(harness, 40);
+
+    const village = Array.from(harness.settlements.villages.values())[0];
+    village.store.food = 200;
+    run(harness, 10, 1);
+
+    const gatherers = harness.entities.getAllEntities()
+      .filter(e => e.villageId === village.id && e.job === 'gatherer');
+    expect(gatherers.length).toBeLessThanOrEqual(1);
+  });
+
+  it('appoints one captain per village once there are warriors', () => {
+    const harness = makeHarness(60);
+    for (let i = 0; i < 14; i++) harness.entities.spawnEntity('human', 30 + (i % 4), 30 + Math.floor(i / 4));
+    run(harness, 40);
+
+    const village = Array.from(harness.settlements.villages.values())[0];
+    const residents = harness.entities.getAllEntities().filter(e => e.villageId === village.id);
+    const warriors = residents.filter(e => e.job === 'warrior');
+    expect(warriors.length).toBeGreaterThan(0);
+
+    const captains = residents.filter(e => e.status.includes('captain'));
+    expect(captains.length).toBe(1);
+    expect(captains[0].job).toBe('warrior');
+  });
+});

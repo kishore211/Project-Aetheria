@@ -222,6 +222,8 @@ export class SettlementSystem {
   /** Diplomacy rounds each active war has lasted, keyed by kingdom pair. */
   private warTimers = new Map<string, number>();
   private unsubscribeOrders: () => void;
+  /** Village id -> the warrior currently carrying its banner. */
+  private captains = new Map<string, string>();
 
   constructor(
     tiles: Tile[][],
@@ -245,6 +247,7 @@ export class SettlementSystem {
       this.handleOrderComplete(entity, order);
     });
     simulation.homePositionFor = (entity) => this.homePositionFor(entity);
+    simulation.gatheringPointFor = (entity) => this.gatheringPointFor(entity);
   }
 
   setWorldLaws(laws: WorldLaws): void {
@@ -521,27 +524,56 @@ export class SettlementSystem {
         for (const member of members) {
           member.villageId = null;
           member.job = null;
+          this.entities.setHerdAnchor(member, null);
         }
         continue;
       }
 
       const kingdom = this.kingdoms.get(village.kingdomId);
       const atWar = (kingdom?.atWar.size ?? 0) > 0;
-      // A quarter of a village fights when at war, one in eight otherwise.
-      const warriorTarget = Math.max(1, Math.floor(members.length * (atWar ? 0.35 : 0.12)));
-      let warriors = members.filter(m => m.job === 'warrior').length;
+
+      // Jobs are staffed by what the village is short of, with caps — WorldBox
+      // hires one berry gatherer when the granary is full and ten when it is
+      // empty (research doc section 6).
+      const warriorTarget = members.length >= 8
+        ? Math.max(1, Math.round(members.length * (atWar ? 0.4 : 0.15)))
+        : 0;
+      const foragingNeed = village.store.food > 100 ? 1
+        : village.store.food > 60 ? 3
+        : village.store.food > 40 ? 5
+        : village.store.food > 20 ? 7
+        : members.length;
+      // Leave room for the warband: without this clamp, everyone is already a
+      // gatherer by the time warriors are considered and a village never arms
+      // itself at all.
+      const gathererTarget = Math.max(0, Math.min(foragingNeed, members.length - warriorTarget));
+
+      let warriors = 0;
+      let gatherers = 0;
+
+      // Existing holders keep their posts where the village still needs them
+      for (const member of members) {
+        if (member.job === 'warrior' && warriors < warriorTarget) warriors++;
+        else if (member.job === 'gatherer' && gatherers < gathererTarget) gatherers++;
+        else member.job = null;
+      }
 
       for (const member of members) {
-        if (!member.job) member.job = 'gatherer';
-        if (member.job !== 'warrior' && warriors < warriorTarget) {
+        if (member.job) continue;
+        if (warriors < warriorTarget) {
           member.job = 'warrior';
           warriors++;
-        } else if (member.job === 'warrior' && warriors > warriorTarget) {
+        } else if (gatherers < gathererTarget) {
           member.job = 'gatherer';
-          warriors--;
+          gatherers++;
         }
+      }
 
-        // Loaded gatherers walk their haul back to the village centre
+      this.appointCaptain(village, members);
+
+      // Loaded gatherers walk their haul back to the village centre
+      for (const member of members) {
+        if (member.job === 'warrior') continue;
         if (member.carrying) {
           this.entities.giveOrder(member, {
             kind: 'goto',
@@ -554,7 +586,7 @@ export class SettlementSystem {
 
       // Recruit newcomers standing on village land
       const recruits = this.entities
-        .query(village.centerX, village.centerY, 7)
+        .query(village.centerX, village.centerY, 8)
         .filter(entity => entity.type === village.race && !entity.villageId);
       for (const recruit of recruits) {
         recruit.villageId = village.id;
@@ -562,6 +594,42 @@ export class SettlementSystem {
         recruit.job = 'gatherer';
       }
     }
+  }
+
+  /**
+   * One captain per village. Warriors form up behind it and it marches slower
+   * so they can keep pace, which turns a trickle of individuals arriving one at
+   * a time into an actual warband (research doc section 6).
+   */
+  private appointCaptain(village: Village, members: Entity[]): void {
+    const warriors = members.filter(member => member.job === 'warrior');
+    if (warriors.length === 0) {
+      this.captains.delete(village.id);
+      for (const member of members) this.stripCaptain(member);
+      return;
+    }
+
+    let captain = this.entities.getEntityById(this.captains.get(village.id) ?? '');
+    if (!captain || captain.job !== 'warrior' || captain.villageId !== village.id) {
+      // The toughest warrior takes the banner
+      captain = warriors.reduce((best, warrior) => (
+        warrior.attributes.strength > best.attributes.strength ? warrior : best
+      ), warriors[0]);
+      for (const warrior of warriors) this.stripCaptain(warrior);
+      this.captains.set(village.id, captain.id);
+    }
+
+    if (!captain.status.includes('captain')) captain.status.push('captain');
+
+    for (const warrior of warriors) {
+      if (warrior.id === captain.id) continue;
+      this.entities.setHerdAnchor(warrior, captain, 2.5);
+    }
+  }
+
+  private stripCaptain(entity: Entity): void {
+    const index = entity.status.indexOf('captain');
+    if (index !== -1) entity.status.splice(index, 1);
   }
 
   /** Villages feed their residents from the granary. */
@@ -1083,15 +1151,20 @@ export class SettlementSystem {
   private sendRaid(_attacker: Kingdom, defender: Kingdom, warriors: Entity[]): void {
     if (warriors.length === 0) return;
 
+    // Only captains are given marching orders; their warband is anchored to
+    // them by appointCaptain, so the army moves as one body.
     for (const warrior of warriors) {
-      // Fight whatever is already in reach before marching
       const nearbyEnemy = this.entities
         .query(warrior.position.x, warrior.position.y, 6)
         .find(other => other.kingdomId === defender.id);
       if (nearbyEnemy) {
+        this.entities.setHerdAnchor(warrior, null);
         this.entities.engage(warrior, nearbyEnemy);
         continue;
       }
+
+      const leadsTheMarch = warrior.status.includes('captain');
+      if (!leadsTheMarch) continue;
 
       const target = this.nearestVillage(defender, warrior.position.x, warrior.position.y);
       if (!target) continue;
@@ -1372,6 +1445,17 @@ export class SettlementSystem {
     return this.tileAt(x, y);
   }
 
+  /** The bonfire of a unit's village — where its people gather to talk. */
+  gatheringPointFor(entity: Entity): { x: number; y: number } | null {
+    if (!entity.villageId) return null;
+    const village = this.villages.get(entity.villageId);
+    if (!village) return null;
+    const bonfire = village.buildings.find(building => building.kind === 'bonfire');
+    return bonfire
+      ? { x: bonfire.x, y: bonfire.y }
+      : { x: village.centerX, y: village.centerY };
+  }
+
   /** Where a unit's village is, used to rescue units that get stranded. */
   homePositionFor(entity: Entity): { x: number; y: number } | null {
     if (!entity.villageId) return null;
@@ -1393,6 +1477,7 @@ export class SettlementSystem {
   dispose(): void {
     this.unsubscribeOrders();
     if (simulation.homePositionFor) simulation.homePositionFor = undefined;
+    if (simulation.gatheringPointFor) simulation.gatheringPointFor = undefined;
     this.buildingCloud.points.removeFromParent();
     this.buildingCloud.dispose();
     this.villages.clear();

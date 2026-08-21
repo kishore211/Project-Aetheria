@@ -23,6 +23,12 @@ export interface SimulationContext {
   onOrderComplete?: (entity: Entity, order: AIOrder) => void;
   /** Where a unit's home village is, if it has one. Used to rescue strays. */
   homePositionFor?: (entity: Entity) => { x: number; y: number } | null;
+  /**
+   * The bonfire its village gathers around. WorldBox villagers socialise there,
+   * and it is what makes a settlement look inhabited rather than like a set of
+   * buildings with people walking past.
+   */
+  gatheringPointFor?: (entity: Entity) => { x: number; y: number } | null;
 }
 
 export const simulation: SimulationContext = {
