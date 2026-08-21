@@ -24,17 +24,25 @@ So the plan is ordered by **feel per hour of work**, not by system size.
 
 Everything here is already simulated and simply invisible. No new simulation.
 
-| # | Item | Notes |
-|---|---|---|
-| 9.1 | **Unit icon rail** — task, profession, happiness, plot, favourite icons above each creature | New `SpriteCloud` layer + atlas; culled by the existing `detailLevel` |
-| 9.2 | **Hover tooltips** for units and tiles | Throttled raycast reusing the picking path |
-| 9.3 | **Floating text** — damage, gifts, taxes, happiness deltas | `effectsManager` |
-| 9.4 | **Speech / thought bubbles** with written lines | Screen-projected labels; ~30 lines of copy |
-| 9.5 | **Refusal cue** — ✕ and a thunk when a power can't apply there | Currently a silent no-op |
-| 9.6 | **Brush preview** ring under the cursor | Removes all guesswork on area tools |
-| 9.7 | **Important-event flash** for big moments | War declared, village razed, kingdom fallen |
-| 9.8 | **Screen shake** on meteor/quake, only when zoomed in | Their rule exactly |
-| 9.9 | **Number tweens** for counters and bars | `useTween` hook |
+| # | Item | Status | Notes |
+|---|---|---|---|
+| 9.1 | **Unit icon rail** — office and activity icons above each creature | ✅ done | `utils/unitIconLayer.ts` — one draw call, stable per-unit slots, culled by zoom. Plain "travelling" deliberately gets no icon: an arrow over every head is noise |
+| 9.2 | **Hover tooltips** for units and tiles | ✅ done | `HoverTooltip.tsx`; 15 Hz sampling, republished only on change |
+| 9.5 | **Refusal cue** — ✕ and a thunk when a power can't apply | ✅ done | Powers now return whether they acted |
+| 9.6 | **Brush preview** reticle under the cursor | ✅ done | |
+| 9.3 | **Floating text** — damage, gifts, taxes, happiness deltas | todo | `effectsManager` |
+| 9.4 | **Speech / thought bubbles** with written lines | todo | Needs Phase 10's happiness table for its content |
+| 9.7 | **Important-event flash** for big moments | todo | War declared, village razed, kingdom fallen |
+| 9.8 | **Screen shake** on meteor/quake, only when zoomed in | todo | Their rule exactly |
+| 9.9 | **Number tweens** for counters and bars | todo | `useTween` hook |
+
+Landed alongside, both found by testing the above:
+- **Village leaders and kings are real units now**, so the icons have someone
+  to point at and `Kingdom.kingId` refers to a person. Groundwork for Phase 14.
+- **Fire no longer consumes the world.** Its spread rate gave every fire a
+  branching factor near three; a single pyromaniac wiped out a 33-creature
+  world in 24 seconds. Fire is now `utils/fireSystem.ts` with the cascade
+  under test.
 
 **Gate:** a player can name three things happening in the world without
 clicking.
