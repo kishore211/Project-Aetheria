@@ -11,6 +11,7 @@ import MapLabels from './components/ui/MapLabels';
 import FloatingText from './components/ui/FloatingText';
 import ScreenFlash from './components/ui/ScreenFlash';
 import MapLayerBadge from './components/ui/MapLayerBadge';
+import AgeOverlay from './components/ui/AgeOverlay';
 import { useGameStore } from './store/gameStore';
 import { useHotkeys } from './hooks/useHotkeys';
 
@@ -32,6 +33,8 @@ function App() {
         </Canvas>
         {/* Both belong to the world, not the HUD, so they survive Hide UI */}
         <MapLabels />
+        {/* Under the HUD but over the world: the era colours the place, not the panels */}
+        <AgeOverlay />
         <FloatingText />
         <ScreenFlash />
         <div className="game-ui">

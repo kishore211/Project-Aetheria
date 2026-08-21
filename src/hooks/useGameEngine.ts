@@ -29,6 +29,9 @@ import { advanceFloaters, clearFloaters, floatBridge } from '../utils/floatBridg
 import { clearImpacts, isShaking, requestFlash, requestShake, sampleShake } from '../utils/impactBridge';
 import { chronicle } from '../utils/chronicle';
 import { applyScenario, type Scenario } from '../utils/scenarios';
+import { nudgeMood } from '../utils/mood';
+import { AGES, AGE_LENGTH, nextAge, type AgeAction } from '../utils/ages';
+import { ageBridge } from '../utils/ageBridge';
 import { recordDeath, resetStats, sampleWorld } from '../utils/worldStats';
 
 /** Mirrors entitySystemMinimal: only the sentient races get bubbles. */
@@ -117,6 +120,9 @@ export const useGameEngine = () => {
   const lastCameraNonceRef = useRef<number>(0);
   const lastZoomNonceRef = useRef<number>(0);
   const shakingRef = useRef<boolean>(false);
+  const ageTimerRef = useRef<number>(0);
+  const ageActionTimerRef = useRef<number>(0);
+  const ageSlotRef = useRef<number>(0);
   const hoverTimerRef = useRef<number>(0);
   const hoverKeyRef = useRef<string>('');
   const brushPreviewRef = useRef<THREE.Mesh | null>(null);
@@ -1248,6 +1254,8 @@ export const useGameEngine = () => {
     const samples = Math.max(24, Math.floor((size * size) / 220));
     const growthAllowed = store.worldLaws.biomeGrowth;
     const winter = store.season === 'winter';
+    // An Age of Wonders nearly doubles growth; an Age of Ash all but stops it.
+    const era = simulation.age.growth;
 
     for (let i = 0; i < samples; i++) {
       const x = Math.floor(Math.random() * size);
@@ -1257,7 +1265,7 @@ export const useGameEngine = () => {
 
       // Food regrowth, driven by fertility and the season
       const food = tile.resources.find(r => r.type === 'food');
-      const regrowthChance = tile.fertility * (winter ? 0.12 : 0.55);
+      const regrowthChance = tile.fertility * (winter ? 0.12 : 0.55) * era;
       if (Math.random() < regrowthChance) {
         if (food) {
           food.quantity = Math.min(10, food.quantity + 1);
@@ -1270,7 +1278,7 @@ export const useGameEngine = () => {
       // Standing timber and exposed rock replenish, so a village that manages
       // its land can keep building instead of stripping the map bare once.
       const forested = ['deciduous_forest', 'coniferous_forest', 'rainforest', 'tropical_forest', 'taiga', 'enchanted_forest'].includes(tile.type);
-      if (forested && !winter && Math.random() < 0.3) {
+      if (forested && !winter && Math.random() < 0.3 * era) {
         const wood = tile.resources.find(r => r.type === 'wood');
         if (wood) wood.quantity = Math.min(10, wood.quantity + 1);
         else tile.resources.push({ type: 'wood', quantity: 2, discovered: true });
@@ -1420,6 +1428,143 @@ export const useGameEngine = () => {
   }, [controls, camera, gl, inBounds, tileWorldPosition]);
 
   /**
+   * Do whatever the current era does to the world.
+   *
+   * These are the reason an age matters rather than merely tinting the screen.
+   * Each is deliberately small and frequent instead of one large event: a
+   * drought that kills a few trees every twenty-odd seconds reads as a
+   * *condition*, where one that razes a forest at once reads as a disaster
+   * somebody triggered.
+   */
+  const runAgeAction = useCallback((action: AgeAction) => {
+    const tiles = tilesRef.current;
+    const size = tiles.length;
+    if (size === 0 || action === 'none') return;
+    const store = useGameStore.getState();
+    const samples = Math.max(20, Math.floor((size * size) / 260));
+
+    switch (action) {
+      case 'drought': {
+        for (let attempt = 0; attempt < samples; attempt += 1) {
+          const tile = tiles[Math.floor(Math.random() * size)][Math.floor(Math.random() * size)];
+          if (isWaterBiome(tile.type)) continue;
+          tile.moisture = Math.max(0, tile.moisture - 0.05);
+          if (tile.structure && Math.random() < 0.25) {
+            tile.structure = null;
+            tile.resources = tile.resources.filter(r => r.type !== 'food');
+            syncTile(tile);
+          }
+        }
+        break;
+      }
+      case 'downpour': {
+        if (store.weather === 'clear') store.setWeather('rain');
+        // Rain in an Age of Tears is relentless enough to put fires out
+        // wherever it finds them, not merely to slow them down.
+        fireRef.current?.extinguishAll();
+        break;
+      }
+      case 'frost': {
+        for (let attempt = 0; attempt < samples; attempt += 1) {
+          const tile = tiles[Math.floor(Math.random() * size)][Math.floor(Math.random() * size)];
+          if (isWaterBiome(tile.type)) continue;
+          tile.temperature = Math.max(0, tile.temperature - 0.04);
+          const food = tile.resources.find(r => r.type === 'food');
+          if (food && Math.random() < 0.5) {
+            food.quantity = Math.max(0, food.quantity - 2);
+          }
+          if (tile.isOnFire) extinguishTile(tile, false);
+        }
+        break;
+      }
+      case 'derangement': {
+        // Chaos turns creatures on each other. Picked at random across the
+        // whole population rather than in one place, so it feels like the age
+        // rather than like an attack.
+        const all = entityManagerRef.current?.getAllEntities() ?? [];
+        if (all.length === 0) break;
+        for (let attempt = 0; attempt < Math.max(1, Math.floor(all.length * 0.04)); attempt += 1) {
+          const victim = all[Math.floor(Math.random() * all.length)];
+          applyScenario(victim, 'lostFight');
+        }
+        break;
+      }
+      case 'ashfall': {
+        for (let attempt = 0; attempt < samples; attempt += 1) {
+          const tile = tiles[Math.floor(Math.random() * size)][Math.floor(Math.random() * size)];
+          if (isWaterBiome(tile.type)) continue;
+          tile.fertility = Math.max(0, tile.fertility - 0.03);
+        }
+        const living = entityManagerRef.current?.getAllEntities() ?? [];
+        for (const creature of living) {
+          if (Math.random() < 0.05) creature.health = Math.max(1, creature.health - 2);
+        }
+        break;
+      }
+      case 'flourish': {
+        for (let attempt = 0; attempt < samples; attempt += 1) {
+          const tile = tiles[Math.floor(Math.random() * size)][Math.floor(Math.random() * size)];
+          if (isWaterBiome(tile.type)) continue;
+          tile.fertility = Math.min(1, tile.fertility + 0.03);
+          const food = tile.resources.find(r => r.type === 'food');
+          if (food) food.quantity = Math.min(10, food.quantity + 1);
+          else if (tile.fertility > 0.4) {
+            tile.resources.push({ type: 'food', quantity: 2, discovered: true });
+          }
+        }
+        break;
+      }
+      default: break;
+    }
+  }, [extinguishTile, syncTile]);
+
+  /** Move the age clock along and let the current era act on the world. */
+  const advanceAge = useCallback((delta: number) => {
+    const store = useGameStore.getState();
+    if (!store.worldLaws.ages) {
+      // Held in Hope rather than frozen mid-era: switching the law off should
+      // give a temperate world, not leave an Age of Ash running for ever.
+      if (store.age !== 'hope') store.setAge('hope');
+      ageBridge.age = 'hope';
+      ageBridge.strength = 0;
+      return;
+    }
+
+    const current = AGES[store.age] ?? AGES.hope;
+    ageBridge.age = current.id;
+    ageBridge.strength = current.tintStrength;
+
+    // Everything alive feels the era, which is our stand-in for their
+    // per-age loyalty and opinion bonuses.
+    if (current.mood !== 0) {
+      for (const creature of entityManagerRef.current?.getAllEntities() ?? []) {
+        nudgeMood(creature, current.mood * delta);
+      }
+    }
+
+    if (current.action !== 'none' && current.actionEvery > 0) {
+      ageActionTimerRef.current += delta;
+      if (ageActionTimerRef.current >= current.actionEvery) {
+        ageActionTimerRef.current = 0;
+        runAgeAction(current.action);
+      }
+    }
+
+    ageTimerRef.current += delta;
+    store.setAgeProgress(Math.min(1, ageTimerRef.current / AGE_LENGTH));
+    if (ageTimerRef.current < AGE_LENGTH) return;
+
+    ageTimerRef.current = 0;
+    ageActionTimerRef.current = 0;
+    ageSlotRef.current += 1;
+    const chosen = nextAge(ageSlotRef.current, current.id, Math.random());
+    store.setAge(chosen);
+    store.setAgeProgress(0);
+    store.addEvent(AGES[chosen].herald, 'info');
+    requestFlash(chosen === 'hope' || chosen === 'wonders' ? 'divine' : 'plague', 0.55);
+  }, [runAgeAction]);
+
+  /**
    * Game tick logic
    */
   const gameTick = useCallback((deltaTime: number) => {
@@ -1444,7 +1589,7 @@ export const useGameEngine = () => {
     if (isGamePaused) return;
 
     const store = useGameStore.getState();
-    publishSimulationContext(store.worldLaws, store.season, store.timeOfDay);
+    publishSimulationContext(store.worldLaws, store.season, store.timeOfDay, store.age);
 
     const scaledDelta = deltaTime * gameSpeed;
     tickTimerRef.current += scaledDelta;
@@ -1466,6 +1611,8 @@ export const useGameEngine = () => {
         store.season === 'winter' || store.season === 'autumn' ? 'dark' : 'bright',
       );
     }
+
+    advanceAge(scaledDelta);
 
     // Weather drifts on its own, seasonally and far more slowly than it used
     // to: rain every couple of minutes read as bad weather rather than as
@@ -1546,7 +1693,7 @@ export const useGameEngine = () => {
         }
       }
     }
-  }, [isGamePaused, gameSpeed, scene, refreshWorldColors, simulateFire, simulateEcology, updateCamera]);
+  }, [isGamePaused, gameSpeed, scene, refreshWorldColors, simulateFire, simulateEcology, updateCamera, advanceAge]);
 
   // Initialize the world when the seed, size, template or revision changes
   useEffect(() => {

@@ -6,6 +6,7 @@ import type { SaveGame } from '../utils/saveSystem';
 // time, so there is no runtime cycle.
 import type { PowerTabId } from '../utils/powers';
 import type { MapLayer } from '../utils/mapLayers';
+import type { AgeId } from '../utils/ages';
 import { loadUnlocked, persistUnlocked } from '../utils/achievements';
 
 export type Weather = 'clear' | 'rain' | 'storm';
@@ -99,6 +100,8 @@ export interface WorldLaws {
   biomeGrowth: boolean;
   settlements: boolean;
   warfare: boolean;
+  /** The world moves through eras that change its rules. */
+  ages: boolean;
 }
 
 export const DEFAULT_WORLD_LAWS: WorldLaws = {
@@ -110,6 +113,7 @@ export const DEFAULT_WORLD_LAWS: WorldLaws = {
   biomeGrowth: true,
   settlements: true,
   warfare: true,
+  ages: true,
 };
 
 // Tools available to the player
@@ -168,6 +172,10 @@ interface GameState {
   isGamePaused: boolean;
   gameSpeed: number; // 0 = paused, 1 = normal, 2 = fast, 3 = ultra fast
   worldLaws: WorldLaws;
+  /** The era the world is in. */
+  age: AgeId;
+  /** 0-1 through the current era, for the HUD. */
+  ageProgress: number;
 
   // UI state
   selectedTool: Tool;
@@ -230,6 +238,8 @@ interface GameState {
   advanceYear: () => void;
   advanceDay: () => void;
   setWeather: (weather: Weather) => void;
+  setAge: (age: AgeId) => void;
+  setAgeProgress: (progress: number) => void;
   setPopulation: (population: number) => void;
   addEvent: (message: string, kind?: GameEvent['kind'], position?: { x: number; y: number }) => void;
   setShowHelp: (show: boolean) => void;
@@ -301,6 +311,8 @@ export const useGameStore = create<GameState>((set) => ({
   isGamePaused: false,
   gameSpeed: 1,
   worldLaws: { ...DEFAULT_WORLD_LAWS },
+  age: 'hope',
+  ageProgress: 0,
 
   // Initial UI state
   selectedTool: 'select',
@@ -374,6 +386,9 @@ export const useGameStore = create<GameState>((set) => ({
   }),
 
   setWeather: (weather: Weather) => set({ weather }),
+
+  setAge: (age: AgeId) => set({ age }),
+  setAgeProgress: (ageProgress: number) => set({ ageProgress }),
 
   setPopulation: (population: number) => set({ population }),
 
@@ -482,6 +497,8 @@ export const useGameStore = create<GameState>((set) => ({
     kingdoms: [],
     villages: [],
     timeOfDay: 'day',
+    age: 'hope',
+    ageProgress: 0,
   }),
 
   applyLoadedWorld: (loaded) => set({

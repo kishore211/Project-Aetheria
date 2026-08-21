@@ -1025,3 +1025,55 @@ canvas {
   text-align: center;
   color: rgb(100 116 139);
 }
+
+/* ---------------------------------------------------------------------------
+   Age overlay
+--------------------------------------------------------------------------- */
+
+.age-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 8;
+  pointer-events: none;
+  opacity: 0;
+  /*
+   * A plain overlay, deliberately.
+   *
+   * `soft-light` was the first attempt and it was close to a no-op: soft-light
+   * against mid-grey is the identity, and the Age of Ash tint (#6b6560) is
+   * almost exactly mid-grey — so the age that should have looked greyest looked
+   * like nothing at all. A straight veil toward the tint is predictable for
+   * every colour in the table, which matters more here than being clever.
+   */
+}
+
+/* An era tint is a slow, low-contrast wash rather than a flash, so it stays
+   under reduced-motion — but drop it entirely for anyone who wants no colour
+   shifts at all. */
+@media (prefers-reduced-motion: reduce) {
+  .age-overlay { opacity: 0 !important; }
+}
+
+/* A ring that fills as the era runs out. */
+.age-clock {
+  position: relative;
+  display: block;
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 999px;
+  border: 1px solid rgb(148 163 184 / 0.5);
+  overflow: hidden;
+}
+.age-clock > i {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(var(--age-progress, 0) * 100%);
+  background: rgb(251 191 36 / 0.85);
+  transition: height 0.6s linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .age-clock > i { transition: none; }
+}

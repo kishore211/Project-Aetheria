@@ -5,6 +5,7 @@ import {
   CloudRain, CloudSun, Crown, Eye, EyeOff, Flower2, Leaf, Moon, Music, Music2,
   Snowflake, Sun, Sunrise, Sunset, Users, Volume2, VolumeX,
 } from 'lucide-react';
+import { AGES } from '../../utils/ages';
 
 const timeIcons = {
   dawn: <Sunrise size={16} className="text-amber-300" />,
@@ -21,7 +22,7 @@ const seasonIcons = {
 };
 
 const TopBar = () => {
-  const { population, year, day, season, timeOfDay, weather, kingdoms } = useGameStore();
+  const { population, year, day, season, timeOfDay, weather, kingdoms, age, ageProgress } = useGameStore();
   const showUnitIcons = useGameStore((state) => state.showUnitIcons);
   const toggleUnitIcons = useGameStore((state) => state.toggleUnitIcons);
   const [muted, setMuted] = useState(false);
@@ -57,6 +58,19 @@ const TopBar = () => {
           </span>
         </>
       )}
+
+      <span className="w-px h-4 bg-muted/60" />
+      {/* The era, with how far through it the world is. An age nobody can see
+          the end of is indistinguishable from the weather. */}
+      <span
+        className="flex items-center gap-1.5 whitespace-nowrap"
+        title={`${AGES[age].name} — ${AGES[age].herald}`}
+      >
+        <span className="age-clock" style={{ ['--age-progress' as string]: ageProgress }}>
+          <i />
+        </span>
+        <span className="hidden md:inline">{AGES[age].name}</span>
+      </span>
 
       <span className="w-px h-4 bg-muted/60" />
       <span className="flex items-center gap-1.5 capitalize whitespace-nowrap" title={`Year ${year}, ${season}, day ${day}`}>

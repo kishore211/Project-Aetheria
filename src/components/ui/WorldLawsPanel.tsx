@@ -72,6 +72,11 @@ const GROUPS: LawGroup[] = [
         description: 'The world may strike on its own.',
         without: 'Every catastrophe from here on is yours, and everyone knows it.',
       },
+      {
+        key: 'ages', label: 'Ages of the world', icon: Hourglass,
+        description: 'Eras arrive and change the rules — drought, frost, ash, chaos.',
+        without: 'One long temperate afternoon, for ever.',
+      },
     ],
   },
   {
@@ -119,6 +124,7 @@ const PRESETS: Array<{ label: string; blurb: string; laws: WorldLaws }> = [
     laws: {
       aging: false, hunger: false, reproduction: false, disasters: false,
       fireSpread: false, biomeGrowth: false, settlements: false, warfare: false,
+      ages: false,
     },
   },
 ];

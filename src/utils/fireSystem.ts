@@ -7,6 +7,7 @@
 // world. That is not a hypothetical — it happened, and it took a 33-creature
 // world down in 24 seconds.
 import { isWaterBiome, type Tile } from '../types/world';
+import { simulation } from './simulation';
 
 export const FLAMMABLE_BIOMES = [
   'deciduous_forest', 'coniferous_forest', 'taiga', 'rainforest',
@@ -71,6 +72,20 @@ export class FireSystem {
    * the caller because it is fire behaviour, not presentation — and because a
    * rule the tests cannot see is a rule that quietly stops working.
    */
+  /**
+   * Put every fire out at once.
+   *
+   * Iterates a copy, because `extinguish` mutates the burning set and
+   * iterating a Set while deleting from it is how you silently skip half of
+   * them. Used by the Age of Tears, whose rain is meant to be relentless
+   * rather than merely discouraging.
+   */
+  extinguishAll(): number {
+    const doused = Array.from(this.burning);
+    for (const tile of doused) this.extinguish(tile, false);
+    return doused.length;
+  }
+
   extinguish(tile: Tile, burned: boolean): void {
     tile.isOnFire = false;
     tile.fireIntensity = 0;
@@ -127,7 +142,11 @@ export class FireSystem {
       // Damp ground resists, dry ground catches — which is also what makes
       // rain, rivers and wet biomes matter.
       const dryness = Math.max(0.2, 1.25 - neighbour.moisture);
-      if (Math.random() < SPREAD_BASE * dryness) this.ignite(neighbour);
+      // An Age of Sun doubles this; an Age of Tears all but stops it. The
+      // multiplier lands here rather than on SPREAD_BASE so the cascade test's
+      // branching-factor argument still reads correctly at 1.0.
+      const era = simulation.age.fireSpread;
+      if (Math.random() < SPREAD_BASE * dryness * era) this.ignite(neighbour);
     }
 
     for (const tile of spent) {
