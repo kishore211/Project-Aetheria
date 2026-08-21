@@ -25,6 +25,8 @@ import {
 import { applyTraits, rollTraitsForType } from './traits';
 import { simulation } from './simulation';
 import { emitDamage, emitFloater } from './floatBridge';
+import { applyStatus, clearStatus, type StatusId } from './statusEffects';
+import { updateMood } from './mood';
 import { speak, type Occasion } from './dialogue';
 
 /** Who gets speech bubbles. Monsters brood; animals do not have a position. */
@@ -421,6 +423,9 @@ export class EntityAI {
     }
 
     this.updateNeeds(deltaTime);
+    // Mood shares the needs pass: it reads the same fields, needs the same
+    // delta, and gives the status timers somewhere to tick from.
+    updateMood(this.entity, deltaTime);
     this.ensureStandable(tiles);
     this.trackStuck(tiles, deltaTime);
     this.maybeStartFire(tiles, deltaTime);
@@ -461,10 +466,16 @@ export class EntityAI {
    * same dozen units by iteration order do all the talking.
    */
   private maybeSpeak(activity: string): void {
-    if (Math.random() > 0.12) return;
     // Animals do not have dialogue. A wolf with a speech bubble is a cartoon,
     // and not the kind we are making.
+    //
+    // This check comes *before* the coin flip on purpose. With the flip first,
+    // every sheep that changed activity drew from the random stream on behalf
+    // of a feature that could never apply to it — which coupled herd behaviour
+    // to the dialogue system and made grazing survival move whenever the
+    // speech code did. Guards go cheapest and most selective first.
     if (!this.isPerson()) return;
+    if (Math.random() > 0.12) return;
 
     const needs = this.entity.needs;
     let occasion: Occasion | null = null;
@@ -750,7 +761,7 @@ export class EntityAI {
       if (graze) {
         graze.quantity -= 1;
         this.entity.needs.hunger = Math.min(1, this.entity.needs.hunger + 0.35);
-        this.addTimedStatus('eating', 1500);
+        this.addTimedStatus('eating');
         if (graze.quantity <= 0) {
           const index = here!.resources.indexOf(graze);
           if (index !== -1) here!.resources.splice(index, 1);
@@ -1105,7 +1116,7 @@ export class EntityAI {
 
     if (isDrinkableBiome(tile.type) || isShoreTile(tile, tiles)) {
       this.entity.needs.thirst = 1.0;
-      this.addTimedStatus('drinking', 2500);
+      this.addTimedStatus('drinking');
     } else if (this.hasHarvestableResource(tile)) {
       this.currentState = 'gathering';
       this.ticksSinceLastAction = 0;
@@ -1136,7 +1147,7 @@ export class EntityAI {
     if (food) {
       food.quantity -= 1;
       this.entity.needs.hunger = Math.min(1.0, this.entity.needs.hunger + 0.55);
-      this.addTimedStatus('eating', 2500);
+      this.addTimedStatus('eating');
 
       // Village gatherers haul a share home instead of eating it all
       if (this.entity.job === 'gatherer' && this.entity.villageId && !this.entity.carrying) {
@@ -1188,7 +1199,7 @@ export class EntityAI {
       this.strike(target);
       if (target.health <= 0) {
         this.entity.needs.hunger = 1.0;
-        this.addTimedStatus('eating', 2500);
+        this.addTimedStatus('eating');
         this.entity.kills = (this.entity.kills ?? 0) + 1;
         this.targetEntity = null;
         this.currentState = 'idle';
@@ -1262,7 +1273,7 @@ export class EntityAI {
     const blow = this.entity.attributes.strength * 0.6;
     target.health -= blow;
     emitDamage(target.position.x, target.position.y, blow, target.id);
-    this.addTimedStatus('attacking', 600);
+    this.addTimedStatus('attacking');
     if (!target.status.includes('wounded')) target.status.push('wounded');
     if (target.health <= 0 && !target.status.includes('slain')) target.status.push('slain');
   }
@@ -1339,18 +1350,25 @@ export class EntityAI {
 
   // -- helpers -----------------------------------------------------------
 
-  private addStatus(status: string): void {
-    if (!this.entity.status.includes(status)) this.entity.status.push(status);
+  private addStatus(status: StatusId): void {
+    applyStatus(this.entity, status);
   }
 
-  private removeStatus(status: string): void {
-    const index = this.entity.status.indexOf(status);
-    if (index !== -1) this.entity.status.splice(index, 1);
+  private removeStatus(status: StatusId): void {
+    clearStatus(this.entity, status);
   }
 
-  private addTimedStatus(status: string, milliseconds: number): void {
-    this.addStatus(status);
-    setTimeout(() => this.removeStatus(status), milliseconds);
+  /**
+   * Durations now live in the status table and tick on the game delta.
+   *
+   * The old version took milliseconds and expired via `setTimeout`, which meant
+   * a status lasted the same *real* time at triple speed and kept counting down
+   * while the game was paused — the only duration in this codebase that did not
+   * run on simulated time. Callers no longer pass a length at all: how long
+   * "eating" lasts is a property of eating, not of each place that sets it.
+   */
+  private addTimedStatus(status: StatusId): void {
+    applyStatus(this.entity, status);
   }
 
   private tileAt(tiles: Tile[][], x: number, y: number): Tile | null {

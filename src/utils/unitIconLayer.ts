@@ -11,12 +11,14 @@
 import * as THREE from 'three';
 import type { Entity } from '../types/world';
 import { getIconAtlas } from './pixelAtlas';
+import { moodFace } from './mood';
 import { SpriteCloud } from './spriteCloud';
 
-/** Rows per unit: profession on top, current activity below it. */
-const ROWS = 2;
+/** Rows per unit: profession on top, then activity, then mood. */
+const ROWS = 3;
 const ROW_PROFESSION = 0;
 const ROW_ACTIVITY = 1;
+const ROW_MOOD = 2;
 
 const ICON_SIZE = 0.22;
 /** Height above the unit's feet for the first row. */
@@ -42,6 +44,20 @@ const ACTIVITY_ICONS: Record<string, string> = {
   eating: 'eating',
   marching: 'marching',
   settling: 'settling',
+};
+
+/**
+ * Faces worth drawing above a head.
+ *
+ * Only the strong moods. A face over every creature at all times is wallpaper
+ * — and with two hundred of them the eye stops reading any of it. The two
+ * middle bands map to nothing here on purpose; the inspector shows all six.
+ */
+const MOOD_ICONS: Record<string, string> = {
+  delighted: 'mood_delighted',
+  happy: 'mood_happy',
+  sad: 'mood_sad',
+  miserable: 'mood_miserable',
 };
 
 /** Tints that make an icon's meaning readable before you resolve the glyph. */
@@ -110,23 +126,27 @@ export class UnitIconLayer {
       const base = entity.mesh.position;
       const profession = this.professionIcon(entity);
       const activity = ACTIVITY_ICONS[entity.activity ?? ''] ?? null;
+      const mood = entity.happiness === undefined
+        ? null
+        : MOOD_ICONS[moodFace(entity.happiness).step] ?? null;
 
-      // Profession sits on top; when there is none the activity moves up so a
-      // lone icon never floats oddly high above the head.
-      const professionRow = slot * ROWS + ROW_PROFESSION;
-      const activityRow = slot * ROWS + ROW_ACTIVITY;
+      // Rows are packed from the head upward in whatever order they exist, so
+      // a creature with only a mood never floats a lone icon two rows high
+      // with a gap under it.
+      let tier = 0;
+      const stack = (row: number, sprite: string | null, tint?: THREE.Color) => {
+        const index = slot * ROWS + row;
+        if (!sprite) {
+          this.cloud.clear(index);
+          return;
+        }
+        this.place(index, base, tier, sprite, tint);
+        tier += 1;
+      };
 
-      if (profession) {
-        this.place(professionRow, base, 1, profession, undefined);
-      } else {
-        this.cloud.clear(professionRow);
-      }
-
-      if (activity) {
-        this.place(activityRow, base, profession ? 0 : 1, activity, ACTIVITY_TINTS[activity]);
-      } else {
-        this.cloud.clear(activityRow);
-      }
+      stack(ROW_MOOD, mood);
+      stack(ROW_ACTIVITY, activity, activity ? ACTIVITY_TINTS[activity] : undefined);
+      stack(ROW_PROFESSION, profession);
     }
 
     this.releaseMissing();
@@ -171,6 +191,7 @@ export class UnitIconLayer {
       if (this.live.has(id)) continue;
       this.cloud.clear(slot * ROWS + ROW_PROFESSION);
       this.cloud.clear(slot * ROWS + ROW_ACTIVITY);
+      this.cloud.clear(slot * ROWS + ROW_MOOD);
       this.slots.delete(id);
       this.freeSlots.push(slot);
     }

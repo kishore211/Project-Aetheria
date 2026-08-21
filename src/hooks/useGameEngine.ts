@@ -914,6 +914,7 @@ export const useGameEngine = () => {
                 ? settlements?.kingdomColorFor(unit.kingdomId) ?? null
                 : null,
               herd: herdRef.current?.describe(unit)?.size ?? null,
+              happiness: unit.happiness ?? 0,
             });
           }
           hoverTileRef.current = null;

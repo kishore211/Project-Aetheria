@@ -245,6 +245,15 @@ export interface Entity {
    * the icon layer and tooltips can all read it without reaching into the AI.
    */
   activity?: string;
+  /**
+   * Mood, -100..+100. Chases a baseline derived from needs, health and
+   * belonging; pushed by statuses and one-off events. See utils/mood.ts.
+   */
+  happiness?: number;
+  /** Closest companion, if it has found one. */
+  friendId?: string | null;
+  /** Partner. Reproduction goes through this when the world has pairs in it. */
+  loverId?: string | null;
 
   // Progression
   /** Heritable traits. */

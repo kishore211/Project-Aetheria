@@ -435,6 +435,80 @@ const ICON_INK: Palette = {
 };
 
 const ICON_ART: Record<string, AtlasEntry> = {
+  // -- mood --
+  //
+  // Only the four strong moods get a pixel face. The two middle bands (content
+  // and glum) deliberately have none: a face over every head at all times is
+  // wallpaper, and the point of an icon is that noticing one means something.
+  // The inspector shows all six.
+  mood_delighted: {
+    palette: ICON_INK,
+    grid: [
+      '...oooooo...',
+      '..oyyyyyyo..',
+      '.oyyyyyyyyo.',
+      'oyyoyyyyoyyo',
+      'oyyoyyyyoyyo',
+      'oyyyyyyyyyyo',
+      'oyooooooooyo',
+      'oyywwwwwwyyo',
+      '.oyyooooyyo.',
+      '..oyyyyyyo..',
+      '...oooooo...',
+      '............',
+    ],
+  },
+  mood_happy: {
+    palette: ICON_INK,
+    grid: [
+      '...oooooo...',
+      '..oyyyyyyo..',
+      '.oyyyyyyyyo.',
+      'oyyoyyyyoyyo',
+      'oyyoyyyyoyyo',
+      'oyyyyyyyyyyo',
+      'oyoyyyyyyoyo',
+      'oyyooooooyyo',
+      '.oyyyyyyyyo.',
+      '..oyyyyyyo..',
+      '...oooooo...',
+      '............',
+    ],
+  },
+  mood_sad: {
+    palette: ICON_INK,
+    grid: [
+      '...oooooo...',
+      '..obbbbbbo..',
+      '.obbbbbbbbo.',
+      'obbobbbbobbo',
+      'obbobbbbobbo',
+      'obbbbbbbbbbo',
+      'obbbbbbbbbbo',
+      'obbboooobbbo',
+      '.obboooobbo.',
+      '..obbbbbbo..',
+      '...oooooo...',
+      '............',
+    ],
+  },
+  mood_miserable: {
+    palette: ICON_INK,
+    grid: [
+      '...oooooo...',
+      '..oppppppo..',
+      '.opppppppppo',
+      'oppoppppoppo',
+      'opbopppppbpo',
+      'opbpppppppbo',
+      'oppboooobppo',
+      'oppbooooobpo',
+      '.oppooooopo.',
+      '..oppppppo..',
+      '...oooooo...',
+      '............',
+    ],
+  },
   // -- tasks --
   gathering: {
     palette: ICON_INK,

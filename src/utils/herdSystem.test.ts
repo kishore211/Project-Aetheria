@@ -244,25 +244,33 @@ const mulberry32 = (seed: number) => () => {
 
 describe('survival while travelling', () => {
   /**
-   * Measured over many seeds rather than one.
+   * Measured as a mean over many seeds, with a herd big enough to average
+   * inside each run.
    *
-   * A single run makes this an assertion about one path through the random
-   * stream, which means any new `Math.random()` call anywhere in the AI
-   * silently re-rolls it — and a test that fails because unrelated code got a
-   * new coin flip is a tripwire, not a test. Sampling also states the real
-   * claim honestly: a herd that wanders into barren ground *should* sometimes
-   * starve. What must hold is that starving is the exception.
+   * The previous version ran 8 sheep and counted how many seeds came out
+   * "healthy". That statistic turned out to be dominated by luck: with 8
+   * animals the tenth percentile was 0 survivors and the ninetieth was 10, so
+   * merely moving where the AI draws from the random stream — reordering two
+   * guards in a function animals never reach — swung the mean from 5.9 to 4.15
+   * and failed the test with the simulation completely unchanged. That is a
+   * test measuring its own sampling noise.
+   *
+   * Twenty-four sheep averages within each run, and the mean surviving
+   * *fraction* is then stable: 0.78 both before and after that same reorder.
+   * So that is what is asserted.
    */
   it('lets a grazing herd feed itself on the move instead of starving', () => {
-    const RUNS = 14;
-    let healthyRuns = 0;
-    let totalSurvivors = 0;
+    const RUNS = 20;
+    const HERD = 24;
+    let survivingFraction = 0;
+    let fedFraction = 0;
+    let collapses = 0;
 
-    for (let run_ = 0; run_ < RUNS; run_ += 1) {
-      Math.random = mulberry32(1000 + run_ * 7919);
+    for (let attempt = 0; attempt < RUNS; attempt += 1) {
+      Math.random = mulberry32(1000 + attempt * 7919);
 
       const harness = makeHarness(60);
-      spawnGroup(harness, 'sheep', 8, 25, 25);
+      spawnGroup(harness, 'sheep', HERD, 25, 25);
       for (const animal of harness.entities.getAllEntities()) {
         animal.needs.hunger = 0.5;
       }
@@ -270,13 +278,21 @@ describe('survival while travelling', () => {
       run(harness, 200, 1);
 
       const survivors = harness.entities.getAllEntities().filter(e => e.type === 'sheep');
-      totalSurvivors += survivors.length;
-      const fed = survivors.filter(sheep => sheep.needs.hunger > 0.3).length;
-      if (survivors.length > 4 && fed > survivors.length / 2) healthyRuns += 1;
+      survivingFraction += survivors.length / HERD;
+      if (survivors.length > 0) {
+        fedFraction += survivors.filter(sheep => sheep.needs.hunger > 0.3).length / survivors.length;
+      } else {
+        collapses += 1;
+      }
     }
 
-    // Before grazing-on-the-move existed this was 0 healthy runs out of 14.
-    expect(healthyRuns).toBeGreaterThanOrEqual(RUNS - 4);
-    expect(totalSurvivors / RUNS).toBeGreaterThan(5);
+    // Measured at 0.78 across streams; before grazing-on-the-move existed this
+    // was near zero.
+    expect(survivingFraction / RUNS).toBeGreaterThan(0.6);
+    // Of those alive, most should not be starving — surviving hungry is not
+    // the same as feeding itself.
+    expect(fedFraction / RUNS).toBeGreaterThan(0.5);
+    // A herd may starve; a herd should not reliably vanish.
+    expect(collapses).toBe(0);
   });
 });

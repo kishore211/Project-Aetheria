@@ -889,3 +889,57 @@ canvas {
 @media (prefers-reduced-motion: reduce) {
   .stats-bar-fill { transition: none; }
 }
+
+/* ---------------------------------------------------------------------------
+   Mood
+--------------------------------------------------------------------------- */
+
+.mood-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mood-face {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.mood-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgb(226 232 240);
+}
+
+/* Centre-anchored: which side of neutral, and how far. */
+.mood-track {
+  position: relative;
+  display: block;
+  height: 0.4rem;
+  margin-top: 0.2rem;
+  border-radius: 999px;
+  background: rgb(2 6 23 / 0.55);
+  overflow: hidden;
+}
+.mood-zero {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  background: rgb(148 163 184 / 0.45);
+}
+.mood-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+  transition: left 0.4s ease-out, width 0.4s ease-out;
+}
+.mood-fill.is-good { background: rgb(52 211 153 / 0.9); }
+.mood-fill.is-bad { background: rgb(248 113 113 / 0.9); }
+
+@media (prefers-reduced-motion: reduce) {
+  .mood-fill { transition: none; }
+}

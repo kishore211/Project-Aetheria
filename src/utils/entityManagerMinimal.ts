@@ -8,6 +8,8 @@ import { emitDamage, emitFloater } from './floatBridge';
 import { speak } from './dialogue';
 import { chronicle, deathTopic } from './chronicle';
 import { recordBirth } from './worldStats';
+import { applyStatus, clearStatus, forgetStatuses } from './statusEffects';
+import { seedMood } from './mood';
 import type { WorldLaws } from '../store/gameStore';
 import type { GameEvent } from '../store/gameStore';
 import type { SavedEntity } from './saveSystem';
@@ -149,6 +151,10 @@ export class EntityManager implements EntityIndex {
     this.scene.add(mesh);
 
     entity.mesh = mesh;
+    // Start life at whatever its circumstances imply, rather than at zero:
+    // a creature spawned into good land should not have to earn its way up
+    // from neutral for the first minute of its existence.
+    seedMood(entity);
     this.entities.set(entity.id, entity);
     this.entityAIs.set(entity.id, new EntityAI(entity, this));
     this.indexEntity(entity);
@@ -363,6 +369,7 @@ export class EntityManager implements EntityIndex {
 
     this.entities.delete(entity.id);
     this.entityAIs.delete(entity.id);
+    forgetStatuses(entity.id);
     this.unindexEntity(entity);
     this.disposeMesh(entity);
 
@@ -399,7 +406,7 @@ export class EntityManager implements EntityIndex {
     for (const victim of this.query(centerX, centerY, radius)) {
       victim.health -= damage;
       emitDamage(victim.position.x, victim.position.y, damage, victim.id);
-      if (!victim.status.includes('wounded')) victim.status.push('wounded');
+      applyStatus(victim, 'wounded');
       if (victim.health <= 0) {
         this.killEntity(victim, cause);
         kills++;
@@ -423,9 +430,8 @@ export class EntityManager implements EntityIndex {
       }
       entity.needs.hunger = 1.0;
       entity.needs.thirst = 1.0;
-      const woundedIndex = entity.status.indexOf('wounded');
-      if (woundedIndex !== -1) entity.status.splice(woundedIndex, 1);
-      if (!entity.status.includes('blessed')) entity.status.push('blessed');
+      clearStatus(entity, 'wounded');
+      applyStatus(entity, 'blessed');
       healed++;
     }
     return healed;

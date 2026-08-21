@@ -2,6 +2,8 @@ import { Crown, Eye, EyeOff, MapPin, PawPrint, Skull, X } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
 import type { Entity, Resource, TraitId } from '../../types/world';
 import { TRAITS } from '../../utils/traits';
+import { MOOD_MAX, MOOD_MIN, moodFace } from '../../utils/mood';
+import { statusDef } from '../../utils/statusEffects';
 import { worldAccess } from '../../utils/worldAccess';
 
 const NeedBar = ({ label, value, tone }: { label: string; value: number; tone: string }) => (
@@ -110,6 +112,35 @@ const InfoPanel = () => {
               tone="bg-red-500"
             />
 
+            {selectedEntity.happiness !== undefined && (() => {
+              const face = moodFace(selectedEntity.happiness);
+              const share = (selectedEntity.happiness - MOOD_MIN) / (MOOD_MAX - MOOD_MIN);
+              return (
+                <div className="mood-row">
+                  <span className="mood-face" title={`Happiness ${Math.round(selectedEntity.happiness!)}`}>
+                    {face.glyph}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="mood-label">{face.label}</span>
+                    {/* Centre-anchored, because the meaningful reading is which
+                        side of neutral it sits on and by how far — a bar that
+                        fills from the left makes -100 and 0 look like the same
+                        kind of thing. */}
+                    <span className="mood-track">
+                      <i className="mood-zero" />
+                      <i
+                        className={`mood-fill ${selectedEntity.happiness! >= 0 ? 'is-good' : 'is-bad'}`}
+                        style={{
+                          left: `${Math.min(50, share * 100)}%`,
+                          width: `${Math.abs(share - 0.5) * 100}%`,
+                        }}
+                      />
+                    </span>
+                  </span>
+                </div>
+              );
+            })()}
+
             {herd && (
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <PawPrint size={11} />
@@ -159,11 +190,22 @@ const InfoPanel = () => {
               <div>
                 <h4 className="text-muted-foreground text-xs font-medium mb-1">Status</h4>
                 <ul className="flex flex-wrap gap-1">
-                  {selectedEntity.status.map((status: string) => (
-                    <li key={`status-${status}`} className="capitalize bg-primary/20 px-2 py-0.5 rounded-full text-xs">
-                      {status}
-                    </li>
-                  ))}
+                  {selectedEntity.status.map((status: string) => {
+                    const def = statusDef(status);
+                    return (
+                      <li
+                        key={`status-${status}`}
+                        // The flavour line is the payoff of the typed table:
+                        // "wounded" tells you what; "Bleeding, and thinking
+                        // about it" tells you what it is like.
+                        title={def?.flavour}
+                        className="capitalize bg-primary/20 px-2 py-0.5 rounded-full text-xs flex items-center gap-1"
+                      >
+                        {def && <span aria-hidden>{def.glyph}</span>}
+                        {def?.label ?? status}
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             )}

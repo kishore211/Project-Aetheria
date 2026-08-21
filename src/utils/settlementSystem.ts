@@ -24,6 +24,7 @@ import { registerOrderHandler, simulation } from './simulation';
 import { emitFloater } from './floatBridge';
 import { requestFlash } from './impactBridge';
 import { chronicle } from './chronicle';
+import { applyStatus, clearStatus, type StatusId } from './statusEffects';
 import { speak } from './dialogue';
 import {
   generateKingdomName,
@@ -652,7 +653,7 @@ export class SettlementSystem {
     const other = village.capital ? 'leader' : 'king';
     this.stripStatus(leader, other);
     if (!leader.status.includes(crown)) {
-      leader.status.push(crown);
+      applyStatus(leader, crown);
       emitFloater({
         kind: 'speech',
         text: speak('crowned', Math.random()),
@@ -687,7 +688,7 @@ export class SettlementSystem {
       this.captains.set(village.id, captain.id);
     }
 
-    if (!captain.status.includes('captain')) captain.status.push('captain');
+    applyStatus(captain, 'captain');
 
     for (const warrior of warriors) {
       if (warrior.id === captain.id) continue;
@@ -695,9 +696,8 @@ export class SettlementSystem {
     }
   }
 
-  private stripStatus(entity: Entity, status: string): void {
-    const index = entity.status.indexOf(status);
-    if (index !== -1) entity.status.splice(index, 1);
+  private stripStatus(entity: Entity, status: StatusId): void {
+    clearStatus(entity, status);
   }
 
   /** A unit that leaves a village leaves its office behind with it. */

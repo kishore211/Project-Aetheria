@@ -40,6 +40,8 @@ export type HoverTarget =
       kingdom: string | null;
       kingdomColor: string | null;
       herd: number | null;
+      /** -100..+100, so the tooltip can show a face without a lookup. */
+      happiness: number;
     }
   | {
       kind: 'tile';

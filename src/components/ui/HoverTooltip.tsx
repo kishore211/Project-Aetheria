@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Crown, Flame, PawPrint, Sparkles, Users } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
 import { TRAITS } from '../../utils/traits';
+import { moodFace } from '../../utils/mood';
 
 const OFFICE_LABEL: Record<string, string> = {
   king: 'King',
@@ -71,9 +72,14 @@ const HoverTooltip = () => {
             <span className="capitalize text-muted-foreground">{pretty(target.species)}</span>
           </div>
 
-          <div className="mt-1 capitalize text-muted-foreground">
-            {target.office ? `${OFFICE_LABEL[target.office] ?? pretty(target.office)} · ` : ''}
-            {pretty(target.activity)}
+          <div className="mt-1 flex items-center gap-1.5 text-muted-foreground">
+            <span aria-hidden title={moodFace(target.happiness).label}>
+              {moodFace(target.happiness).glyph}
+            </span>
+            <span className="capitalize">
+              {target.office ? `${OFFICE_LABEL[target.office] ?? pretty(target.office)} · ` : ''}
+              {pretty(target.activity)}
+            </span>
           </div>
 
           <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-background">
