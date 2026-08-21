@@ -2,7 +2,6 @@
   "name": "project-aetheria",
   "version": "1.0.0",
   "type": "module",
-  "main": "index.js",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
@@ -12,10 +11,19 @@
     "lint": "eslint src --ext ts,tsx",
     "lint:fix": "eslint src --ext ts,tsx --fix"
   },
-  "keywords": [],
+  "keywords": [
+    "game",
+    "simulation",
+    "god-game",
+    "worldbox",
+    "three.js",
+    "react",
+    "procedural-generation",
+    "pixel-art"
+  ],
   "author": "",
-  "license": "ISC",
-  "description": "",
+  "license": "MIT",
+  "description": "A WorldBox-inspired god simulation: shape a living pixel world, fill it with life, and watch civilizations rise and fall.",
   "dependencies": {
     "@react-three/drei": "^10.0.7",
     "@react-three/fiber": "^9.1.2",
@@ -45,6 +53,7 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^5.2.0",
     "globals": "^17.11.0",
+    "jsdom": "^30.0.1",
     "postcss": "^8.5.3",
     "prettier": "^3.5.3",
     "tailwindcss": "^3.4.17",

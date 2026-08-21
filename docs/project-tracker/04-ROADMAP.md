@@ -1,58 +1,71 @@
-# 04 — ROADMAP: Everything Left To Do
+# 04 — ROADMAP: What Is Left
 
-Ordered by priority. Each item lists **what**, **why**, **how**, and **files**. Move items to [01-STATUS.md](01-STATUS.md) when done.
+Every item that was on this list when the project was picked up has been built
+and moved to [01-STATUS.md](01-STATUS.md): the map redesign (Tier 1), the
+civilization layer (Tier 2), sandbox depth (Tier 3) and the performance and
+quality work (Tier 4).
+
+What follows is what is **deliberately not built**, and why. Nothing here is
+half-finished — the game is complete and playable as it stands.
 
 ---
 
-## Tier 1 — Map Redesign (next up; full spec in [03-MAP-REDESIGN.md](03-MAP-REDESIGN.md))
+## Deliberately out of scope
 
-- [ ] **M1. Instanced terrain** — one InstancedMesh, per-instance color/matrix, raycast by instanceId. *Files: worldGenerator.ts, useGameEngine.ts, types/world.ts*
-- [ ] **M2. Flat profile** — height multiplier 3.0 → 0.6; visual only, simulation untouched. *Files: types/world.ts, worldGenerator.ts*
-- [ ] **M3. Top-down camera** — high default pitch, map-style pan/zoom limits. *Files: GameContainer.tsx*
-- [ ] **M4. Lighting diet** — no terrain shadows, no shadow plane, keep tint lights. *Files: GameContainer.tsx, useGameEngine.ts, App.tsx*
-- [ ] **M5. Tile color jitter + detail sprites** — per-tile shade variation; tree/rock billboards on forests/mountains. *Files: worldGenerator.ts, pixelSprites.ts*
-- [ ] **M6. Minimap panel** — 1px/tile canvas, dirty-tile redraw, click-to-jump. *New: components/ui/Minimap.tsx*
+These were listed in the original PRD ([../app_flow.md](../app_flow.md)) and are
+each a project in their own right. Attempting them would have meant shipping a
+shallower version of everything above.
 
-## Tier 2 — Civilization Layer (the WorldBox magic: borders & kingdoms)
+- **Cultures and technology trees** — WorldBox's ~50 knowledges gating buildings
+  and units. Aetheria's progression is resource-driven instead.
+- **Trade and economy chains** — production chains (farm → wheat → bread), docks,
+  trade boats, taxation. Villages have a granary and a timber/stone store; there
+  is no market.
+- **Religion and faith** — temples exist as buildings, not as a system.
+- **Naval movement and combat** — nothing crosses open ocean.
+- **Sieges with equipment** — raids are melee and building damage; no rams,
+  ladders or capture timers.
+- **Underground layers** — mines are surface buildings.
+- **Multiplayer and cloud saves** — saves are local (localStorage + file).
+- **Electron packaging** — the game runs in the browser.
 
-- [ ] **C1. Settlements** — sentient races found a village when ≥3 same-race units cluster on fertile land; bonfire structure; village grows houses as population grows. *New: utils/settlementSystem.ts; hooks into entityManagerMinimal*
-- [ ] **C2. Territory zones** — villages claim tiles outward from buildings (zone range); render as tinted overlay per kingdom color; the "watching borders grow" magic. *Extend Tile with `ownerId`; overlay via instanced color blend or second transparent instanced layer*
-- [ ] **C3. Kingdoms & names** — deterministic name generator per race; kingdom color; TopBar count; kingdom inspector panel. *New: utils/nameGenerator.ts; InfoPanel extension*
-- [ ] **C4. Jobs & resources** — villagers gather wood/food/stone to a village store; construction consumes it. *Extend EntityAI gathering state to deliver to village*
-- [ ] **C5. War & raids** — adjacent kingdoms accumulate tension → raid parties; capture/burn buildings; chronicle entries + minimap flashes. *settlementSystem + EntityAI fighting state (currently placeholder)*
+## Nice-to-have, not attempted
 
-## Tier 3 — Sandbox Depth
+- **Kingdom banners and heraldry** — kingdoms have generated names, rulers and
+  colours, but no generated flag art.
+- **Diplomacy beyond war and peace** — no alliances, opinions, rebellions or
+  succession crises. Tension, war, conquest and peace are modelled.
+- **Unit equipment and levels** — creatures have traits, attributes and a kill
+  count; there are no weapons or experience levels.
+- **Zombie variants per creature** — zombies and skeletons exist as their own
+  types; curse-death does not convert a creature into an undead version of
+  itself.
+- **Animated special-biome tiles** — enchanted and corrupted land is coloured and
+  decorated, not animated.
 
-- [ ] **S1. Save/load** — versioned JSON of tiles+entities+time in localStorage, 3 slots + autosave; export/import file. Strip meshes (rebuild on load). *New: utils/saveSystem.ts; Sidebar UI*
-- [ ] **S2. Brush sizes** — 1/3/5-tile radius selector for terrain/biome/divine powers (WorldBox staple). *Store `brushSize`; applyToolEffect loops radius; Sidebar selector*
-- [ ] **S3. World laws panel** — toggles: hunger, aging, reproduction, disasters, fire spread, biome overgrowth. *Store slice + modal; guards in entityManager/engine sim loops*
-- [ ] **S4. More creatures** — sheep, chicken, fox, snake + spawn weights; zombie variants on curse death. *pixelSprites templates + palettes; FOOD_CHAIN entries; spawn-animal candidates*
-- [ ] **S5. Traits** — 8–10 unit traits (fast, strong, genius, immortal, pyromaniac…), random at spawn, inherited by children, shown in InfoPanel. *createEntity + EntityAI modifiers*
-- [ ] **S6. Spectate mode** — click "follow" on a unit; camera tracks it; auto-follow killer on death (WorldBox signature). *useGameEngine camera follow + InfoPanel button*
-- [ ] **S7. Clickable chronicle** — event entries store tile coords; click jumps camera. *GameEvent.position; EventLog onClick*
+## Known limitations
 
-## Tier 4 — Performance & Quality
+- **Saves regenerate tile resources.** A save stores terrain edits, ownership,
+  creatures and settlements, but not per-tile berry/timber counts — the ecology
+  re-seeds them within seconds, and storing them would have dominated the
+  payload. Village granaries *are* saved.
+- **`worldSize: 'large'` (256×256) is untested at scale.** The instanced renderer
+  and spatial index are built for it (65,536 tiles is still 4 draw calls), but
+  the balance of village founding and river density was tuned on 128×128.
+- **Diplomacy needs shared borders.** Kingdoms that never touch never fight, so
+  on island maps war is rare by design.
+- **No pointer-lock or keyboard camera.** Camera control is mouse/touch only.
 
-- [ ] **P1. Spatial entity index** — grid buckets for findNearbyPrey/Threat instead of tile scans (needed >300 entities). *entityManagerMinimal*
-- [ ] **P2. Code splitting** — dynamic import three/drei chunk; kill the 500 kB warning. *vite.config.ts manualChunks*
-- [ ] **P3. Zoom LOD** — hide health bars + skip walk-frame swaps when camera is far (WorldBox minimap trick, lite version). *updateEntityVisual with camera distance*
-- [ ] **P4. E2E test suite** — Playwright specs: new world, spawn, power effects, chronicle entries, save/load round trip. *New: e2e/ folder*
-- [ ] **P5. npm audit triage** — 20 advisories (3 low/5 moderate/12 high) in dev-tooling chain; review, upgrade where safe. *package.json*
-- [ ] **P6. Mobile layout** — collapsible sidebar, touch camera controls, safe-area insets. *CSS + Sidebar*
+## If work continues
 
-## Tier 5 — Deferred / Nice-to-have
+In rough order of value per unit of effort:
 
-- [ ] Music loop (procedural ambient via soundManager oscillator pads)
-- [ ] Seasons affecting gameplay (winter kills crops, animals hibernate)
-- [ ] Rivers/lakes generation (currently only ocean-height water)
-- [ ] Kingdom banners/heraldry generator
-- [ ] Steam-style achievements panel (localStorage)
-- [ ] World generation templates (continent/islands/donut — WorldBox-style picker)
-- [ ] Full PRD systems intentionally out of scope for now: cultures/tech trees, trade boats/economy chains, religion, taxation, naval combat, sieges with equipment, underground layers, multiplayer, cloud saves, Electron packaging
-
-## Known issues (small)
-
-- [ ] Rain sound continues if muted mid-rain then unmuted while clear (edge case in soundManager rain state)
-- [ ] Reproduction event can spam sound with very high populations — consider rate-limiting `spawn()` SFX
-- [ ] `spriteHandler.ts` still exports the legacy sprite-sheet path (ENTITY_SPRITES) — unused by the active mesh path; candidate for cleanup when sheets return
-- [ ] Browserslist data 16 months old (`npx update-browserslist-db@latest` — cosmetic warning)
+1. **Alliances and rebellions** — the tension model already exists; adding
+   opinions and loyalty would deepen the civilization layer the most for the
+   least new machinery.
+2. **Kingdom inspector with history** — a panel per kingdom listing its villages,
+   wars won and lost, and rulers over time. All the data is already tracked.
+3. **Heraldry generator** — procedural banners from the kingdom colour and race,
+   drawn with the same canvas-atlas technique as everything else.
+4. **256×256 tuning pass** — verify frame rate and rebalance founding density.
+5. **Equipment and unit levels** — the most content-heavy of the remaining ideas.

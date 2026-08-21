@@ -1,102 +1,224 @@
 // src/utils/entityManagerMinimal.ts
 import * as THREE from 'three';
-import { Tile, Entity, EntityType } from '../types/world';
-import { createEntity, createEntityMesh, updateEntityMesh, EntityAI } from './entitySystemMinimal';
+import { TILE_SIZE, type Tile, type Entity, type EntityType } from '../types/world';
+import { createEntity, createEntityMesh, updateEntityMesh, EntityAI, type AIOrder } from './entitySystemMinimal';
+import { inheritTraits } from './traits';
+import { simulation } from './simulation';
+import type { WorldLaws } from '../store/gameStore';
+import type { GameEvent } from '../store/gameStore';
+import type { SavedEntity } from './saveSystem';
+
+export type DeathCause = 'old_age' | 'health' | 'random' | 'divine' | 'combat' | 'starvation' | 'burned';
+
+/** Spatial buckets are this many tiles across. */
+const BUCKET_SIZE = 8;
+
+/**
+ * Neighbourhood queries used by the AI. Backed by a coarse grid so hunting and
+ * fleeing cost O(neighbours) instead of O(radius²) tile scans.
+ */
+export interface EntityIndex {
+  query(x: number, y: number, radius: number): Entity[];
+}
 
 /**
  * EntityManager - Handles spawning, updating, and managing entities in the world
  */
-export class EntityManager {
+export class EntityManager implements EntityIndex {
   private entities: Map<string, Entity> = new Map();
   private entityAIs: Map<string, EntityAI> = new Map();
   private tiles: Tile[][];
   private scene: THREE.Scene;
-  onLifeEvent?: (message: string, kind: 'life' | 'death') => void;
-  onEntityDeath?: (entity: Entity) => void;
+  private camera: THREE.Camera | null;
+  /** bucketKey -> entities currently inside that bucket. */
+  private buckets: Map<number, Set<Entity>> = new Map();
+  private bucketOf: Map<string, number> = new Map();
+  private bucketsPerRow: number;
+  private laws: WorldLaws = simulation.laws;
+  /** 1 = close up, 0 = zoomed far out. Drives visual level of detail. */
+  private detailLevel = 1;
+
+  onLifeEvent?: (message: string, kind: GameEvent['kind'], position?: { x: number; y: number }) => void;
+  onEntityDeath?: (entity: Entity, cause: DeathCause) => void;
   onEntitySpawn?: (entity: Entity) => void;
-  
+
   // Lifecycle settings
-  private reproductionProbability = 0.001; // Base chance per update
-  private deathProbability = 0.0005; // Base chance per update
-  private agingRate = 0.01; // Amount to age per update
+  private reproductionProbability = 0.001;
+  private deathProbability = 0.0005;
+  private agingRate = 0.01;
   private entityPopulationDensity: 'low' | 'medium' | 'high' = 'medium';
 
-  constructor(tiles: Tile[][], scene: THREE.Scene) {
+  constructor(tiles: Tile[][], scene: THREE.Scene, camera?: THREE.Camera) {
     this.tiles = tiles;
     this.scene = scene;
+    this.camera = camera ?? null;
+    this.bucketsPerRow = Math.max(1, Math.ceil(tiles.length / BUCKET_SIZE));
   }
+
+  setWorldLaws(laws: WorldLaws): void {
+    this.laws = laws;
+  }
+
+  setCamera(camera: THREE.Camera): void {
+    this.camera = camera;
+  }
+
+  // -- spatial index -----------------------------------------------------
+
+  private bucketKey(x: number, y: number): number {
+    const bx = Math.min(this.bucketsPerRow - 1, Math.max(0, Math.floor(x / BUCKET_SIZE)));
+    const by = Math.min(this.bucketsPerRow - 1, Math.max(0, Math.floor(y / BUCKET_SIZE)));
+    return bx * this.bucketsPerRow + by;
+  }
+
+  private indexEntity(entity: Entity): void {
+    const key = this.bucketKey(entity.position.x, entity.position.y);
+    const previous = this.bucketOf.get(entity.id);
+    if (previous === key) return;
+    if (previous !== undefined) this.buckets.get(previous)?.delete(entity);
+    let bucket = this.buckets.get(key);
+    if (!bucket) {
+      bucket = new Set();
+      this.buckets.set(key, bucket);
+    }
+    bucket.add(entity);
+    this.bucketOf.set(entity.id, key);
+  }
+
+  private unindexEntity(entity: Entity): void {
+    const key = this.bucketOf.get(entity.id);
+    if (key !== undefined) this.buckets.get(key)?.delete(entity);
+    this.bucketOf.delete(entity.id);
+  }
+
+  /** Every living entity whose centre lies within `radius` tiles of (x, y). */
+  query(x: number, y: number, radius: number): Entity[] {
+    const results: Entity[] = [];
+    const span = Math.ceil(radius / BUCKET_SIZE);
+    const bx = Math.floor(x / BUCKET_SIZE);
+    const by = Math.floor(y / BUCKET_SIZE);
+    const radiusSq = radius * radius;
+
+    for (let ix = bx - span; ix <= bx + span; ix++) {
+      if (ix < 0 || ix >= this.bucketsPerRow) continue;
+      for (let iy = by - span; iy <= by + span; iy++) {
+        if (iy < 0 || iy >= this.bucketsPerRow) continue;
+        const bucket = this.buckets.get(ix * this.bucketsPerRow + iy);
+        if (!bucket) continue;
+        for (const entity of bucket) {
+          if (entity.health <= 0) continue;
+          const dx = entity.position.x - x;
+          const dy = entity.position.y - y;
+          if (dx * dx + dy * dy <= radiusSq) results.push(entity);
+        }
+      }
+    }
+    return results;
+  }
+
+  // -- spawning ----------------------------------------------------------
 
   /**
    * Spawn a new entity in the world
    */
-  spawnEntity(type: EntityType, x: number, y: number): Entity | null {
-    // Check valid coordinates
-    if (x < 0 || x >= this.tiles.length || y < 0 || y >= this.tiles[0].length) {
-      console.warn(`Cannot spawn entity at invalid position: ${x}, ${y}`);
-      return null;
-    }
+  spawnEntity(type: EntityType, x: number, y: number, options: { traits?: Entity['traits'] } = {}): Entity | null {
+    const ix = Math.floor(x);
+    const iy = Math.floor(y);
+    if (!this.isInBounds(ix, iy)) return null;
 
-    // Get the tile at the position
-    const tile = this.tiles[x][y];
+    const tile = this.tiles[ix][iy];
+    if (!this.isSuitableTileForEntity(type, tile)) return null;
 
-    // Check if the tile is suitable for this entity type
-    if (!this.isSuitableTileForEntity(type, tile)) {
-      console.warn(`Tile ${x}, ${y} with type ${tile.type} is not suitable for ${type}`);
-      return null;
-    }
+    const entity = createEntity(type, ix + 0.5, iy + 0.5, options.traits);
 
-    // Create the entity
-    const entity = createEntity(type, x, y);
-    
-    // Create and position the mesh
     const mesh = createEntityMesh(entity);
-    const worldX = (x - this.tiles.length / 2) * 0.5; // Assuming TILE_SIZE = 0.5
-    const worldY = tile.scaledHeight;
-    const worldZ = (y - this.tiles[0].length / 2) * 0.5;
-    
-    mesh.position.set(worldX, worldY, worldZ);
-    
-    // Add mesh to the scene
+    mesh.position.set(
+      (entity.position.x - this.tiles.length / 2) * TILE_SIZE,
+      tile.scaledHeight,
+      (entity.position.y - this.tiles[0].length / 2) * TILE_SIZE,
+    );
     this.scene.add(mesh);
-    
-    // Add entity to management systems
+
     entity.mesh = mesh;
     this.entities.set(entity.id, entity);
-    
-    // Create AI for this entity
-    const entityAI = new EntityAI(entity);
-    this.entityAIs.set(entity.id, entityAI);
-    
-    // Add to tile's entity list
+    this.entityAIs.set(entity.id, new EntityAI(entity, this));
+    this.indexEntity(entity);
     tile.entities.push(entity);
-    
+
     this.onEntitySpawn?.(entity);
     return entity;
   }
 
-  /**
-   * Update all entities in the world
-   */
+  /** Recreate an entity exactly as it was saved (see saveSystem.ts). */
+  restoreEntity(saved: SavedEntity): Entity | null {
+    const ix = Math.floor(saved.x);
+    const iy = Math.floor(saved.y);
+    if (!this.isInBounds(ix, iy)) return null;
+    const tile = this.tiles[ix][iy];
+
+    const entity: Entity = {
+      id: saved.id,
+      type: saved.type,
+      name: saved.name,
+      age: saved.age,
+      maxAge: saved.maxAge,
+      health: saved.health,
+      maxHealth: saved.maxHealth,
+      position: { x: saved.x, y: saved.y },
+      attributes: { ...saved.attributes },
+      needs: { ...saved.needs },
+      inventory: [],
+      status: [],
+      traits: [...saved.traits],
+      kills: saved.kills,
+      kingdomId: saved.kingdomId,
+      villageId: saved.villageId,
+      carrying: null,
+      job: saved.job,
+    };
+
+    const mesh = createEntityMesh(entity);
+    mesh.position.set(
+      (entity.position.x - this.tiles.length / 2) * TILE_SIZE,
+      tile.scaledHeight,
+      (entity.position.y - this.tiles[0].length / 2) * TILE_SIZE,
+    );
+    this.scene.add(mesh);
+    entity.mesh = mesh;
+
+    this.entities.set(entity.id, entity);
+    this.entityAIs.set(entity.id, new EntityAI(entity, this));
+    this.indexEntity(entity);
+    tile.entities.push(entity);
+    return entity;
+  }
+
+  // -- per-frame update --------------------------------------------------
+
   update(delta: number): void {
-    // Process each entity
+    this.updateDetailLevel();
+
     this.entities.forEach((entity, id) => {
       const previousTileX = Math.floor(entity.position.x);
       const previousTileY = Math.floor(entity.position.y);
 
-      // First, run the entity's AI
-      const ai = this.entityAIs.get(id);
-      if (ai) {
-        ai.update(this.tiles, delta);
-      }
+      this.entityAIs.get(id)?.update(this.tiles, delta);
 
       this.syncTileOccupancy(entity, previousTileX, previousTileY);
-
-      // Then, handle lifecycle events
+      this.indexEntity(entity);
       this.processLifecycleEvents(entity, delta);
-      
-      // Update entity visual
       this.updateEntityVisual(entity, delta);
     });
+  }
+
+  /** Cheap zoom-based level of detail: hide chrome when the map is far away. */
+  private updateDetailLevel(): void {
+    if (!this.camera) return;
+    const worldUnits = this.tiles.length * TILE_SIZE;
+    const distance = this.camera.position.length();
+    // Full detail up to a third of the world size, none past the whole world.
+    const t = (distance - worldUnits * 0.35) / (worldUnits * 0.65);
+    this.detailLevel = Math.max(0, Math.min(1, 1 - t));
   }
 
   /** Keep tile entity lists accurate as entities move between tiles. */
@@ -112,148 +234,151 @@ export class EntityManager {
     }
     if (this.isInBounds(currentX, currentY)) {
       const newTile = this.tiles[currentX][currentY];
-      if (!newTile.entities.some(e => e.id === entity.id)) {
-        newTile.entities.push(entity);
-      }
+      if (!newTile.entities.some(e => e.id === entity.id)) newTile.entities.push(entity);
     }
   }
 
   private isInBounds(x: number, y: number): boolean {
     return x >= 0 && x < this.tiles.length && y >= 0 && y < this.tiles[0].length;
   }
-  
-  /**
-   * Process lifecycle events for an entity
-   */
+
+  // -- lifecycle ---------------------------------------------------------
+
   private processLifecycleEvents(entity: Entity, delta: number): void {
-    // Skip processing for non-living entities
-    if (['skeleton', 'zombie'].includes(entity.type)) return;
-    
-    // Aging
-    entity.age += this.agingRate * delta;
-    
-    // Death by old age
-    if (entity.age >= entity.maxAge) {
-      this.killEntity(entity, 'old_age');
+    // Undead do not age or breed
+    if (['skeleton', 'zombie'].includes(entity.type)) {
+      if (entity.health <= 0) {
+        this.killEntity(entity, entity.status.includes('slain') ? 'combat' : 'health');
+      }
       return;
     }
-    
-    // Random death chance (disease, accidents, etc.)
-    const deathRoll = Math.random();
-    if (deathRoll < this.deathProbability * delta) {
+
+    const traits = entity.traits ?? [];
+
+    if (this.laws.aging && !traits.includes('immortal')) {
+      entity.age += this.agingRate * delta;
+      if (entity.age >= entity.maxAge) {
+        this.killEntity(entity, 'old_age');
+        return;
+      }
+    }
+
+    if (traits.includes('regeneration') && entity.health < entity.maxHealth) {
+      entity.health = Math.min(entity.maxHealth, entity.health + entity.maxHealth * 0.02 * delta);
+    }
+
+    if (Math.random() < this.deathProbability * delta) {
       this.killEntity(entity, 'random');
       return;
     }
-    
-    // Health-based death
+
     if (entity.health <= 0) {
-      this.killEntity(entity, 'health');
+      const slain = entity.status.includes('slain');
+      const starved = entity.needs.hunger <= 0.02 || entity.needs.thirst <= 0.02;
+      this.killEntity(entity, slain ? 'combat' : starved ? 'starvation' : 'health');
       return;
     }
-    
-    // Reproduction
-    const canReproduce = entity.age >= entity.maxAge * 0.2 && entity.age <= entity.maxAge * 0.8;
+
+    if (!this.laws.reproduction) return;
+
+    const canReproduce = entity.age >= entity.maxAge * 0.2
+      && entity.age <= entity.maxAge * 0.8
+      && entity.needs.hunger > 0.4;
+    const fertility = traits.includes('fertile') ? 3 : 1;
     const populationMultiplier = this.getPopulationDensityMultiplier();
-    
-    if (canReproduce && Math.random() < this.reproductionProbability * delta * populationMultiplier) {
+
+    if (canReproduce && Math.random() < this.reproductionProbability * delta * populationMultiplier * fertility) {
       this.reproduceEntity(entity);
     }
   }
-  
-  /**
-   * Have an entity reproduce, creating a new entity of the same type
-   */
+
   private reproduceEntity(entity: Entity): void {
-    // Check if we already have too many entities of this type
-    const entityCount = this.getEntityCountByType(entity.type);
-    const maxCount = this.getMaxEntityCount(entity.type);
-    
-    if (entityCount >= maxCount) {
-      return; // Skip reproduction if at capacity
-    }
-    
+    if (this.getEntityCountByType(entity.type) >= this.getMaxEntityCount(entity.type)) return;
+
     const { x, y } = entity.position;
-    
-    // Try to find a nearby suitable tile to place the new entity
-    const possibleTiles = this.getNearbyTiles(x, y, 2);
-    const suitableTiles = possibleTiles.filter(t => this.isSuitableTileForEntity(entity.type, t));
-    
-    if (suitableTiles.length === 0) return; // No suitable place to reproduce
-    
-    // Choose a random suitable tile
-    const chosenTile = suitableTiles[Math.floor(Math.random() * suitableTiles.length)];
-    
-    // Create new entity
-    const child = this.spawnEntity(entity.type, chosenTile.x, chosenTile.y);
+    const suitable = this.getNearbyTiles(x, y, 2)
+      .filter(t => this.isSuitableTileForEntity(entity.type, t));
+    if (suitable.length === 0) return;
+
+    const chosen = suitable[Math.floor(Math.random() * suitable.length)];
+    const child = this.spawnEntity(entity.type, chosen.x, chosen.y, {
+      traits: inheritTraits(entity.traits),
+    });
     if (child) {
-      this.onLifeEvent?.(`${child.name} the ${child.type} was born`, 'life');
+      child.kingdomId = entity.kingdomId ?? null;
+      child.villageId = entity.villageId ?? null;
+      // A child costs the parent some of its reserves
+      entity.needs.hunger = Math.max(0.15, entity.needs.hunger - 0.35);
+      this.onLifeEvent?.(
+        `${child.name} the ${child.type} was born`,
+        'life',
+        { x: Math.floor(child.position.x), y: Math.floor(child.position.y) },
+      );
     }
-    
-    // Add status effect to parent
-    entity.status.push('reproduced');
-    // Remove the status after some time
-    setTimeout(() => {
-      const index = entity.status.indexOf('reproduced');
-      if (index !== -1) entity.status.splice(index, 1);
-    }, 5000);
   }
-  
+
   /**
    * Kill an entity and handle its removal
    */
-  killEntity(entity: Entity, cause: 'old_age' | 'health' | 'random' | 'divine'): void {
-    const { x, y } = entity.position;
-    
-    // Find the tile this entity is on
-    if (x >= 0 && x < this.tiles.length && y >= 0 && y < this.tiles[0].length) {
-      const tile = this.tiles[Math.floor(x)][Math.floor(y)];
-      
-      // Remove from tile
-      const entityIndex = tile.entities.findIndex(e => e.id === entity.id);
-      if (entityIndex !== -1) {
-        tile.entities.splice(entityIndex, 1);
-      }
-    }
-    
-    // Remove from management systems
-    this.entities.delete(entity.id);
-    this.entityAIs.delete(entity.id);
-    
-    // Remove visual from scene and free GPU resources
-    if (entity.mesh) {
-      this.scene.remove(entity.mesh);
-      entity.mesh.traverse((child) => {
-        const mesh = child as THREE.Mesh;
-        if (mesh.geometry) mesh.geometry.dispose();
-        const material = mesh.material as THREE.Material | THREE.Material[] | undefined;
-        if (Array.isArray(material)) material.forEach(m => m.dispose());
-        else if (material) material.dispose();
-      });
-      entity.mesh = null;
+  killEntity(entity: Entity, cause: DeathCause): void {
+    if (!this.entities.has(entity.id)) return;
+
+    const ix = Math.floor(entity.position.x);
+    const iy = Math.floor(entity.position.y);
+    if (this.isInBounds(ix, iy)) {
+      const tile = this.tiles[ix][iy];
+      const index = tile.entities.findIndex(e => e.id === entity.id);
+      if (index !== -1) tile.entities.splice(index, 1);
+      tile.population = Math.max(0, tile.population - 1);
     }
 
-    this.onEntityDeath?.(entity);
+    this.entities.delete(entity.id);
+    this.entityAIs.delete(entity.id);
+    this.unindexEntity(entity);
+    this.disposeMesh(entity);
+
+    this.onEntityDeath?.(entity, cause);
     const causeText = cause === 'old_age' ? 'died of old age'
       : cause === 'divine' ? 'was struck down by divine power'
+      : cause === 'combat' ? 'was slain'
+      : cause === 'starvation' ? 'starved'
+      : cause === 'burned' ? 'was consumed by fire'
       : cause === 'health' ? 'perished'
       : 'died suddenly';
-    this.onLifeEvent?.(`${entity.name} the ${entity.type} ${causeText}`, 'death');
+    this.onLifeEvent?.(
+      `${entity.name} the ${entity.type} ${causeText}`,
+      'death',
+      { x: ix, y: iy },
+    );
+  }
+
+  private disposeMesh(entity: Entity): void {
+    if (!entity.mesh) return;
+    this.scene.remove(entity.mesh);
+    entity.mesh.traverse((child) => {
+      const mesh = child as THREE.Mesh;
+      if (mesh.geometry) mesh.geometry.dispose();
+      const material = mesh.material as THREE.Material | THREE.Material[] | undefined;
+      if (Array.isArray(material)) material.forEach(m => m.dispose());
+      else if (material) material.dispose();
+    });
+    entity.mesh = null;
   }
 
   /** Damage every entity within a tile radius; returns kill count. */
-  damageArea(centerX: number, centerY: number, radius: number, damage: number): number {
+  damageArea(
+    centerX: number,
+    centerY: number,
+    radius: number,
+    damage: number,
+    cause: DeathCause = 'divine',
+  ): number {
     let kills = 0;
-    const victims: Entity[] = [];
-    this.entities.forEach(entity => {
-      const dx = entity.position.x - centerX;
-      const dy = entity.position.y - centerY;
-      if (Math.sqrt(dx * dx + dy * dy) <= radius) victims.push(entity);
-    });
-    for (const victim of victims) {
+    for (const victim of this.query(centerX, centerY, radius)) {
       victim.health -= damage;
       if (!victim.status.includes('wounded')) victim.status.push('wounded');
       if (victim.health <= 0) {
-        this.killEntity(victim, 'divine');
+        this.killEntity(victim, cause);
         kills++;
       }
     }
@@ -263,86 +388,57 @@ export class EntityManager {
   /** Heal every entity within a tile radius. */
   healArea(centerX: number, centerY: number, radius: number, amount: number): number {
     let healed = 0;
-    this.entities.forEach(entity => {
-      const dx = entity.position.x - centerX;
-      const dy = entity.position.y - centerY;
-      if (Math.sqrt(dx * dx + dy * dy) <= radius) {
-        entity.health = Math.min(entity.maxHealth, entity.health + amount);
-        entity.needs.hunger = 1.0;
-        entity.needs.thirst = 1.0;
-        const woundedIndex = entity.status.indexOf('wounded');
-        if (woundedIndex !== -1) entity.status.splice(woundedIndex, 1);
-        if (!entity.status.includes('blessed')) entity.status.push('blessed');
-        healed++;
-      }
-    });
+    for (const entity of this.query(centerX, centerY, radius)) {
+      entity.health = Math.min(entity.maxHealth, entity.health + amount);
+      entity.needs.hunger = 1.0;
+      entity.needs.thirst = 1.0;
+      const woundedIndex = entity.status.indexOf('wounded');
+      if (woundedIndex !== -1) entity.status.splice(woundedIndex, 1);
+      if (!entity.status.includes('blessed')) entity.status.push('blessed');
+      healed++;
+    }
     return healed;
   }
 
-  /** Total number of living entities. */
   getPopulation(): number {
     return this.entities.size;
   }
 
   /** Remove every entity and dispose meshes (world reset). */
   clear(): void {
-    this.entities.forEach(entity => {
-      if (entity.mesh) {
-        this.scene.remove(entity.mesh);
-        entity.mesh.traverse((child) => {
-          const mesh = child as THREE.Mesh;
-          if (mesh.geometry) mesh.geometry.dispose();
-          const material = mesh.material as THREE.Material | THREE.Material[] | undefined;
-          if (Array.isArray(material)) material.forEach(m => m.dispose());
-          else if (material) material.dispose();
-        });
-        entity.mesh = null;
-      }
-    });
+    this.entities.forEach(entity => this.disposeMesh(entity));
     this.entities.clear();
     this.entityAIs.clear();
+    this.buckets.clear();
+    this.bucketOf.clear();
   }
-  
-  /**
-   * Set the population density setting
-   */
+
   setPopulationDensity(density: 'low' | 'medium' | 'high'): void {
     this.entityPopulationDensity = density;
-    
-    // Update probabilities based on density
     switch (density) {
       case 'low':
         this.reproductionProbability = 0.0005;
         this.deathProbability = 0.001;
         break;
-        
       case 'medium':
         this.reproductionProbability = 0.001;
         this.deathProbability = 0.0005;
         break;
-        
       case 'high':
         this.reproductionProbability = 0.002;
         this.deathProbability = 0.0002;
         break;
     }
   }
-  
-  /**
-   * Get population density multiplier for calculations
-   */
+
   private getPopulationDensityMultiplier(): number {
     switch (this.entityPopulationDensity) {
       case 'low': return 0.5;
-      case 'medium': return 1.0;
       case 'high': return 2.0;
       default: return 1.0;
     }
   }
-  
-  /**
-   * Get the number of entities of a specific type
-   */
+
   private getEntityCountByType(type: EntityType): number {
     let count = 0;
     this.entities.forEach(entity => {
@@ -350,30 +446,22 @@ export class EntityManager {
     });
     return count;
   }
-  
-  /**
-   * Get the maximum allowed entities of a specific type based on density setting
-   */
+
   private getMaxEntityCount(type: EntityType): number {
-    // Base values
     const baseMaxCounts: Record<EntityType, number> = {
-      human: 100, elf: 80, dwarf: 60, orc: 70,
-      wolf: 30, bear: 15, deer: 40, rabbit: 60, bird: 80, fish: 100,
-      dragon: 3, demon: 5, zombie: 50, skeleton: 70, elemental: 10, bandit: 25
+      human: 140, elf: 110, dwarf: 90, orc: 110,
+      wolf: 30, bear: 15, deer: 40, rabbit: 60, bird: 60, fish: 90,
+      sheep: 50, chicken: 60, fox: 25, snake: 25,
+      dragon: 3, demon: 5, zombie: 60, skeleton: 70, elemental: 10, bandit: 25,
     };
-    
-    // Default value for any missing types
-    const baseMax = baseMaxCounts[type] || 50;
-    
-    // Adjust based on density
+    const baseMax = baseMaxCounts[type] ?? 50;
     switch (this.entityPopulationDensity) {
       case 'low': return Math.floor(baseMax * 0.5);
-      case 'medium': return baseMax;
       case 'high': return Math.floor(baseMax * 2);
       default: return baseMax;
     }
   }
-  
+
   /**
    * Check if a tile is suitable for a specific entity type.
    * Deliberately permissive so god-tools always feel responsive:
@@ -381,90 +469,86 @@ export class EntityManager {
    */
   private isSuitableTileForEntity(type: EntityType, tile: Tile): boolean {
     const isWater = ['deep_ocean', 'ocean', 'shallow_water', 'river', 'lake'].includes(tile.type);
-
     if (type === 'fish') return isWater;
     if (isWater || tile.walkable === false) return false;
     return tile.height > 0.25;
   }
-  
-  /**
-   * Get nearby tiles within a certain range
-   */
+
   private getNearbyTiles(x: number, y: number, range: number): Tile[] {
     const nearby: Tile[] = [];
-    
-    // Get integer coordinates
     const ix = Math.floor(x);
     const iy = Math.floor(y);
-    
     for (let dx = -range; dx <= range; dx++) {
       for (let dy = -range; dy <= range; dy++) {
-        // Skip the center tile
         if (dx === 0 && dy === 0) continue;
-        
         const nx = ix + dx;
         const ny = iy + dy;
-        
-        // Bounds check
-        if (nx >= 0 && nx < this.tiles.length && ny >= 0 && ny < this.tiles[0].length) {
-          nearby.push(this.tiles[nx][ny]);
-        }
+        if (this.isInBounds(nx, ny)) nearby.push(this.tiles[nx][ny]);
       }
     }
-    
     return nearby;
   }
-  
+
   /**
    * Update the visual representation of an entity
    */
   private updateEntityVisual(entity: Entity, delta: number): void {
     if (!entity.mesh) return;
-    
-    // Get the tile at the entity's position
+
     const { x, y } = entity.position;
     const ix = Math.floor(x);
     const iy = Math.floor(y);
-    
-    // Bounds check
-    if (ix < 0 || ix >= this.tiles.length || iy < 0 || iy >= this.tiles[0].length) {
-      return;
-    }
-    
+    if (!this.isInBounds(ix, iy)) return;
+
     const tile = this.tiles[ix][iy];
-    
-    // Position the mesh correctly
-    const worldX = (x - this.tiles.length / 2) * 0.5;
+    const worldX = (x - this.tiles.length / 2) * TILE_SIZE;
     const worldY = tile.scaledHeight;
-    const worldZ = (y - this.tiles[0].length / 2) * 0.5;
-    
-    // Use lerp for smooth movement if there was a previous position
+    const worldZ = (y - this.tiles[0].length / 2) * TILE_SIZE;
+
     if (entity.lastPosition) {
-      entity.mesh.position.x = THREE.MathUtils.lerp(entity.mesh.position.x, worldX, 0.1);
-      entity.mesh.position.z = THREE.MathUtils.lerp(entity.mesh.position.z, worldZ, 0.1);
+      entity.mesh.position.x = THREE.MathUtils.lerp(entity.mesh.position.x, worldX, 0.25);
+      entity.mesh.position.z = THREE.MathUtils.lerp(entity.mesh.position.z, worldZ, 0.25);
     } else {
       entity.mesh.position.x = worldX;
       entity.mesh.position.z = worldZ;
     }
-    
-    // Always update Y to match the terrain
-    entity.mesh.position.y = worldY;
-    
-    // Update the mesh appearance based on health, status, etc.
-    updateEntityMesh(entity, delta);
+    entity.mesh.position.y = THREE.MathUtils.lerp(entity.mesh.position.y, worldY, 0.3);
+
+    updateEntityMesh(entity, delta, this.detailLevel);
   }
-  
-  /**
-   * Get all entities
-   */
+
   getAllEntities(): Entity[] {
     return Array.from(this.entities.values());
   }
-  
-  /**
-   * Get entity by ID
-   */
+
   getEntityById(id: string): Entity | undefined {
     return this.entities.get(id);
+  }
+
+  /** Tell a unit where its village wants it (see SettlementSystem). */
+  giveOrder(entity: Entity, order: AIOrder): void {
+    const ai = this.entityAIs.get(entity.id);
+    if (!ai) return;
+    // Don't override an identical standing order — that would reset the path
+    // every time the village re-evaluates its workforce.
+    if (ai.order && ai.order.x === order.x && ai.order.y === order.y && ai.order.purpose === order.purpose) return;
+    ai.setOrder(order);
+  }
+
+  /** Send a unit into melee with a specific enemy. */
+  engage(entity: Entity, target: Entity): void {
+    this.entityAIs.get(entity.id)?.engage(target);
+  }
+
+  /** Population by kingdom id, used by the settlement system. */
+  getEntitiesByKingdom(): Map<string, Entity[]> {
+    const grouped = new Map<string, Entity[]>();
+    this.entities.forEach(entity => {
+      if (!entity.kingdomId) return;
+      const list = grouped.get(entity.kingdomId);
+      if (list) list.push(entity);
+      else grouped.set(entity.kingdomId, [entity]);
+    });
+    return grouped;
   }
 }

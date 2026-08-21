@@ -84,12 +84,46 @@ const DRAGON = [
   '............',
 ];
 
+// Serpent template: f=body, d=pattern, e=eye
+const SERPENT = [
+  '............',
+  '............',
+  '............',
+  '..ffd.......',
+  '.ffeff......',
+  '..fddff.....',
+  '....ffdff...',
+  '.....fddff..',
+  '.......fdff.',
+  '........fff.',
+  '............',
+  '............',
+];
+
+// Bird template: f=body, w=wing, e=eye, d=beak
+const FOWL = [
+  '............',
+  '....ddd.....',
+  '...fffff....',
+  '..ffefff....',
+  '..fffffff...',
+  '.wwfffffff..',
+  '.wwffffffff.',
+  '..ffffffff..',
+  '...ff..ff...',
+  '...dd..dd...',
+  '............',
+  '............',
+];
+
 const TEMPLATES: Record<string, string[]> = {
   humanoid: HUMANOID,
   quadruped: QUADRUPED,
   critter: CRITTER,
   fish: FISH,
   dragon: DRAGON,
+  serpent: SERPENT,
+  fowl: FOWL,
 };
 
 interface SpriteSpec {
@@ -157,6 +191,22 @@ const SPECS: Record<EntityType, SpriteSpec> = {
   fish: {
     template: 'fish',
     palette: { f: '#6fc4bc', d: '#3d8b84', e: '#0f2a28' },
+  },
+  sheep: {
+    template: 'quadruped',
+    palette: { f: '#f2efe6', d: '#cfc7b6', e: '#2a2a2a', t: '#e6e0d2' },
+  },
+  chicken: {
+    template: 'fowl',
+    palette: { f: '#f4f1e4', w: '#ddd6c2', e: '#1c1c1c', d: '#e2a33c' },
+  },
+  fox: {
+    template: 'quadruped',
+    palette: { f: '#d3752c', d: '#8f4a17', e: '#2a1a0c', t: '#f0e4d4' },
+  },
+  snake: {
+    template: 'serpent',
+    palette: { f: '#5f9e46', d: '#33622a', e: '#e8c33b' },
   },
   dragon: {
     template: 'dragon',

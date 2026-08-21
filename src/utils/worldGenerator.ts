@@ -1,37 +1,65 @@
-// worldGenerator.js - (This is your exact code from the prompt)
-
+// Seeded procedural world generation: heightmap, climate, rivers, biomes,
+// resources and decoration. Produces pure tile data — rendering lives in
+// terrainRenderer.ts.
 import * as THREE from 'three';
-import SimplexNoise from './simplexNoise'; // Or import from 'simplex-noise' if installed
-import seedrandom from 'seedrandom'; // Or import from 'seedrandom' if installed
-import type {
-  BiomeType,
-  Resource,
-  ResourceType as ResourceTypeName,
-  Season as SeasonName,
-  Structure,
-  Tile,
-  TimeOfDay as TimeOfDayName,
+import SimplexNoise from './simplexNoise';
+import seedrandom from 'seedrandom';
+import {
+  MIN_TILE_HEIGHT,
+  TILE_SIZE,
+  computeScaledHeight,
+  isWaterBiome,
+  type BiomeType,
+  type Resource,
+  type ResourceType as ResourceTypeName,
+  type Season as SeasonName,
+  type Structure,
+  type Tile,
+  type TimeOfDay as TimeOfDayName,
 } from '../types/world';
 
-// Assuming these constants are defined elsewhere or here
-// Example definitions (replace with your actual values if different)
+export { MIN_TILE_HEIGHT, TILE_SIZE };
+
 export const MAP_SIZES = {
-    small: 64,
-    medium: 128,
-    large: 256, // Keep this for a large map
-    custom: 128 // Custom placeholder, overwritten by input
+  small: 64,
+  medium: 128,
+  large: 256,
+  custom: 128,
 };
-// Must match the engine-side constants in types/world.ts
-export const TILE_SIZE = 0.5;
-export const MIN_TILE_HEIGHT = 0.05;
-export const BASE_TILE_SCALED_HEIGHT_MULTIPLIER = 3.0; // How much height variation affects scale
 
-export const TimeOfDay = ['dawn', 'day', 'dusk', 'night']; // Make this an array or union type if needed elsewhere
-export const Season = ['spring', 'summer', 'autumn', 'winter']; // Same
+/** World generation presets, in the spirit of WorldBox's map templates. */
+export type WorldTemplate =
+  | 'continents'
+  | 'pangaea'
+  | 'islands'
+  | 'archipelago'
+  | 'highlands'
+  | 'plains';
 
-export const ResourceType = ['wood', 'stone', 'food', 'water', 'iron', 'gold', 'silver', 'coal', 'crystal', 'gem', 'mana', 'ancient_artifact'];
-// Define types if not already done in types/world.ts
-// import { Tile, BiomeType, TimeOfDay, Season, ResourceType, Resource, Structure } from '../types/world';
+interface TemplateConfig {
+  label: string;
+  /** Cycles of the continent-scale noise across the map. */
+  continentScale: number;
+  /** Height curve exponent — higher means more ocean and sharper peaks. */
+  contrast: number;
+  /** Added to every land height before clamping. */
+  lift: number;
+  /** How wide the water margin around the map is (0 disables). */
+  edgeFalloff: number;
+  /** Compresses relief toward mid elevations. */
+  flatten: number;
+  /** Rivers per 64 tiles of map width. */
+  riverDensity: number;
+}
+
+export const WORLD_TEMPLATES: Record<WorldTemplate, TemplateConfig> = {
+  continents: { label: 'Continents', continentScale: 3, contrast: 1.3, lift: 0, edgeFalloff: 0.12, flatten: 0, riverDensity: 3 },
+  pangaea: { label: 'Pangaea', continentScale: 1.6, contrast: 1.05, lift: 0.06, edgeFalloff: 0.16, flatten: 0, riverDensity: 4 },
+  islands: { label: 'Islands', continentScale: 6, contrast: 1.55, lift: 0, edgeFalloff: 0.1, flatten: 0, riverDensity: 1 },
+  archipelago: { label: 'Archipelago', continentScale: 9.5, contrast: 1.7, lift: 0, edgeFalloff: 0.08, flatten: 0, riverDensity: 1 },
+  highlands: { label: 'Highlands', continentScale: 3, contrast: 0.95, lift: 0.12, edgeFalloff: 0.14, flatten: 0, riverDensity: 5 },
+  plains: { label: 'Great Plains', continentScale: 3.5, contrast: 1.1, lift: 0.08, edgeFalloff: 0.13, flatten: 0.6, riverDensity: 3 },
+};
 
 const createDefaultTile = (x: number, y: number): Tile => ({
   x,
@@ -48,16 +76,16 @@ const createDefaultTile = (x: number, y: number): Tile => ({
   entities: [],
   isOnFire: false,
   walkable: false,
+  variant: 0.5,
+  ownerId: null,
+  villageId: null,
 });
 
-
 /**
- * Determines the biome type based on height, moisture, temperature
- * Using a more sophisticated biome distribution system
+ * Determines the biome type from height, moisture and temperature.
+ * All inputs are normalised 0-1.
  */
 export const determineBiome = (height: number, moisture: number, temperature: number): BiomeType => {
-  // All values normalized between 0-1
-
   // Deep ocean and ocean
   if (height < 0.15) return 'deep_ocean';
   if (height < 0.25) return 'ocean';
@@ -70,8 +98,8 @@ export const determineBiome = (height: number, moisture: number, temperature: nu
 
   // Very high elevation
   if (height > 0.85) {
-    if (temperature < 0.2) return 'snow'; // Cold high areas
-    if (temperature > 0.7) return 'volcanic'; // Hot high areas
+    if (temperature < 0.2) return 'snow';
+    if (temperature > 0.7) return 'volcanic';
     return 'mountains';
   }
 
@@ -84,10 +112,10 @@ export const determineBiome = (height: number, moisture: number, temperature: nu
 
   // Hills
   if (height > 0.6) {
-    if (temperature < 0.2) return 'taiga'; // Cold hills
-    if (temperature > 0.7) return 'mesa'; // Hot hills
-    if (moisture > 0.7) return 'hills'; // Wet hills
-    if (moisture < 0.3) return 'badlands'; // Dry hills
+    if (temperature < 0.2) return 'taiga';
+    if (temperature > 0.7) return 'mesa';
+    if (moisture > 0.7) return 'hills';
+    if (moisture < 0.3) return 'badlands';
     return 'hills';
   }
 
@@ -115,101 +143,133 @@ export const determineBiome = (height: number, moisture: number, temperature: nu
   if (moisture > 0.6) return 'deciduous_forest';
   if (moisture > 0.3) return 'grassland';
 
-  // Default for dry temperate
   return 'grassland';
 };
 
 /**
- * Returns a color for the biome based on the time of day and season
+ * Biome palette. Deliberately desaturated and earthy: the map should read as a
+ * painted chart, not a set of primary-coloured blocks.
+ */
+export const BIOME_BASE_COLORS: Record<BiomeType, number> = {
+  deep_ocean: 0x1b4a72,
+  ocean: 0x246189,
+  shallow_water: 0x3a86ab,
+  river: 0x4c9ec4,
+  lake: 0x4794bb,
+  beach: 0xe6d5a4,
+  rocky_shore: 0x9a958c,
+  grassland: 0x86a752,
+  deciduous_forest: 0x4e7f42,
+  coniferous_forest: 0x35603c,
+  hills: 0x789a4c,
+  mountains: 0x8b8880,
+  taiga: 0x5b7d4a,
+  tundra: 0x9aa08e,
+  snow: 0xe8ecef,
+  ice: 0xc7dced,
+  glacier: 0xbdd7e6,
+  desert: 0xdfc98a,
+  savanna: 0xbdb268,
+  mesa: 0xb1774f,
+  badlands: 0xa9754f,
+  swamp: 0x4f6b3a,
+  marsh: 0x638049,
+  rainforest: 0x3c7340,
+  tropical_forest: 0x4a8c4a,
+  volcanic: 0x5c4a4a,
+  corrupted: 0x51356b,
+  enchanted_forest: 0x3f8a8a,
+  sky_island: 0x8ed6e0,
+};
+
+/** Colour each biome lerps toward in winter. */
+const WINTER_TARGET = new THREE.Color(0xdfe6ea);
+/** Colour deciduous growth lerps toward in autumn. */
+const AUTUMN_TARGET = new THREE.Color(0xc07a33);
+
+const WINTER_BLEND: Partial<Record<BiomeType, number>> = {
+  grassland: 0.4,
+  hills: 0.38,
+  deciduous_forest: 0.3,
+  coniferous_forest: 0.18,
+  taiga: 0.3,
+  tundra: 0.55,
+  marsh: 0.3,
+  swamp: 0.22,
+  savanna: 0.25,
+  mountains: 0.35,
+  mesa: 0.12,
+  badlands: 0.12,
+};
+
+const AUTUMN_BLEND: Partial<Record<BiomeType, number>> = {
+  deciduous_forest: 0.45,
+  grassland: 0.22,
+  hills: 0.25,
+  taiga: 0.12,
+  marsh: 0.2,
+  savanna: 0.2,
+};
+
+const SPRING_BOOST: Partial<Record<BiomeType, number>> = {
+  grassland: 1.07,
+  hills: 1.06,
+  deciduous_forest: 1.07,
+  tropical_forest: 1.04,
+  marsh: 1.05,
+};
+
+const TIME_FACTORS: Record<TimeOfDayName, number> = {
+  dawn: 0.86,
+  day: 1.0,
+  dusk: 0.74,
+  night: 0.46,
+};
+
+/** Slight colour cast per phase so the map feels lit, not just dimmed. */
+const TIME_TINTS: Record<TimeOfDayName, { color: THREE.Color; amount: number }> = {
+  dawn: { color: new THREE.Color(0xffb877), amount: 0.14 },
+  day: { color: new THREE.Color(0xffffff), amount: 0 },
+  dusk: { color: new THREE.Color(0xff8f6b), amount: 0.16 },
+  night: { color: new THREE.Color(0x4a6bb0), amount: 0.28 },
+};
+
+/**
+ * Returns the colour for a biome under the given time of day and season.
+ * `variant` (0-1) applies a small deterministic shade jitter so large areas of
+ * one biome do not look flat.
  */
 export const getBiomeColor = (
   type: BiomeType,
   timeOfDay: TimeOfDayName = 'day',
-  season: SeasonName = 'summer'
+  season: SeasonName = 'summer',
+  variant?: number,
 ): THREE.Color => {
-  // Base colors for biomes
-  const baseColors: Record<BiomeType, THREE.Color> = {
-    deep_ocean: new THREE.Color(0x0D47A1),
-    ocean: new THREE.Color(0x1565C0),
-    shallow_water: new THREE.Color(0x1976D2),
-    river: new THREE.Color(0x2196F3),
-    lake: new THREE.Color(0x42A5F5),
-    beach: new THREE.Color(0xFFD54F),
-    rocky_shore: new THREE.Color(0x9E9E9E),
-    grassland: new THREE.Color(0x7CB342),
-    deciduous_forest: new THREE.Color(0x388E3C),
-    coniferous_forest: new THREE.Color(0x1B5E20),
-    hills: new THREE.Color(0x689F38),
-    mountains: new THREE.Color(0x757575),
-    taiga: new THREE.Color(0x558B2F),
-    tundra: new THREE.Color(0x9E9E9E),
-    snow: new THREE.Color(0xEEEEEE),
-    ice: new THREE.Color(0xBBDEFB),
-    glacier: new THREE.Color(0xB3E5FC),
-    desert: new THREE.Color(0xE8C976),
-    savanna: new THREE.Color(0xB5B45A),
-    mesa: new THREE.Color(0xB06B42),
-    badlands: new THREE.Color(0xA9683F),
-    swamp: new THREE.Color(0x33691E),
-    marsh: new THREE.Color(0x558B2F),
-    rainforest: new THREE.Color(0x2E7D32),
-    tropical_forest: new THREE.Color(0x43A047),
-    volcanic: new THREE.Color(0x6A1B9A),
-    corrupted: new THREE.Color(0x4A148C),
-    enchanted_forest: new THREE.Color(0x26A69A),
-    sky_island: new THREE.Color(0x80DEEA)
-  };
+  const color = new THREE.Color(BIOME_BASE_COLORS[type] ?? 0x9e9e9e);
 
-  // Default to a gray if biome is not found
-  const baseColor = (baseColors[type] || new THREE.Color(0x9E9E9E)).clone();
-
-  // Apply time of day modifications
-  const timeFactors: Record<TimeOfDayName, number> = {
-    dawn: 0.85,
-    day: 1.0,
-    dusk: 0.7,
-    night: 0.4
-  };
-
-  // Apply seasonal modifications
-  type SeasonColorFactors = Partial<Record<BiomeType, number>> & { brightness: number };
-  const seasonFactors: Partial<Record<SeasonName, SeasonColorFactors>> = {
-    spring: {
-      grassland: 1.1,
-      deciduous_forest: 1.1,
-      brightness: 1.05
-    },
-    autumn: {
-      deciduous_forest: 0.9, // More orange/red in autumn
-      grassland: 0.9,
-      brightness: 0.95
-    },
-    winter: {
-      deciduous_forest: 0.7, // Duller in winter
-      grassland: 0.7,
-      coniferous_forest: 0.9,
-      brightness: 0.85
-    }
-  };
-
-  // Apply season-specific biome color adjustments
-  const currentSeasonFactors = seasonFactors[season];
-  if (currentSeasonFactors) {
-    const biomeFactor = currentSeasonFactors[type];
-    if (biomeFactor) {
-      baseColor.multiplyScalar(biomeFactor);
-    }
-
-    // Apply global season brightness
-    const brightnessAdjustment = currentSeasonFactors.brightness || 1.0;
-    baseColor.multiplyScalar(brightnessAdjustment);
+  // Seasonal repaint
+  if (season === 'winter') {
+    const blend = WINTER_BLEND[type];
+    if (blend) color.lerp(WINTER_TARGET, blend);
+  } else if (season === 'autumn') {
+    const blend = AUTUMN_BLEND[type];
+    if (blend) color.lerp(AUTUMN_TARGET, blend);
+  } else if (season === 'spring') {
+    const boost = SPRING_BOOST[type];
+    if (boost) color.multiplyScalar(boost);
   }
 
-  // Apply time of day lighting
-  const timeFactor = timeFactors[timeOfDay] || 1.0;
-  baseColor.multiplyScalar(timeFactor);
+  // Per-tile shade jitter (+/- 5%)
+  if (variant !== undefined) {
+    color.multiplyScalar(0.95 + variant * 0.1);
+  }
 
-  return baseColor;
+  // Time of day
+  const tint = TIME_TINTS[timeOfDay];
+  if (tint && tint.amount > 0) color.lerp(tint.color, tint.amount);
+  color.multiplyScalar(TIME_FACTORS[timeOfDay] ?? 1);
+
+  return color;
 };
 
 /**
@@ -217,9 +277,8 @@ export const getBiomeColor = (
  */
 const calculateResourceProbabilities = (
   biome: BiomeType,
-  elevation: number
+  elevation: number,
 ): Record<ResourceTypeName, number> => {
-  // Default probabilities
   const baseProbabilities = {
     wood: 0.1,
     stone: 0.1,
@@ -232,10 +291,9 @@ const calculateResourceProbabilities = (
     crystal: 0.01,
     gem: 0.01,
     mana: 0.005,
-    ancient_artifact: 0.001
+    ancient_artifact: 0.001,
   };
 
-  // Adjust based on biome
   switch (biome) {
     case 'mountains':
       baseProbabilities.stone = 0.7;
@@ -244,20 +302,46 @@ const calculateResourceProbabilities = (
       baseProbabilities.coal = 0.25;
       baseProbabilities.gem = 0.1;
       break;
+    case 'hills':
+      baseProbabilities.stone = 0.4;
+      baseProbabilities.iron = 0.15;
+      baseProbabilities.coal = 0.12;
+      break;
     case 'deciduous_forest':
     case 'coniferous_forest':
+    case 'taiga':
+    case 'rainforest':
+    case 'tropical_forest':
       baseProbabilities.wood = 0.8;
       baseProbabilities.food = 0.3;
+      break;
+    case 'grassland':
+    case 'savanna':
+      baseProbabilities.food = 0.35;
+      break;
+    case 'marsh':
+    case 'swamp':
+      baseProbabilities.food = 0.25;
+      baseProbabilities.wood = 0.2;
+      break;
+    case 'enchanted_forest':
+      baseProbabilities.mana = 0.25;
+      baseProbabilities.crystal = 0.15;
+      baseProbabilities.wood = 0.5;
       break;
     case 'desert':
       baseProbabilities.stone = 0.5;
       baseProbabilities.iron = 0.1;
       baseProbabilities.gold = 0.1;
+      baseProbabilities.food = 0.02;
       break;
-    // Add more biome-specific resource adjustments
+    case 'volcanic':
+      baseProbabilities.gem = 0.2;
+      baseProbabilities.iron = 0.25;
+      baseProbabilities.stone = 0.5;
+      break;
   }
 
-  // Adjust based on elevation
   if (elevation > 0.7) {
     baseProbabilities.stone *= 1.5;
     baseProbabilities.iron *= 1.3;
@@ -267,9 +351,6 @@ const calculateResourceProbabilities = (
   return baseProbabilities;
 };
 
-/**
- * Generates random resources for a tile based on its biome and elevation
- */
 type RandomSource = () => number;
 
 const generateResources = (tile: Tile, random: RandomSource): Resource[] => {
@@ -278,11 +359,10 @@ const generateResources = (tile: Tile, random: RandomSource): Resource[] => {
 
   Object.entries(probabilities).forEach(([type, probability]) => {
     if (random() < probability) {
-      const quantity = Math.floor(random() * 10) + 1; // 1-10 quantity
       resources.push({
         type: type as ResourceTypeName,
-        quantity,
-        discovered: false
+        quantity: Math.floor(random() * 10) + 1,
+        discovered: false,
       });
     }
   });
@@ -290,223 +370,257 @@ const generateResources = (tile: Tile, random: RandomSource): Resource[] => {
   return resources;
 };
 
-/**
- * Determine if a tile should have a natural structure (tree, rock, etc.)
- */
+const FOREST_BIOMES: BiomeType[] = [
+  'deciduous_forest',
+  'coniferous_forest',
+  'taiga',
+  'rainforest',
+  'tropical_forest',
+  'enchanted_forest',
+];
+
+const ROCKY_BIOMES: BiomeType[] = ['mountains', 'hills', 'rocky_shore', 'badlands', 'mesa'];
+
 const determineNaturalStructure = (tile: Tile, random: RandomSource): Structure | null => {
-  // Forests and similar biomes have trees
-  if (['deciduous_forest', 'coniferous_forest', 'taiga', 'rainforest', 'tropical_forest', 'enchanted_forest'].includes(tile.type)) {
-    const treeType = random() < 0.7 ? 'mature_tree' : random() < 0.9 ? 'young_tree' : 'ancient_tree';
+  if (FOREST_BIOMES.includes(tile.type)) {
+    const roll = random();
+    const treeType = roll < 0.7 ? 'mature_tree' : roll < 0.9 ? 'young_tree' : 'ancient_tree';
     return {
       type: treeType,
       health: 100,
-      level: treeType === 'ancient_tree' ? 3 : treeType === 'mature_tree' ? 2 : 1
+      level: treeType === 'ancient_tree' ? 3 : treeType === 'mature_tree' ? 2 : 1,
     };
   }
 
-  // Rocky areas have boulders
-  if (['mountains', 'hills', 'rocky_shore', 'badlands', 'mesa'].includes(tile.type)) {
+  if (ROCKY_BIOMES.includes(tile.type)) {
     if (random() < 0.4) {
-      return {
-        type: random() < 0.7 ? 'rock_outcrop' : 'boulder',
-        health: 150
-      };
+      return { type: random() < 0.7 ? 'rock_outcrop' : 'boulder', health: 150 };
     }
   }
 
-  // Some biomes have bushes
   if (['grassland', 'savanna', 'tundra'].includes(tile.type)) {
-    if (random() < 0.2) {
-      return {
-        type: 'bush',
-        health: 50
-      };
-    }
+    if (random() < 0.2) return { type: 'bush', health: 50 };
   }
 
-  // Rare chance for ruins in any land biome
   if (tile.height > 0.3 && random() < 0.003) {
-    return {
-      type: 'ruins',
-      health: 200
-    };
+    return { type: 'ruins', health: 200 };
   }
 
   return null;
 };
 
-
 /**
- * Generate the terrain for the game world
+ * Carve rivers from highland sources down to the sea, pooling into lakes when
+ * they get stuck in a basin. Rivers raise moisture around them, which the biome
+ * pass then turns into greener land.
  */
-export const generateTerrain = (
-  seed: number,
-  worldSize: keyof typeof MAP_SIZES = 'medium',
-  customSize?: number,
-  timeOfDay: TimeOfDayName = 'day',
-  season: SeasonName = 'summer'
-): { worldGroup: THREE.Group; tilesData: Tile[][] } => {
-  console.log(`[WorldGen] Generating terrain with seed: ${seed}, size: ${worldSize}, custom: ${customSize}, time: ${timeOfDay}, season: ${season}`);
+const carveRivers = (tiles: Tile[][], mapSize: number, random: RandomSource, count: number): void => {
+  const inBounds = (x: number, y: number) => x >= 0 && x < mapSize && y >= 0 && y < mapSize;
 
-  // Determine map size
-  const mapSize = worldSize === 'custom' && customSize ? customSize : MAP_SIZES[worldSize];
-    if (!mapSize) {
-        console.error(`[WorldGen] Invalid world size '${worldSize}' or custom size '${customSize}'. Using default medium.`);
-        const defaultSize = MAP_SIZES['medium'];
-        return {
-          worldGroup: new THREE.Group(),
-          tilesData: Array.from({ length: defaultSize }, (_, x) =>
-            Array.from({ length: defaultSize }, (_, y) => createDefaultTile(x, y))
-          ),
-        };
+  for (let river = 0; river < count; river++) {
+    // Find a high starting point (best of a few random samples)
+    let sx = 0;
+    let sy = 0;
+    let best = -1;
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const x = Math.floor(random() * mapSize);
+      const y = Math.floor(random() * mapSize);
+      const h = tiles[x][y].height;
+      if (h > best && h > 0.55 && h < 0.95) {
+        best = h;
+        sx = x;
+        sy = y;
+      }
+    }
+    if (best < 0) continue;
+
+    let x = sx;
+    let y = sy;
+    const walked: Tile[] = [];
+    const maxSteps = mapSize * 3;
+
+    for (let step = 0; step < maxSteps; step++) {
+      const tile = tiles[x][y];
+      if (tile.height < 0.26) break; // reached the sea
+      walked.push(tile);
+
+      let nextX = x;
+      let nextY = y;
+      let lowest = tile.height;
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          if (dx === 0 && dy === 0) continue;
+          const nx = x + dx;
+          const ny = y + dy;
+          if (!inBounds(nx, ny)) continue;
+          // Small jitter keeps rivers from running dead straight
+          const h = tiles[nx][ny].height + (random() - 0.5) * 0.01;
+          if (h < lowest) {
+            lowest = h;
+            nextX = nx;
+            nextY = ny;
+          }
+        }
+      }
+
+      if (nextX === x && nextY === y) {
+        // Local basin — pool into a lake and stop
+        const radius = 1 + Math.floor(random() * 2);
+        for (let dx = -radius; dx <= radius; dx++) {
+          for (let dy = -radius; dy <= radius; dy++) {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (!inBounds(nx, ny)) continue;
+            if (Math.hypot(dx, dy) > radius) continue;
+            const pool = tiles[nx][ny];
+            if (pool.height < 0.26) continue;
+            pool.height = 0.255;
+            pool.type = 'lake';
+            pool.walkable = true;
+          }
+        }
+        break;
+      }
+
+      x = nextX;
+      y = nextY;
     }
 
+    // Only keep rivers that actually went somewhere
+    if (walked.length < 5) continue;
+    for (const tile of walked) {
+      if (tile.type === 'lake') continue;
+      tile.height = Math.min(tile.height, 0.265);
+      tile.type = 'river';
+      tile.walkable = true;
+      // Wet the banks
+      for (let dx = -2; dx <= 2; dx++) {
+        for (let dy = -2; dy <= 2; dy++) {
+          const nx = tile.x + dx;
+          const ny = tile.y + dy;
+          if (!inBounds(nx, ny)) continue;
+          const bank = tiles[nx][ny];
+          const distance = Math.hypot(dx, dy);
+          bank.moisture = Math.min(1, bank.moisture + 0.28 / (1 + distance));
+        }
+      }
+    }
+  }
+};
 
-  const worldGroup = new THREE.Group();
+export interface GenerateWorldOptions {
+  seed: number;
+  mapSize: number;
+  template?: WorldTemplate;
+  timeOfDay?: TimeOfDayName;
+  season?: SeasonName;
+}
+
+/**
+ * Generate a complete world. Returns tile data only — the renderer builds the
+ * instanced meshes from it.
+ */
+export const generateWorld = ({
+  seed,
+  mapSize,
+  template = 'continents',
+}: GenerateWorldOptions): { tilesData: Tile[][] } => {
+  const config = WORLD_TEMPLATES[template] ?? WORLD_TEMPLATES.continents;
   const simplex = new SimplexNoise(seed);
-  const tilesData: Tile[][] = [];
-
-  // Create a seeded random function
   const seededRandom = seedrandom(seed.toString());
   const random = () => seededRandom();
+  const variantRandom = seedrandom(`${seed}-variant`);
 
-  // Noise parameters: frequencies are cycles across the whole map
-  const continentScale = 3;    // Large scale landmasses
-  const landformScale = 8;     // Medium scale terrain features
-  const detailScale = 20;      // Small scale terrain details
+  const tilesData: Tile[][] = [];
 
-  const moistureFreq = 5;      // Moisture map frequency
-  const tempDetailFreq = 7;    // Local temperature variations
-  const fertilityFreq = 9;     // Soil fertility variations
+  // Noise frequencies are cycles across the whole map, not per tile.
+  const landformScale = 8;
+  const detailScale = 20;
+  const moistureFreq = 5;
+  const tempDetailFreq = 7;
+  const fertilityFreq = 9;
 
-  // Initialize the tiles array
   for (let x = 0; x < mapSize; x++) {
     tilesData[x] = [];
     for (let y = 0; y < mapSize; y++) {
-      // Initial tile with default values
       tilesData[x][y] = createDefaultTile(x, y);
     }
   }
 
-  // Generate the height map using multi-octave noise
+  // --- Heightmap and climate -------------------------------------------
   for (let x = 0; x < mapSize; x++) {
     for (let y = 0; y < mapSize; y++) {
+      const tile = tilesData[x][y];
       const nx = x / mapSize;
       const ny = y / mapSize;
 
-      // Combine multiple noise layers for realistic terrain
-      // Continent layer (large scale features)
-      const continentNoise = simplex.noise2D(nx * continentScale, ny * continentScale);
-
-      // Landform layer (medium scale features)
+      const continentNoise = simplex.noise2D(nx * config.continentScale, ny * config.continentScale);
       const landformNoise = simplex.noise2D(nx * landformScale, ny * landformScale) * 0.5;
-
-      // Detail layer (small scale features)
       const detailNoise = simplex.noise2D(nx * detailScale, ny * detailScale) * 0.25;
 
-      // Combine the layers with proper weighting
       let height = (continentNoise * 0.6 + landformNoise * 0.3 + detailNoise * 0.1 + 1) / 2;
+      height = Math.pow(height, config.contrast) + config.lift;
 
-      // Adjust height distribution for more interesting terrain
-      height = Math.pow(height, 1.3); // More water, sharper mountains
+      if (config.flatten > 0) {
+        height = height * (1 - config.flatten) + 0.45 * config.flatten;
+      }
 
-      // Make the edges of the map water
-      const edgeFactor = 0.12;
-      const edgeX = Math.min(nx, 1 - nx) / edgeFactor;
-      const edgeY = Math.min(ny, 1 - ny) / edgeFactor;
-      const edgeValue = Math.min(Math.min(edgeX, edgeY), 1);
-      height *= edgeValue;
+      // Water margin so continents do not run off the edge of the world
+      if (config.edgeFalloff > 0) {
+        const edgeX = Math.min(nx, 1 - nx) / config.edgeFalloff;
+        const edgeY = Math.min(ny, 1 - ny) / config.edgeFalloff;
+        height *= Math.min(Math.min(edgeX, edgeY), 1);
+      }
 
-      // Store the height value
-      tilesData[x][y].height = Math.max(0, Math.min(1, height));
+      tile.height = Math.max(0, Math.min(1, height));
 
-      // Calculate moisture (separate noise function)
       let moisture = (simplex.noise2D(nx * moistureFreq, ny * moistureFreq) + 1) / 2;
-
-      // Moisture is higher near water
-      if (tilesData[x][y].height < 0.3) {
-        moisture = Math.min(1, moisture + (0.3 - tilesData[x][y].height) * 0.5);
+      if (tile.height < 0.3) {
+        moisture = Math.min(1, moisture + (0.3 - tile.height) * 0.5);
       }
+      tile.moisture = Math.max(0, Math.min(1, moisture));
 
-      tilesData[x][y].moisture = Math.max(0, Math.min(1, moisture));
-
-      // Calculate temperature (based on height and "latitude")
-      // Base temperature decreases from equator to poles
-      const latitudeFactor = Math.abs(ny - 0.5) * 2; // 0 at equator, 1 at poles
-      const baseTemp = 1 - Math.pow(latitudeFactor, 1.2) * 0.85; // 0.15..1
-
-      // Local temperature variations of ±0.1
+      // Latitude drives base temperature; elevation cools it.
+      const latitudeFactor = Math.abs(ny - 0.5) * 2;
+      const baseTemp = 1 - Math.pow(latitudeFactor, 1.2) * 0.85;
       const tempVariation = ((simplex.noise2D(nx * tempDetailFreq, ny * tempDetailFreq) + 1) / 2) * 0.2 - 0.1;
+      tile.temperature = Math.max(0, Math.min(1, baseTemp + tempVariation - tile.height * 0.35));
 
-      // Elevation cools the climate
-      const temperature = baseTemp + tempVariation - tilesData[x][y].height * 0.35;
-      tilesData[x][y].temperature = Math.max(0, Math.min(1, temperature));
-
-      // Calculate fertility
       let fertility = (simplex.noise2D(nx * fertilityFreq, ny * fertilityFreq) + 1) / 2;
-
-      // Adjust fertility based on biome suitability
-      if (tilesData[x][y].height < 0.25) { // Water is not fertile for land plants
-        fertility *= 0.1;
-      } else if (tilesData[x][y].height > 0.75) { // High mountains are less fertile
-        fertility *= 0.3;
-      } else if (tilesData[x][y].moisture > 0.7 && tilesData[x][y].temperature > 0.6) {
-        // Warm and wet areas are more fertile
-        fertility *= 1.5;
-      } else if (tilesData[x][y].moisture < 0.2) { // Dry areas are less fertile
-        fertility *= 0.4;
-      }
-
-      tilesData[x][y].fertility = Math.max(0, Math.min(1, fertility));
-
-      // Determine biome based on height, moisture, and temperature
-      tilesData[x][y].type = determineBiome(
-        tilesData[x][y].height,
-        tilesData[x][y].moisture,
-        tilesData[x][y].temperature
-      );
-
-      // Generate resources
-      tilesData[x][y].resources = generateResources(tilesData[x][y], random);
-
-      // Determine natural structures (trees, rocks, etc.)
-      tilesData[x][y].structure = determineNaturalStructure(tilesData[x][y], random);
-
-      // Calculate visual height
-      const minHeight = MIN_TILE_HEIGHT;
-      const heightRange = BASE_TILE_SCALED_HEIGHT_MULTIPLIER;
-      tilesData[x][y].scaledHeight = minHeight + tilesData[x][y].height * heightRange;
-
-      // Create the mesh for this tile
-      // Using BoxGeometry for now as per original code output
-      const geometry = new THREE.BoxGeometry(TILE_SIZE, tilesData[x][y].scaledHeight, TILE_SIZE);
-
-      // Position the mesh at the correct location and adjust Y to align the bottom face with y=0
-      const posX = (x - mapSize / 2) * TILE_SIZE;
-      const posZ = (y - mapSize / 2) * TILE_SIZE;
-      const posY = tilesData[x][y].scaledHeight / 2; // Half height to align bottom with ground
-
-      // Get appropriate color based on biome, time of day, and season
-      const color = getBiomeColor(tilesData[x][y].type, timeOfDay, season);
-      const material = new THREE.MeshStandardMaterial({ color });
-
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.position.set(posX, posY, posZ);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-
-      // Store reference to the mesh and add to world
-      tilesData[x][y].mesh = mesh;
-      tilesData[x][y].color = color.clone(); // Store a clone to avoid modifying the material directly later
-
-      // Add the mesh to the world group
-      worldGroup.add(mesh);
-
-      // Store whether the tile is walkable (for pathfinding)
-      tilesData[x][y].walkable = tilesData[x][y].height >= 0.25; // Not walkable if underwater
+      if (tile.height < 0.25) fertility *= 0.1;
+      else if (tile.height > 0.75) fertility *= 0.3;
+      else if (tile.moisture > 0.7 && tile.temperature > 0.6) fertility *= 1.5;
+      else if (tile.moisture < 0.2) fertility *= 0.4;
+      tile.fertility = Math.max(0, Math.min(1, fertility));
     }
   }
 
-  console.log("[WorldGen] Terrain generation complete.");
-  return { worldGroup, tilesData };
+  // --- Rivers and lakes -------------------------------------------------
+  const riverCount = Math.max(0, Math.round((mapSize / 64) * config.riverDensity));
+  carveRivers(tilesData, mapSize, random, riverCount);
+
+  // --- Biomes, resources, decoration ------------------------------------
+  for (let x = 0; x < mapSize; x++) {
+    for (let y = 0; y < mapSize; y++) {
+      const tile = tilesData[x][y];
+
+      // Rivers and lakes were assigned during carving; keep them.
+      if (tile.type !== 'river' && tile.type !== 'lake') {
+        tile.type = determineBiome(tile.height, tile.moisture, tile.temperature);
+      }
+
+      tile.variant = variantRandom();
+      tile.resources = generateResources(tile, random);
+      tile.structure = determineNaturalStructure(tile, random);
+      tile.scaledHeight = computeScaledHeight(tile.height, tile.type);
+      tile.walkable = !['deep_ocean', 'ocean'].includes(tile.type) && tile.height >= 0.25;
+
+      // Fresh water is drinkable and supports life on its banks
+      if (isWaterBiome(tile.type)) {
+        tile.structure = null;
+      }
+    }
+  }
+
+  return { tilesData };
 };

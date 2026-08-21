@@ -1,3 +1,9 @@
+> **Note (2026-08-21):** this is the original product vision, kept for
+> reference. For what is actually built, see
+> [project-tracker/01-STATUS.md](project-tracker/01-STATUS.md); for the parts of
+> this document that were deliberately left out of scope, see
+> [project-tracker/04-ROADMAP.md](project-tracker/04-ROADMAP.md).
+
 
 
 Product Requirements Document: Project Aetheria (A Complete WorldBox-Inspired God Simulator)

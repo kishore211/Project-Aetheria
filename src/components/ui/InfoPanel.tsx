@@ -1,103 +1,154 @@
-// No React import needed in modern React with JSX transform
+import { Crown, Eye, EyeOff, MapPin, Skull, X } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
-import type { Entity, Resource } from '../../types/world';
+import type { Entity, Resource, TraitId } from '../../types/world';
+import { TRAITS } from '../../utils/traits';
+import { worldAccess } from '../../utils/worldAccess';
 
+const NeedBar = ({ label, value, tone }: { label: string; value: number; tone: string }) => (
+  <div>
+    <div className="flex justify-between text-xs text-muted-foreground">
+      <span>{label}</span>
+      <span>{Math.round(value * 100)}%</span>
+    </div>
+    <div className="w-full mt-0.5 bg-background rounded-full h-1.5">
+      <div className={`${tone} h-1.5 rounded-full transition-all`} style={{ width: `${Math.max(0, Math.min(1, value)) * 100}%` }} />
+    </div>
+  </div>
+);
+
+const TraitChips = ({ traits }: { traits: TraitId[] }) => (
+  <div className="flex flex-wrap gap-1">
+    {traits.map((trait) => {
+      const info = TRAITS[trait];
+      if (!info) return null;
+      return (
+        <span
+          key={trait}
+          title={info.description}
+          className={`text-xs px-2 py-0.5 rounded-full bg-background/70 border border-muted/50 ${info.tone}`}
+        >
+          {info.label}
+        </span>
+      );
+    })}
+  </div>
+);
+
+/** Tile, creature, village and kingdom inspector. */
 const InfoPanel = () => {
-  const { selectedTile, selectedEntity, showDebugInfo, setSelectedEntity } = useGameStore();
-  
-  // No information to display if no tile or entity is selected
+  const {
+    selectedTile,
+    selectedEntity,
+    showDebugInfo,
+    setSelectedEntity,
+    setSelectedTile,
+    followEntityId,
+    setFollowEntity,
+    focusTile,
+  } = useGameStore();
+
   if (!selectedTile && !selectedEntity) return null;
-  
+
+  const close = () => {
+    setSelectedEntity(null);
+    setSelectedTile(null);
+  };
+
+  const village = selectedTile
+    ? worldAccess.current?.villageInfo(selectedTile.x, selectedTile.y) ?? null
+    : null;
+
+  const isFollowing = selectedEntity && followEntityId === selectedEntity.id;
+
   return (
-    <div className="fixed right-4 top-4 bg-secondary w-72 p-4 rounded-md shadow-lg">
+    <div className="ui-panel-right relative w-full max-h-[46vh] overflow-y-auto bg-secondary/95 backdrop-blur border border-muted/40 p-4 rounded-md shadow-lg">
+      <button
+        type="button"
+        onClick={close}
+        title="Close"
+        className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"
+      >
+        <X size={16} />
+      </button>
+
       {selectedEntity ? (
-        // Entity information
         <div>
-          <h3 className="text-foreground font-medium text-lg mb-2">Entity: {selectedEntity.name}</h3>
-          
-          <div className="space-y-2 text-sm">
-            <div>
-              <span className="text-muted-foreground">Type:</span>{' '}
-              <span className="text-foreground capitalize">
-                {selectedEntity.type.replace('_', ' ')}
-              </span>
+          <h3 className="text-foreground font-medium text-lg mb-0.5 pr-6">{selectedEntity.name}</h3>
+          <p className="text-xs text-muted-foreground capitalize mb-3">
+            {selectedEntity.type.replace('_', ' ')}
+            {selectedEntity.job ? ` · ${selectedEntity.job}` : ''}
+          </p>
+
+          <div className="flex gap-2 mb-3">
+            <button
+              type="button"
+              className={`tool-btn flex-1 flex items-center justify-center gap-1.5 text-xs py-1.5 rounded ${
+                isFollowing ? 'bg-accent text-accent-foreground' : 'bg-muted/60 hover:bg-muted'
+              }`}
+              onClick={() => setFollowEntity(isFollowing ? null : selectedEntity.id)}
+            >
+              {isFollowing ? <EyeOff size={13} /> : <Eye size={13} />}
+              {isFollowing ? 'Stop following' : 'Follow'}
+            </button>
+            <button
+              type="button"
+              title="Centre the camera here"
+              className="tool-btn px-2 py-1.5 rounded bg-muted/60 hover:bg-muted"
+              onClick={() => focusTile(Math.floor(selectedEntity.position.x), Math.floor(selectedEntity.position.y))}
+            >
+              <MapPin size={13} />
+            </button>
+          </div>
+
+          <div className="space-y-2.5 text-sm">
+            <NeedBar
+              label={`Health ${Math.round(selectedEntity.health)}/${Math.round(selectedEntity.maxHealth)}`}
+              value={selectedEntity.health / selectedEntity.maxHealth}
+              tone="bg-red-500"
+            />
+
+            <div className="text-xs text-muted-foreground">
+              Age {Math.round(selectedEntity.age)} of {Math.round(selectedEntity.maxAge)} years
+              {(selectedEntity.kills ?? 0) > 0 && (
+                <span className="ml-2 inline-flex items-center gap-1 text-rose-300">
+                  <Skull size={11} /> {selectedEntity.kills} kills
+                </span>
+              )}
             </div>
-            
-            <div>
-              <span className="text-muted-foreground">Health:</span>{' '}
-              <span className="text-foreground">
-                {Math.round(selectedEntity.health)}/{Math.round(selectedEntity.maxHealth)} 
-                ({Math.round((selectedEntity.health / selectedEntity.maxHealth) * 100)}%)
-              </span>
-              <div className="w-full mt-1 bg-background rounded-full h-1.5">
-                <div className="bg-primary h-1.5 rounded-full" style={{ width: `${(selectedEntity.health / selectedEntity.maxHealth) * 100}%` }} />
-              </div>
-            </div>
-            
-            <div>
-              <span className="text-muted-foreground">Age:</span>{' '}
-              <span className="text-foreground">
-                {Math.round(selectedEntity.age)}/{Math.round(selectedEntity.maxAge)} years 
-                ({Math.round((selectedEntity.age / selectedEntity.maxAge) * 100)}%)
-              </span>
-            </div>
-            
-            <div>
-              <h4 className="text-muted-foreground font-medium mb-1">Attributes:</h4>
-              <ul className="grid grid-cols-2 gap-1">
-                <li className="text-foreground">
-                  <span className="text-muted-foreground">Strength:</span>{' '}
-                  {selectedEntity.attributes.strength}
-                </li>
-                <li className="text-foreground">
-                  <span className="text-muted-foreground">Speed:</span>{' '}
-                  {selectedEntity.attributes.speed}
-                </li>
-                <li className="text-foreground">
-                  <span className="text-muted-foreground">Intelligence:</span>{' '}
-                  {selectedEntity.attributes.intelligence}
-                </li>
-                <li className="text-foreground">
-                  <span className="text-muted-foreground">Resilience:</span>{' '}
-                  {selectedEntity.attributes.resilience}
-                </li>
-              </ul>
-            </div>
-            
-            <div>
-              <h4 className="text-muted-foreground font-medium mb-1">Needs:</h4>
-              <ul className="grid grid-cols-2 gap-1">
-                <li className="text-foreground">
-                  <span className="text-muted-foreground">Hunger:</span>{' '}
-                  <div className="w-full mt-1 bg-background rounded-full h-1.5">
-                    <div className="bg-amber-500 h-1.5 rounded-full" style={{ width: `${selectedEntity.needs.hunger * 100}%` }} />
-                  </div>
-                </li>
-                <li className="text-foreground">
-                  <span className="text-muted-foreground">Thirst:</span>{' '}
-                  <div className="w-full mt-1 bg-background rounded-full h-1.5">
-                    <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${selectedEntity.needs.thirst * 100}%` }} />
-                  </div>
-                </li>
-                <li className="text-foreground">
-                  <span className="text-muted-foreground">Rest:</span>{' '}
-                  <div className="w-full mt-1 bg-background rounded-full h-1.5">
-                    <div className="bg-purple-500 h-1.5 rounded-full" style={{ width: `${selectedEntity.needs.rest * 100}%` }} />
-                  </div>
-                </li>
-                <li className="text-foreground">
-                  <span className="text-muted-foreground">Social:</span>{' '}
-                  <div className="w-full mt-1 bg-background rounded-full h-1.5">
-                    <div className="bg-green-500 h-1.5 rounded-full" style={{ width: `${selectedEntity.needs.social * 100}%` }} />
-                  </div>
-                </li>
-              </ul>
-            </div>
-            
-            {selectedEntity.status && selectedEntity.status.length > 0 && (
+
+            {(selectedEntity.traits?.length ?? 0) > 0 && (
               <div>
-                <h4 className="text-muted-foreground font-medium mb-1">Status:</h4>
-                <ul className="text-foreground flex flex-wrap gap-1">
+                <h4 className="text-muted-foreground text-xs font-medium mb-1">Traits</h4>
+                <TraitChips traits={selectedEntity.traits ?? []} />
+              </div>
+            )}
+
+            <div>
+              <h4 className="text-muted-foreground text-xs font-medium mb-1">Attributes</h4>
+              <ul className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-xs">
+                <li><span className="text-muted-foreground">Strength</span> {selectedEntity.attributes.strength}</li>
+                <li><span className="text-muted-foreground">Speed</span> {selectedEntity.attributes.speed}</li>
+                <li><span className="text-muted-foreground">Intellect</span> {selectedEntity.attributes.intelligence}</li>
+                <li><span className="text-muted-foreground">Resilience</span> {selectedEntity.attributes.resilience}</li>
+              </ul>
+            </div>
+
+            <div className="space-y-1.5">
+              <NeedBar label="Hunger" value={selectedEntity.needs.hunger} tone="bg-amber-500" />
+              <NeedBar label="Thirst" value={selectedEntity.needs.thirst} tone="bg-blue-500" />
+              <NeedBar label="Rest" value={selectedEntity.needs.rest} tone="bg-purple-500" />
+            </div>
+
+            {selectedEntity.carrying && (
+              <p className="text-xs text-muted-foreground">
+                Hauling {selectedEntity.carrying.quantity} {selectedEntity.carrying.type} home
+              </p>
+            )}
+
+            {selectedEntity.status.length > 0 && (
+              <div>
+                <h4 className="text-muted-foreground text-xs font-medium mb-1">Status</h4>
+                <ul className="flex flex-wrap gap-1">
                   {selectedEntity.status.map((status: string) => (
                     <li key={`status-${status}`} className="capitalize bg-primary/20 px-2 py-0.5 rounded-full text-xs">
                       {status}
@@ -106,15 +157,13 @@ const InfoPanel = () => {
                 </ul>
               </div>
             )}
-            
-            {selectedEntity.inventory && selectedEntity.inventory.length > 0 && (
+
+            {selectedEntity.inventory.length > 0 && (
               <div>
-                <h4 className="text-muted-foreground font-medium mb-1">Inventory:</h4>
-                <ul className="list-disc list-inside">
+                <h4 className="text-muted-foreground text-xs font-medium mb-1">Inventory</h4>
+                <ul className="text-xs">
                   {selectedEntity.inventory.map((item: Resource) => (
-                    <li key={`inventory-${item.type}`} className="text-foreground capitalize">
-                      {item.type} ({item.quantity})
-                    </li>
+                    <li key={`inventory-${item.type}`} className="capitalize">{item.type} ({item.quantity})</li>
                   ))}
                 </ul>
               </div>
@@ -122,110 +171,91 @@ const InfoPanel = () => {
           </div>
         </div>
       ) : selectedTile ? (
-        // Tile information
         <div>
-          <h3 className="text-foreground font-medium text-lg mb-2">Tile Info</h3>
-          
-          <div className="space-y-2 text-sm">
-            {/* Basic tile information */}
-            <div>
-              <span className="text-muted-foreground">Position:</span>{' '}
-              <span className="text-foreground">
-                X: {selectedTile.x}, Y: {selectedTile.y}
-              </span>
+          <h3 className="text-foreground font-medium text-lg mb-0.5 pr-6 capitalize">
+            {selectedTile.type.replace(/_/g, ' ')}
+          </h3>
+          <p className="text-xs text-muted-foreground mb-3">
+            Tile {selectedTile.x}, {selectedTile.y} · elevation {Math.round(selectedTile.height * 100)}%
+          </p>
+
+          {village && (
+            <div className="mb-3 p-2.5 rounded-lg bg-background/50 border border-muted/40">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="w-3 h-3 rounded-sm border border-black/30" style={{ backgroundColor: village.kingdomColor }} />
+                <span className="font-medium text-sm text-foreground">{village.name}</span>
+              </div>
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <Crown size={11} /> {village.kingdomName}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {village.buildings} building{village.buildings === 1 ? '' : 's'} · {village.territory} tiles claimed
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Granary: {village.store.food} food · {village.store.wood} wood · {village.store.stone} stone
+              </p>
             </div>
-            
+          )}
+
+          <div className="space-y-2.5 text-sm">
             <div>
-              <span className="text-muted-foreground">Biome:</span>{' '}
-              <span className="text-foreground capitalize">
-                {selectedTile.type.replace('_', ' ')}
-              </span>
-            </div>
-            
-            <div>
-              <span className="text-muted-foreground">Elevation:</span>{' '}
-              <span className="text-foreground">
-                {Math.round(selectedTile.height * 100)}%
-              </span>
-            </div>
-            
-            {/* Resources */}
-            <div>
-              <h4 className="text-muted-foreground font-medium mb-1">Resources:</h4>
+              <h4 className="text-muted-foreground text-xs font-medium mb-1">Resources</h4>
               {selectedTile.resources.length > 0 ? (
-                <ul className="list-disc list-inside">
+                <ul className="flex flex-wrap gap-1">
                   {selectedTile.resources.map((resource: Resource) => (
-                    <li key={`resource-${resource.type}`} className="text-foreground capitalize">
-                      {resource.type} ({resource.quantity})
+                    <li key={`resource-${resource.type}`} className="capitalize text-xs bg-background/70 border border-muted/50 px-2 py-0.5 rounded-full">
+                      {resource.type} {resource.quantity}
                     </li>
                   ))}
                 </ul>
               ) : (
-                <span className="text-foreground italic">None</span>
+                <span className="text-xs italic text-muted-foreground">Barren</span>
               )}
             </div>
-            
-            {/* Entities */}
-            <div>
-              <h4 className="text-muted-foreground font-medium mb-1">Entities:</h4>
-              {selectedTile.entities.length > 0 ? (
-                <ul className="list-disc list-inside">
+
+            {selectedTile.entities.length > 0 && (
+              <div>
+                <h4 className="text-muted-foreground text-xs font-medium mb-1">Standing here</h4>
+                <ul className="space-y-0.5">
                   {selectedTile.entities.map((entity: Entity) => (
-                    <li key={entity.id} className="text-foreground capitalize">
-                      <button 
+                    <li key={entity.id}>
+                      <button
                         type="button"
-                        className="hover:underline"
-                        onClick={() => setSelectedEntity(entity)}
+                        className="text-xs hover:underline text-foreground capitalize"
+                        onClick={() => {
+                          setSelectedEntity(entity);
+                          setSelectedTile(null);
+                        }}
                       >
-                        {entity.name} ({entity.type})
+                        {entity.name} · {entity.type}
                       </button>
                     </li>
                   ))}
                 </ul>
-              ) : (
-                <span className="text-foreground italic">None</span>
-              )}
-            </div>
-            
-            {/* Structure */}
-            {selectedTile.structure && (
-              <div>
-                <h4 className="text-muted-foreground font-medium mb-1">Structure:</h4>
-                <div className="text-foreground capitalize">
-                  {selectedTile.structure.type.replace('_', ' ')}
-                  {selectedTile.structure.level && ` (Level ${selectedTile.structure.level})`}
-                </div>
               </div>
             )}
-            
-            {/* Climate */}
-            <div>
-              <h4 className="text-muted-foreground font-medium mb-1">Climate:</h4>
-              <div className="grid grid-cols-2 gap-x-2">
-                <div>
-                  <span className="text-muted-foreground">Moisture:</span>{' '}
-                  <span className="text-foreground">{Math.round(selectedTile.moisture * 100)}%</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Temperature:</span>{' '}
-                  <span className="text-foreground">{Math.round(selectedTile.temperature * 100)}%</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Fertility:</span>{' '}
-                  <span className="text-foreground">{Math.round(selectedTile.fertility * 100)}%</span>
-                </div>
-              </div>
+
+            {selectedTile.structure && (
+              <p className="text-xs text-muted-foreground capitalize">
+                Feature: {selectedTile.structure.type.replace(/_/g, ' ')}
+              </p>
+            )}
+
+            <div className="grid grid-cols-3 gap-1 text-xs">
+              <div><span className="text-muted-foreground block">Moisture</span>{Math.round(selectedTile.moisture * 100)}%</div>
+              <div><span className="text-muted-foreground block">Temp</span>{Math.round(selectedTile.temperature * 100)}%</div>
+              <div><span className="text-muted-foreground block">Fertility</span>{Math.round(selectedTile.fertility * 100)}%</div>
             </div>
+
+            {selectedTile.isOnFire && <p className="text-xs text-orange-400">This tile is burning.</p>}
           </div>
-          
+
           {showDebugInfo && (
-            <div className="mt-4 pt-2 border-t border-secondary-foreground/20">
-              <h3 className="text-foreground font-medium text-sm mb-1">Debug Info</h3>
-              <div className="text-xs text-muted-foreground">
-                <div>Raw Height: {selectedTile.height.toFixed(3)}</div>
-                <div>Scaled Height: {selectedTile.scaledHeight.toFixed(3)}</div>
-                <div>Walkable: {selectedTile.walkable === false ? 'No' : 'Yes'}</div>
-              </div>
+            <div className="mt-3 pt-2 border-t border-muted/40 text-xs text-muted-foreground">
+              <div>Raw height {selectedTile.height.toFixed(3)}</div>
+              <div>Visual height {selectedTile.scaledHeight.toFixed(3)}</div>
+              <div>Instance {selectedTile.instanceId ?? '—'}</div>
+              <div>Walkable {selectedTile.walkable === false ? 'no' : 'yes'}</div>
             </div>
           )}
         </div>

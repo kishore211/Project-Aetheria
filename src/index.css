@@ -114,3 +114,39 @@ body {
 .game-ui ::-webkit-scrollbar { width: 6px; }
 .game-ui ::-webkit-scrollbar-track { background: transparent; }
 .game-ui ::-webkit-scrollbar-thumb { background: rgb(100 116 139 / 0.5); border-radius: 3px; }
+
+/* The right rail scrolls without a visible track so it never looks like a page */
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { width: 0; height: 0; }
+
+/* Panels inside a pointer-events-none rail must opt back in */
+.game-ui .pointer-events-none > * { pointer-events: auto; }
+
+/* --- Touch and small screens --- */
+
+/* The world owns all gestures inside the canvas: no page scroll or pinch-zoom
+   fighting the camera. */
+canvas {
+  touch-action: none;
+}
+
+/* Keep HUD corners clear of notches and home indicators */
+.ui-timebar {
+  margin-bottom: env(safe-area-inset-bottom);
+}
+.ui-topbar {
+  margin-top: env(safe-area-inset-top);
+}
+
+/* Hover lifts feel wrong on touch, where every tap would trigger them */
+@media (hover: none) {
+  .tool-btn:hover { transform: none; }
+}
+
+/* Reduced motion: keep the UI still for players who ask for it */
+@media (prefers-reduced-motion: reduce) {
+  .ui-sidebar, .ui-topbar, .ui-timebar, .ui-panel-right, .ui-modal, .chronicle-item {
+    animation: none;
+  }
+  .tool-btn { transition: none; }
+}

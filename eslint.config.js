@@ -5,13 +5,7 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: [
-      'dist',
-      'node_modules',
-      'src/utils/animatedSpriteFactory.ts',
-      'src/utils/entityManager.ts',
-      'src/utils/entitySystem.ts',
-    ],
+    ignores: ['dist', 'node_modules'],
   },
   js.configs.recommended,
   {

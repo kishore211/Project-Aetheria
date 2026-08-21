@@ -9,7 +9,30 @@ export const MAP_SIZES = {
 
 export const TILE_SIZE = 0.5;
 export const MIN_TILE_HEIGHT = 0.05;
-export const BASE_TILE_SCALED_HEIGHT_MULTIPLIER = 3.0;
+
+/**
+ * Visual relief of the map. Kept deliberately low: Aetheria reads as a flat
+ * top-down pixel map (see docs/project-tracker/03-MAP-REDESIGN.md) where colour
+ * carries the biome and height only provides gentle depth cues.
+ * The raw `height` field (0-1) is untouched and drives all simulation.
+ */
+export const BASE_TILE_SCALED_HEIGHT_MULTIPLIER = 0.6;
+/** Land sits on a small plinth above the sea so coastlines read clearly. */
+export const LAND_BASE_HEIGHT = 0.12;
+/** Water is nearly flat and slightly sunken. */
+export const WATER_DEPTH_SCALE = 0.18;
+
+/** Every biome that counts as water for movement, drinking and rendering. */
+export const WATER_BIOMES = [
+  'deep_ocean',
+  'ocean',
+  'shallow_water',
+  'river',
+  'lake',
+] as const;
+
+/** Water an entity can stand in and drink from (not open sea). */
+export const DRINKABLE_BIOMES = ['shallow_water', 'river', 'lake'] as const;
 
 // Time definitions
 export type TimeOfDay = 'dawn' | 'day' | 'dusk' | 'night';
@@ -53,6 +76,23 @@ export type BiomeType =
   | 'corrupted' 
   | 'enchanted_forest'
   | 'sky_island';
+
+/** True for oceans, lakes and rivers. */
+export const isWaterBiome = (type: BiomeType): boolean =>
+  (WATER_BIOMES as readonly string[]).includes(type);
+
+/** True for water a creature can wade into and drink from. */
+export const isDrinkableBiome = (type: BiomeType): boolean =>
+  (DRINKABLE_BIOMES as readonly string[]).includes(type);
+
+/**
+ * Visual (rendered) height of a tile. Water is sunken and almost flat, land
+ * rests on a low plinth so shorelines are legible from a top-down camera.
+ */
+export const computeScaledHeight = (height: number, type: BiomeType): number => {
+  if (isWaterBiome(type)) return MIN_TILE_HEIGHT + height * WATER_DEPTH_SCALE;
+  return MIN_TILE_HEIGHT + LAND_BASE_HEIGHT + height * BASE_TILE_SCALED_HEIGHT_MULTIPLIER;
+};
 
 // Resource types
 export type ResourceType = 
@@ -122,6 +162,10 @@ export type EntityType =
   | 'rabbit' 
   | 'bird' 
   | 'fish'
+  | 'sheep'
+  | 'chicken'
+  | 'fox'
+  | 'snake'
   // Monsters
   | 'dragon' 
   | 'demon' 
@@ -129,6 +173,20 @@ export type EntityType =
   | 'skeleton' 
   | 'elemental' 
   | 'bandit';
+
+/** Heritable unit traits. Rolled at spawn, passed to children. */
+export type TraitId =
+  | 'swift'
+  | 'strong'
+  | 'tough'
+  | 'genius'
+  | 'longevity'
+  | 'fertile'
+  | 'immortal'
+  | 'regeneration'
+  | 'pyromaniac'
+  | 'coward'
+  | 'bloodthirsty';
 
 // Race types for civilizations
 export type Race = 'human' | 'elf' | 'dwarf' | 'orc';
@@ -170,6 +228,22 @@ export interface Entity {
   // Animation state for sprite-based entities
   animationFrame?: number;
   currentAnimation?: string;
+
+  // Civilization membership (sentient races only)
+  /** Kingdom this unit belongs to. */
+  kingdomId?: string | null;
+  /** Village this unit calls home. */
+  villageId?: string | null;
+  /** What the unit is hauling back to its village store. */
+  carrying?: { type: ResourceType; quantity: number } | null;
+  /** Assigned village role. */
+  job?: 'gatherer' | 'builder' | 'warrior' | null;
+
+  // Progression
+  /** Heritable traits. */
+  traits?: TraitId[];
+  /** Confirmed kills, shown in the inspector. */
+  kills?: number;
 }
 
 // Weather and environmental effects
@@ -212,10 +286,18 @@ export interface Tile {
   rainfall?: number; // Current rainfall amount
   snowCover?: number; // Snow depth
   
-  // Visual elements
-  mesh?: THREE.Mesh;
+  // Rendering
+  /** Index into the terrain InstancedMesh (x * mapSize + y). */
+  instanceId?: number;
   color?: THREE.Color;
-  dynamicEntities?: THREE.Object3D[]; // Visual meshes
+  /** Deterministic 0-1 shade jitter so large biomes are not flat. */
+  variant?: number;
+
+  // Civilization
+  /** Id of the kingdom claiming this tile, if any. */
+  ownerId?: string | null;
+  /** Id of the village whose buildings occupy this tile, if any. */
+  villageId?: string | null;
   
   // For pathfinding
   walkable?: boolean;

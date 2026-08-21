@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { soundManager } from '../../utils/soundManager';
-import { Users, CloudRain, Sun, Sunrise, Sunset, Moon, Snowflake, Flower2, Leaf, CloudSun, Volume2, VolumeX } from 'lucide-react';
+import {
+  CloudRain, CloudSun, Crown, Flower2, Leaf, Moon, Music, Music2,
+  Snowflake, Sun, Sunrise, Sunset, Users, Volume2, VolumeX,
+} from 'lucide-react';
 
 const timeIcons = {
   dawn: <Sunrise size={16} className="text-amber-300" />,
@@ -18,8 +21,9 @@ const seasonIcons = {
 };
 
 const TopBar = () => {
-  const { population, year, day, season, timeOfDay, weather } = useGameStore();
+  const { population, year, day, season, timeOfDay, weather, kingdoms } = useGameStore();
   const [muted, setMuted] = useState(false);
+  const [music, setMusic] = useState(false);
 
   const toggleMute = () => {
     const next = !muted;
@@ -28,30 +32,60 @@ const TopBar = () => {
     if (next) soundManager.stopRain();
   };
 
+  const toggleMusic = () => {
+    const next = !music;
+    setMusic(next);
+    if (next) soundManager.startMusic();
+    else soundManager.stopMusic();
+  };
+
   return (
-    <div className="ui-topbar fixed top-3 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-secondary/90 backdrop-blur px-5 py-2 rounded-full shadow-lg text-sm text-foreground border border-muted/40">
+    <div className="ui-topbar fixed top-2 left-1/2 -translate-x-1/2 flex items-center gap-x-3 gap-y-1 flex-wrap justify-center max-w-[min(46rem,calc(100vw-2rem))] bg-secondary/90 backdrop-blur px-4 py-1.5 rounded-2xl shadow-lg text-xs sm:text-sm text-foreground border border-muted/40">
       <span className="flex items-center gap-1.5" title="World population">
         <Users size={16} className="text-emerald-300" />
         {population}
       </span>
+
+      {kingdoms.length > 0 && (
+        <>
+          <span className="w-px h-4 bg-muted/60" />
+          <span className="flex items-center gap-1.5" title="Kingdoms">
+            <Crown size={16} className="text-amber-300" />
+            {kingdoms.length}
+          </span>
+        </>
+      )}
+
       <span className="w-px h-4 bg-muted/60" />
-      <span className="flex items-center gap-1.5 capitalize" title="Season">
+      <span className="flex items-center gap-1.5 capitalize whitespace-nowrap" title={`Year ${year}, ${season}, day ${day}`}>
         {seasonIcons[season]}
-        Year {year} · {season}, Day {day}
+        <span className="hidden sm:inline">Year </span>{year}
+        <span className="hidden sm:inline"> · {season}, Day {day}</span>
       </span>
+
       <span className="w-px h-4 bg-muted/60" />
-      <span className="flex items-center gap-1.5 capitalize" title="Time of day">
+      <span className="flex items-center gap-1.5 capitalize" title={`Time of day: ${timeOfDay}`}>
         {timeIcons[timeOfDay]}
-        {timeOfDay}
+        <span className="hidden sm:inline">{timeOfDay}</span>
       </span>
+
       <span className="w-px h-4 bg-muted/60" />
-      <span className="flex items-center gap-1.5 capitalize" title="Weather">
+      <span className="flex items-center gap-1.5 capitalize" title={`Weather: ${weather}`}>
         {weather === 'clear'
           ? <CloudSun size={16} className="text-slate-300" />
           : <CloudRain size={16} className="text-blue-300" />}
-        {weather}
+        <span className="hidden sm:inline">{weather}</span>
       </span>
+
       <span className="w-px h-4 bg-muted/60" />
+      <button
+        type="button"
+        title={music ? 'Stop the ambient score' : 'Play an ambient score'}
+        className={`tool-btn ${music ? 'text-amber-200' : 'text-muted-foreground'} hover:text-foreground`}
+        onClick={toggleMusic}
+      >
+        {music ? <Music size={16} /> : <Music2 size={16} />}
+      </button>
       <button
         type="button"
         title={muted ? 'Unmute sounds' : 'Mute sounds'}
