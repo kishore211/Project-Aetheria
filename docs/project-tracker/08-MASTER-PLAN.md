@@ -30,10 +30,10 @@ Everything here is already simulated and simply invisible. No new simulation.
 | 9.2 | **Hover tooltips** for units and tiles | ✅ done | `HoverTooltip.tsx`; 15 Hz sampling, republished only on change |
 | 9.5 | **Refusal cue** — ✕ and a thunk when a power can't apply | ✅ done | Powers now return whether they acted |
 | 9.6 | **Brush preview** reticle under the cursor | ✅ done | |
-| 9.3 | **Floating text** — damage, gifts, taxes, happiness deltas | todo | `effectsManager` |
-| 9.4 | **Speech / thought bubbles** with written lines | todo | Needs Phase 10's happiness table for its content |
-| 9.7 | **Important-event flash** for big moments | todo | War declared, village razed, kingdom fallen |
-| 9.8 | **Screen shake** on meteor/quake, only when zoomed in | todo | Their rule exactly |
+| 9.3 | **Floating text** — damage, heals, resource gains, births, deaths | ✅ done | `utils/floatBridge.ts` + `FloatingText.tsx`. 64-slot recycled pool, no React below the container; numbers fade out as you pull back |
+| 9.4 | **Speech / thought bubbles** with written lines | ✅ done | `utils/dialogue.ts` — 18 occasions x 3-4 lines. Rationed at ~1.6/s globally with a 14 s per-unit cooldown, plus a coin flip so the budget spreads across the population. Phase 10 will widen the occasion table, not rebuild it |
+| 9.7 | **Important-event flash** for big moments | ✅ done | `ScreenFlash.tsx`, four tones. Vignette not flat wash; off under `prefers-reduced-motion` |
+| 9.8 | **Screen shake** on meteor/quake | ✅ done | Through `camera.setViewOffset`, *not* camera position — MapControls absorbs a position offset into its orbit state and the shake becomes a permanent random walk (measured 0.09 units of drift per lightning strike). Amplitude in screen pixels, so it reads the same at every zoom |
 | 9.9 | **Number tweens** for counters and bars | todo | `useTween` hook |
 
 Landed alongside, both found by testing the above:
@@ -66,8 +66,8 @@ The emotional layer, which is what makes creatures read as characters.
 
 | # | Item | Notes |
 |---|---|---|
-| 11.1 | **Map layer system** — kingdom, village, culture, religion, family/herd, biome, elevation | Generalise the existing two-layer territory overlay |
-| 11.2 | **Map labels** — kingdom and village names on the map, fading in as you zoom out | What makes a map read as a map |
+| 11.1 | **Map layer system** | ✅ done | `utils/mapLayers.ts`. Six layers: natural, borders, height, rainfall, warmth, fertility. `Z`/`X` cycle. Ramps monotonic in lightness (enforced by test) so they survive greyscale; decoration hidden and sea muted on data layers. Culture/religion layers land with Phase 15, which is when there is anything to paint |
+| 11.2 | **Map labels** | ✅ done | `utils/labelBridge.ts` + `MapLabels.tsx` |
 | 11.3 | **List windows** — villages, kingdoms, wars, herds, families; click a row to fly there | One reusable panel |
 | 11.4 | **Chronicle 2.0** — filter chips, per-kind icons, 2–4 rotating phrasings per event | Their multi-phrasing is why long logs stay readable |
 | 11.5 | **Statistics window** — population, deaths by cause, territory over time, species mix | We already collect all of it |
@@ -79,11 +79,11 @@ The emotional layer, which is what makes creatures read as characters.
 
 | # | Item | Notes |
 |---|---|---|
-| 12.1 | **Bottom bar with 7 tabs + contextual Unit tab** | Replaces the sidebar |
-| 12.2 | **Descriptions with jokes** for every power | ~60 lines of copy |
+| 12.1 | **Bottom bar with 7 tabs + contextual Unit tab** | ✅ done | `PowerBar.tsx`; sidebar and separate time bar deleted. Bar hugs its contents rather than reserving a fixed span |
+| 12.2 | **Descriptions with jokes** for every power | ✅ done | `utils/powers.ts` — catalogue is plain data, so powers can be added and re-tabbed without touching layout |
 | 12.3 | **Erasers** — sponge, sickle, bucket, axe, demolish, life eraser, scissors | Mostly inverses of tools we have |
-| 12.4 | **Full hotkey scheme** + cheat sheet | `Space H Tab Z X F Esc 1-9`, `Ctrl`/`Alt`+wheel |
-| 12.5 | **Hide UI** | For screenshots |
+| 12.4 | **Full hotkey scheme** + cheat sheet | ✅ done | `hooks/useHotkeys.ts`; `Space 1-9 Tab Z X H F N M I L +/- Esc`. Numbers printed on the buttons, full list in the help overlay. `Esc` backs out one step at a time |
+| 12.5 | **Hide UI** | ✅ done | `H`. Map labels and floaters belong to the world, not the HUD, so they stay |
 | 12.6 | **World Laws 2.0** — grouped, iconed, with flavour lines, ~20 laws | Ours has 8 bare toggles |
 
 **Gate:** the toolbar scales past 60 powers and is fully keyboard-driven.
@@ -153,6 +153,27 @@ The deepest remaining system, and the one with the biggest story payoff.
 
 ---
 
+## Progress note — after the Phase 9 / 11 / 12 pass
+
+Done since this plan was written: 9.1-9.8, 11.1, 11.2, 12.1, 12.2, 12.4, 12.5,
+plus two things not on the list that turned out to matter more than several
+items that were:
+
+- **Camera framing.** The starting camera was a fixed position, so a 128 world
+  sat marooned mid-screen with sky all round it. The distance now scales to the
+  world so the map runs past the frame. This was the single biggest change to
+  whether the place reads as somewhere you are *above* rather than a diorama on
+  a table — bigger than any individual HUD item.
+- **Pacing.** Day phases 30 s → 42 s, rain gated behind a seasonal factor.
+
+Still open in these phases: 9.9 (number tweens), 11.3 (list windows), 11.4
+(Chronicle 2.0), 11.5 (statistics), 11.6 (minimap layers), 12.3 (erasers),
+12.6 (World Laws 2.0). 11.4 is the most valuable of those: the chronicle is
+already the main place the world speaks in prose, and it currently has one
+phrasing per event and no filters.
+
+---
+
 ## Sequencing and why
 
 ```
@@ -179,7 +200,13 @@ which is exactly the trap our first 28 biomes fell into.
 2. **Numbers get rescaled.** A WorldBox year is ~40 s; ours is 320 s. Never
    paste a cooldown straight from the wiki — the herd-cooldown lesson.
 3. **Tests stay deterministic.** Seeded `Math.random` per test. A behavioural
-   assertion that needs a rerun is hiding a bug.
+   assertion that needs a rerun is hiding a bug. But a *single-sample*
+   assertion on emergent behaviour is a tripwire, not a test: any new
+   `Math.random()` call anywhere in the AI re-rolls the whole stream and the
+   assertion fails for a reason that has nothing to do with the change. Where
+   the claim is statistical ("a grazing herd usually survives"), loop over
+   seeds and assert the distribution. `herdSystem.test.ts` learned this the
+   hard way.
 4. **Everything stays procedural.** No art or audio files, ever.
 5. **Write the copy as we go.** A power without a description is unfinished.
 6. **One commit per coherent change,** with the *why* in the message.
