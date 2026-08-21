@@ -114,6 +114,8 @@ interface GameState {
   showHelp: boolean;
   showLaws: boolean;
   showMinimap: boolean;
+  /** Icons above creatures showing profession and current activity. */
+  showUnitIcons: boolean;
   kingdoms: KingdomSummary[];
   /** Entity the camera is following (spectate mode). */
   followEntityId: string | null;
@@ -148,6 +150,7 @@ interface GameState {
   setShowHelp: (show: boolean) => void;
   setShowLaws: (show: boolean) => void;
   toggleMinimap: () => void;
+  toggleUnitIcons: () => void;
   toggleWorldLaw: (law: keyof WorldLaws) => void;
   setKingdoms: (kingdoms: KingdomSummary[]) => void;
   setFollowEntity: (id: string | null) => void;
@@ -217,6 +220,7 @@ export const useGameStore = create<GameState>((set) => ({
   showHelp: true,
   showLaws: false,
   showMinimap: wantsMinimap,
+  showUnitIcons: true,
   kingdoms: [],
   followEntityId: null,
   cameraTarget: null,
@@ -281,6 +285,7 @@ export const useGameStore = create<GameState>((set) => ({
   setShowHelp: (show: boolean) => set({ showHelp: show }),
   setShowLaws: (show: boolean) => set({ showLaws: show }),
   toggleMinimap: () => set((state) => ({ showMinimap: !state.showMinimap })),
+  toggleUnitIcons: () => set((state) => ({ showUnitIcons: !state.showUnitIcons })),
 
   toggleWorldLaw: (law) => set((state) => ({
     worldLaws: { ...state.worldLaws, [law]: !state.worldLaws[law] },

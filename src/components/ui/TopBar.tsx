@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { soundManager } from '../../utils/soundManager';
 import {
-  CloudRain, CloudSun, Crown, Flower2, Leaf, Moon, Music, Music2,
+  CloudRain, CloudSun, Crown, Eye, EyeOff, Flower2, Leaf, Moon, Music, Music2,
   Snowflake, Sun, Sunrise, Sunset, Users, Volume2, VolumeX,
 } from 'lucide-react';
 
@@ -22,6 +22,8 @@ const seasonIcons = {
 
 const TopBar = () => {
   const { population, year, day, season, timeOfDay, weather, kingdoms } = useGameStore();
+  const showUnitIcons = useGameStore((state) => state.showUnitIcons);
+  const toggleUnitIcons = useGameStore((state) => state.toggleUnitIcons);
   const [muted, setMuted] = useState(false);
   const [music, setMusic] = useState(false);
 
@@ -78,6 +80,14 @@ const TopBar = () => {
       </span>
 
       <span className="w-px h-4 bg-muted/60" />
+      <button
+        type="button"
+        title={showUnitIcons ? 'Hide the icons above creatures' : 'Show what each creature is doing'}
+        className={`tool-btn ${showUnitIcons ? 'text-emerald-300' : 'text-muted-foreground'} hover:text-foreground`}
+        onClick={toggleUnitIcons}
+      >
+        {showUnitIcons ? <Eye size={16} /> : <EyeOff size={16} />}
+      </button>
       <button
         type="button"
         title={music ? 'Stop the ambient score' : 'Play an ambient score'}

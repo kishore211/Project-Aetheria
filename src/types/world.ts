@@ -240,6 +240,11 @@ export interface Entity {
   carrying?: { type: ResourceType; quantity: number } | null;
   /** Assigned village role. */
   job?: 'gatherer' | 'builder' | 'warrior' | null;
+  /**
+   * What the creature is doing right now, mirrored out of its AI so the HUD,
+   * the icon layer and tooltips can all read it without reaching into the AI.
+   */
+  activity?: string;
 
   // Progression
   /** Heritable traits. */

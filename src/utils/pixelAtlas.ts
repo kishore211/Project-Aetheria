@@ -415,5 +415,363 @@ export const getBuildingAtlas = (): Atlas => {
   return buildingAtlas;
 };
 
+
+// ---------------------------------------------------------------------------
+// HUD icons drawn above units: what they are doing, and who they are.
+// These are the single biggest "the world is alive" signal in WorldBox — you
+// can read a whole village at a glance without clicking anything.
+// ---------------------------------------------------------------------------
+
+const ICON_INK: Palette = {
+  o: '#12161d', // outline
+  w: '#f4f1e6', // light fill
+  y: '#f2c14e', // gold
+  r: '#c8452f', // red
+  g: '#5aa64f', // green
+  b: '#4f8fd6', // blue
+  p: '#a86fd0', // violet
+  s: '#9aa0a6', // steel
+  n: '#7a5a32', // wood/brown
+};
+
+const ICON_ART: Record<string, AtlasEntry> = {
+  // -- tasks --
+  gathering: {
+    palette: ICON_INK,
+    grid: [
+      '............',
+      '....gg......',
+      '...grrg.....',
+      '..grrrrg....',
+      '..grrrrg....',
+      '...grrg.....',
+      '..oooooo....',
+      '..onnnno....',
+      '..onnnno....',
+      '..oooooo....',
+      '............',
+      '............',
+    ],
+  },
+  hauling: {
+    palette: ICON_INK,
+    grid: [
+      '............',
+      '..oooooooo..',
+      '..onnnnnno..',
+      '..onoooono..',
+      '..onoyyono..',
+      '..onoyyono..',
+      '..onoooono..',
+      '..onnnnnno..',
+      '..oooooooo..',
+      '............',
+      '............',
+      '............',
+    ],
+  },
+  building: {
+    palette: ICON_INK,
+    grid: [
+      '............',
+      '.......ooo..',
+      '......ossso.',
+      '.....osssso.',
+      '.....ossso..',
+      '....onno....',
+      '...onno.....',
+      '..onno......',
+      '..ono.......',
+      '..oo........',
+      '............',
+      '............',
+    ],
+  },
+  fighting: {
+    palette: ICON_INK,
+    grid: [
+      '..o......o..',
+      '..so....os..',
+      '...so..os...',
+      '....soos....',
+      '.....ss.....',
+      '....syys....',
+      '...so..os...',
+      '..so....os..',
+      '..o......o..',
+      '............',
+      '............',
+      '............',
+    ],
+  },
+  hunting: {
+    palette: ICON_INK,
+    grid: [
+      '.........oo.',
+      '........orro',
+      '.......orro.',
+      '..o...orro..',
+      '..oo.orro...',
+      '..ooooro....',
+      '..oo.oo.....',
+      '..o.........',
+      '............',
+      '............',
+      '............',
+      '............',
+    ],
+  },
+  fleeing: {
+    palette: ICON_INK,
+    grid: [
+      '....oooo....',
+      '...oyyyyo...',
+      '...oyooyo...',
+      '...oyooyo...',
+      '...oyooyo...',
+      '...oyyyyo...',
+      '...oyooyo...',
+      '....oooo....',
+      '...oyyyyo...',
+      '....oooo....',
+      '............',
+      '............',
+    ],
+  },
+  sleeping: {
+    palette: ICON_INK,
+    grid: [
+      '............',
+      '..oooooo....',
+      '..oowwwo....',
+      '.....owo....',
+      '....owo.....',
+      '...owo......',
+      '..owwwoo....',
+      '..oooooo....',
+      '............',
+      '.......oo...',
+      '......owwo..',
+      '.......oo...',
+    ],
+  },
+  talking: {
+    palette: ICON_INK,
+    grid: [
+      '..oooooooo..',
+      '.owwwwwwwwo.',
+      '.owoowoowwo.',
+      '.owwwwwwwwo.',
+      '.owwwwwwwwo.',
+      '.owwwwwwwwo.',
+      '.oooowwwwoo.',
+      '....owwwo...',
+      '...owwo.....',
+      '...oo.......',
+      '............',
+      '............',
+    ],
+  },
+  drinking: {
+    palette: ICON_INK,
+    grid: [
+      '.....oo.....',
+      '.....oo.....',
+      '....obbo....',
+      '....obbo....',
+      '...obbbbo...',
+      '...obbbbo...',
+      '..obbbbbbo..',
+      '..obbbbbbo..',
+      '...obbbbo...',
+      '....oooo....',
+      '............',
+      '............',
+    ],
+  },
+  eating: {
+    palette: ICON_INK,
+    grid: [
+      '............',
+      '.....gg.....',
+      '....ogo.....',
+      '...orrro....',
+      '..orrrrro...',
+      '..orrrrro...',
+      '..orrrrro...',
+      '..orrrrro...',
+      '...orrro....',
+      '....ooo.....',
+      '............',
+      '............',
+    ],
+  },
+  travelling: {
+    palette: ICON_INK,
+    grid: [
+      '............',
+      '............',
+      '.....o......',
+      '.....oo.....',
+      '..oooooo....',
+      '..owwwwoo...',
+      '..oooooo....',
+      '.....oo.....',
+      '.....o......',
+      '............',
+      '............',
+      '............',
+    ],
+  },
+  marching: {
+    palette: ICON_INK,
+    grid: [
+      '..o.........',
+      '..oo........',
+      '..orro......',
+      '..orrrro....',
+      '..orrrrrro..',
+      '..orrrro....',
+      '..orro......',
+      '..oo........',
+      '..o.........',
+      '..o.........',
+      '............',
+      '............',
+    ],
+  },
+  settling: {
+    palette: ICON_INK,
+    grid: [
+      '............',
+      '.....o......',
+      '....ooo.....',
+      '...ooyoo....',
+      '..ooyyyoo...',
+      '.ooyyyyyoo..',
+      '..onnnnno...',
+      '..onwwwno...',
+      '..onwwwno...',
+      '..ooooooo...',
+      '............',
+      '............',
+    ],
+  },
+  // -- professions --
+  king: {
+    palette: ICON_INK,
+    grid: [
+      '............',
+      '..o......o..',
+      '..oo....oo..',
+      '..oyo..oyo..',
+      '..oyyoooyo..',
+      '..oyyyyyyo..',
+      '..oyyryyyo..',
+      '..oyyyyyyo..',
+      '..oooooooo..',
+      '............',
+      '............',
+      '............',
+    ],
+  },
+  leader: {
+    palette: ICON_INK,
+    grid: [
+      '............',
+      '..o......o..',
+      '..oo....oo..',
+      '..oso..oso..',
+      '..ossoooso..',
+      '..osssssso..',
+      '..osssssso..',
+      '..oooooooo..',
+      '............',
+      '............',
+      '............',
+      '............',
+    ],
+  },
+  captain: {
+    palette: ICON_INK,
+    grid: [
+      '..oooooooo..',
+      '..orrrrrro..',
+      '..orwwwrro..',
+      '..orrrrrro..',
+      '..orrrrrro..',
+      '..oooooooo..',
+      '..oo........',
+      '..oo........',
+      '..oo........',
+      '..oo........',
+      '............',
+      '............',
+    ],
+  },
+  warrior: {
+    palette: ICON_INK,
+    grid: [
+      '.....oo.....',
+      '.....so.....',
+      '.....so.....',
+      '.....so.....',
+      '.....so.....',
+      '..oooooooo..',
+      '.....so.....',
+      '.....so.....',
+      '.....oo.....',
+      '............',
+      '............',
+      '............',
+    ],
+  },
+  // -- flags --
+  favourite: {
+    palette: ICON_INK,
+    grid: [
+      '............',
+      '.....o......',
+      '....oyo.....',
+      '....oyo.....',
+      'oooooyooooo.',
+      '.oyyyyyyyo..',
+      '..oyyyyyo...',
+      '..oyyoyyo...',
+      '.oyyo.oyyo..',
+      '.oo....oo...',
+      '............',
+      '............',
+    ],
+  },
+  plotting: {
+    palette: ICON_INK,
+    grid: [
+      '..oooooooo..',
+      '..owwwwwwo..',
+      '..opwwwwpo..',
+      '..owwwwwwo..',
+      '..owppwwwo..',
+      '..owwwwppo..',
+      '..opwwwwwo..',
+      '..owwwwwwo..',
+      '..oooooooo..',
+      '............',
+      '............',
+      '............',
+    ],
+  },
+};
+
+let iconAtlas: Atlas | null = null;
+
+/** Atlas of HUD icons drawn above units (task, profession, flags). */
+export const getIconAtlas = (): Atlas => {
+  if (!iconAtlas) iconAtlas = buildAtlas(ICON_ART);
+  return iconAtlas;
+};
+
+export type IconName = keyof typeof ICON_ART;
+
 export type DetailName = keyof typeof DETAIL_ART;
 export type BuildingArtName = keyof typeof BUILDING_ART;

@@ -63,6 +63,11 @@ export class EntityManager implements EntityIndex {
     this.camera = camera;
   }
 
+  /** 1 = close up, 0 = zoomed right out. Drives HUD and animation detail. */
+  get detail(): number {
+    return this.detailLevel;
+  }
+
   // -- spatial index -----------------------------------------------------
 
   private bucketKey(x: number, y: number): number {

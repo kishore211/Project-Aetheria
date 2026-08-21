@@ -420,6 +420,9 @@ export class EntityAI {
     this.trackStuck(tiles, deltaTime);
     this.maybeStartFire(tiles, deltaTime);
 
+    // Publish what we are doing so the HUD can show it without reaching in
+    this.entity.activity = this.describeActivity();
+
     switch (this.currentState) {
       case 'idle': this.handleIdleState(tiles); break;
       case 'moving': this.handleMovingState(tiles, deltaTime); break;
@@ -432,6 +435,37 @@ export class EntityAI {
       case 'building': this.handleBuildingState(); break;
       case 'sleeping': this.handleSleepingState(deltaTime); break;
       case 'dying': this.handleDyingState(); break;
+    }
+  }
+
+  /**
+   * A short label for what this creature is up to. Deliberately more specific
+   * than the raw state: "hauling" and "foraging" are both the moving state, but
+   * they mean different things to a player watching the map.
+   */
+  private describeActivity(): string {
+    if (this.entity.health <= 0) return 'dying';
+    if (this.entity.status.includes('talking')) return 'talking';
+    if (this.entity.status.includes('sleeping')) return 'sleeping';
+    if (this.entity.status.includes('drinking')) return 'drinking';
+    if (this.entity.status.includes('eating')) return 'eating';
+
+    switch (this.currentState) {
+      case 'fighting': return 'fighting';
+      case 'hunting': return 'hunting';
+      case 'fleeing': return 'fleeing';
+      case 'gathering': return 'gathering';
+      case 'sleeping': return 'sleeping';
+      case 'socialising': return 'talking';
+      case 'following': return 'travelling';
+      case 'building': return 'building';
+      case 'moving':
+        if (this.entity.carrying) return 'hauling';
+        if (this.order?.purpose === 'settle') return 'settling';
+        if (this.order?.purpose === 'raid') return 'marching';
+        return 'travelling';
+      default:
+        return 'idle';
     }
   }
 

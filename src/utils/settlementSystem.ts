@@ -100,7 +100,10 @@ export interface SettlerParty {
 export interface Kingdom {
   id: string;
   name: string;
+  /** Generated title used until a real unit takes the crown. */
   ruler: string;
+  /** The unit currently ruling, once one has been appointed. */
+  kingId?: string | null;
   race: Race;
   colorHex: string;
   color: THREE.Color;
@@ -224,6 +227,8 @@ export class SettlementSystem {
   private unsubscribeOrders: () => void;
   /** Village id -> the warrior currently carrying its banner. */
   private captains = new Map<string, string>();
+  /** Village id -> its governing leader (the capital's leader is the king). */
+  private leaders = new Map<string, string>();
 
   constructor(
     tiles: Tile[][],
@@ -524,6 +529,7 @@ export class SettlementSystem {
         for (const member of members) {
           member.villageId = null;
           member.job = null;
+          this.clearOffices(member);
           this.entities.setHerdAnchor(member, null);
         }
         continue;
@@ -569,7 +575,7 @@ export class SettlementSystem {
         }
       }
 
-      this.appointCaptain(village, members);
+      this.appointOfficials(village, members);
 
       // Loaded gatherers walk their haul back to the village centre
       for (const member of members) {
@@ -597,15 +603,53 @@ export class SettlementSystem {
   }
 
   /**
-   * One captain per village. Warriors form up behind it and it marches slower
-   * so they can keep pace, which turns a trickle of individuals arriving one at
-   * a time into an actual warband (research doc section 6).
+   * Give a village its officials: a leader, a captain, and — if this is the
+   * capital — the kingdom's king. These were names on a kingdom record before;
+   * making them real units means the HUD can point at them and Phase 14 has
+   * something to build succession on.
    */
+  private appointOfficials(village: Village, members: Entity[]): void {
+    this.appointLeader(village, members);
+    this.appointCaptain(village, members);
+  }
+
+  /** The shrewdest resident governs; the capital's leader wears the crown. */
+  private appointLeader(village: Village, members: Entity[]): void {
+    const eligible = members.filter(member => member.age > member.maxAge * 0.2);
+    if (eligible.length === 0) {
+      this.leaders.delete(village.id);
+      return;
+    }
+
+    let leader = this.entities.getEntityById(this.leaders.get(village.id) ?? '');
+    if (!leader || leader.villageId !== village.id) {
+      leader = eligible.reduce((best, member) => (
+        member.attributes.intelligence > best.attributes.intelligence ? member : best
+      ), eligible[0]);
+      for (const member of members) {
+        this.stripStatus(member, 'leader');
+        this.stripStatus(member, 'king');
+      }
+      this.leaders.set(village.id, leader.id);
+    }
+
+    const crown = village.capital ? 'king' : 'leader';
+    const other = village.capital ? 'leader' : 'king';
+    this.stripStatus(leader, other);
+    if (!leader.status.includes(crown)) leader.status.push(crown);
+
+    // A kingdom's ruler is now a person, not just a generated name
+    if (village.capital) {
+      const kingdom = this.kingdoms.get(village.kingdomId);
+      if (kingdom) kingdom.kingId = leader.id;
+    }
+  }
+
   private appointCaptain(village: Village, members: Entity[]): void {
     const warriors = members.filter(member => member.job === 'warrior');
     if (warriors.length === 0) {
       this.captains.delete(village.id);
-      for (const member of members) this.stripCaptain(member);
+      for (const member of members) this.stripStatus(member, 'captain');
       return;
     }
 
@@ -615,7 +659,7 @@ export class SettlementSystem {
       captain = warriors.reduce((best, warrior) => (
         warrior.attributes.strength > best.attributes.strength ? warrior : best
       ), warriors[0]);
-      for (const warrior of warriors) this.stripCaptain(warrior);
+      for (const warrior of warriors) this.stripStatus(warrior, 'captain');
       this.captains.set(village.id, captain.id);
     }
 
@@ -627,9 +671,16 @@ export class SettlementSystem {
     }
   }
 
-  private stripCaptain(entity: Entity): void {
-    const index = entity.status.indexOf('captain');
+  private stripStatus(entity: Entity, status: string): void {
+    const index = entity.status.indexOf(status);
     if (index !== -1) entity.status.splice(index, 1);
+  }
+
+  /** A unit that leaves a village leaves its office behind with it. */
+  private clearOffices(entity: Entity): void {
+    this.stripStatus(entity, 'king');
+    this.stripStatus(entity, 'leader');
+    this.stripStatus(entity, 'captain');
   }
 
   /** Villages feed their residents from the granary. */
@@ -970,6 +1021,7 @@ export class SettlementSystem {
     for (const settler of residents.slice(0, size)) {
       settler.villageId = null;
       settler.job = null;
+      this.clearOffices(settler);
       party.memberIds.add(settler.id);
       this.entities.giveOrder(settler, {
         kind: 'goto',
@@ -1275,12 +1327,15 @@ export class SettlementSystem {
       if (entity.villageId !== village.id) continue;
       entity.villageId = null;
       entity.job = null;
+      this.clearOffices(entity);
     }
 
     // Any expedition it had underway dies with it
     for (const party of Array.from(this.parties.values())) {
       if (party.sourceVillageId === village.id) this.parties.delete(party.id);
     }
+    this.captains.delete(village.id);
+    this.leaders.delete(village.id);
 
     const kingdom = this.kingdoms.get(village.kingdomId);
     if (kingdom) {

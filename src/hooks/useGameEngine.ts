@@ -18,6 +18,7 @@ import { EffectsManager } from '../utils/effectsManager';
 import { TerrainRenderer } from '../utils/terrainRenderer';
 import { SettlementSystem } from '../utils/settlementSystem';
 import { HerdSystem } from '../utils/herdSystem';
+import { UnitIconLayer } from '../utils/unitIconLayer';
 import { publishWorldAccess } from '../utils/worldAccess';
 import { writeSave } from '../utils/saveSystem';
 import { worldAccess } from '../utils/worldAccess';
@@ -77,6 +78,8 @@ export const useGameEngine = () => {
   const effectsManagerRef = useRef<EffectsManager | null>(null);
   const settlementRef = useRef<SettlementSystem | null>(null);
   const herdRef = useRef<HerdSystem | null>(null);
+  const unitIconsRef = useRef<UnitIconLayer | null>(null);
+  const iconTimerRef = useRef<number>(0);
   const burningTilesRef = useRef<Set<Tile>>(new Set());
   const phaseTimerRef = useRef<number>(0);
   const weatherTimerRef = useRef<number>(0);
@@ -171,6 +174,8 @@ export const useGameEngine = () => {
     settlementRef.current = null;
     herdRef.current?.dispose();
     herdRef.current = null;
+    unitIconsRef.current?.dispose();
+    unitIconsRef.current = null;
     terrainRef.current?.dispose();
     terrainRef.current = null;
     publishWorldAccess(null);
@@ -281,6 +286,11 @@ export const useGameEngine = () => {
     // Animals travel in families; see utils/herdSystem.ts
     const herds = new HerdSystem(tilesData, manager);
     herdRef.current = herds;
+
+    // Icons above heads: profession and current activity
+    const unitIcons = new UnitIconLayer(scene);
+    unitIconsRef.current = unitIcons;
+    unitIcons.setVisible(storeState.showUnitIcons);
 
 
     // Let HUD panels (minimap, kingdom list) read the live world
@@ -975,6 +985,15 @@ export const useGameEngine = () => {
       simulateFire(tickInterval);
     }
 
+    // Icons change on the scale of seconds, so refresh them a few times a
+    // second rather than every frame.
+    iconTimerRef.current += deltaTime;
+    if (iconTimerRef.current >= 1 / 6) {
+      iconTimerRef.current = 0;
+      const manager = entityManagerRef.current;
+      if (manager) unitIconsRef.current?.update(manager.getAllEntities(), manager.detail);
+    }
+
     ecologyTimerRef.current += scaledDelta;
     if (ecologyTimerRef.current >= 2.5) {
       ecologyTimerRef.current = 0;
@@ -1048,6 +1067,12 @@ export const useGameEngine = () => {
     else effectsManagerRef.current?.stopRain();
   }, [isInitialized, weather]);
 
+  // Icon overlay toggle
+  const showUnitIcons = useGameStore((state) => state.showUnitIcons);
+  useEffect(() => {
+    unitIconsRef.current?.setVisible(showUnitIcons);
+  }, [showUnitIcons, isInitialized]);
+
   // Keep the entity simulation in sync with the world laws panel
   const worldLaws = useGameStore((state) => state.worldLaws);
   useEffect(() => {
@@ -1065,6 +1090,7 @@ export const useGameEngine = () => {
     const pixelScale = (gl.domElement.height * 0.5) / Math.tan(halfFov);
     terrainRef.current?.setViewportScale(pixelScale);
     settlementRef.current?.setViewportScale(pixelScale);
+    unitIconsRef.current?.setViewportScale(pixelScale);
     updateSelectionIndicator();
     gameTick(Math.min(deltaTime, 0.1));
   });
