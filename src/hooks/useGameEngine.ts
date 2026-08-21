@@ -349,6 +349,9 @@ export const useGameEngine = () => {
       onKingdomsChanged: (summaries) => {
         useGameStore.getState().setKingdoms(summaries);
       },
+      onVillagesChanged: (summaries) => {
+        useGameStore.getState().setVillages(summaries);
+      },
     });
     settlementRef.current = settlements;
     settlements.setWorldLaws(storeState.worldLaws);
@@ -753,6 +756,74 @@ export const useGameEngine = () => {
           'divine',
           { x: tile.x, y: tile.y },
         );
+        break;
+      }
+
+      // -- erasers ------------------------------------------------------
+      //
+      // Every creative power in this switch needed an inverse. Building
+      // something you cannot unbuild makes a sandbox feel like a form you are
+      // filling in rather than a place you are shaping.
+
+      case 'erase-forest': {
+        acted = false;
+        forEachBrushTile(tile, radius, (target) => {
+          if (!target.structure && !target.resources.some(r => r.type === 'wood')) return;
+          acted = true;
+          target.structure = null;
+          target.resources = target.resources.filter(r => r.type !== 'wood');
+          if (target.type.includes('forest') || target.type === 'taiga') {
+            // Back to whatever the climate would have grown without trees.
+            target.type = target.moisture > 0.55 ? 'grassland' : 'savanna';
+          }
+          syncTile(target);
+        });
+        if (acted) soundManager.uiClick();
+        break;
+      }
+
+      case 'erase-buildings': {
+        acted = false;
+        forEachBrushTile(tile, radius, (target) => {
+          if (!target.villageId && !target.structure) return;
+          acted = true;
+          // The settlement system owns village tiles, so ask it to let go
+          // rather than clearing the tile behind its back and leaving it with
+          // a building it still believes in.
+          settlementRef.current?.demolishAt(target.x, target.y);
+          target.structure = null;
+          syncTile(target);
+        });
+        if (acted) {
+          effectsManagerRef.current?.spawnBurst(tileWorldPosition(tile), 0x9aa4b5, 14, 1.6);
+          requestShake(6, 0.25);
+        }
+        break;
+      }
+
+      case 'douse': {
+        acted = false;
+        forEachBrushTile(tile, radius + 1, (target) => {
+          if (!target.isOnFire) return;
+          acted = true;
+          extinguishTile(target, false);
+        });
+        if (acted) {
+          effectsManagerRef.current?.spawnBurst(tileWorldPosition(tile), 0x8ec5ff, 18, 1.8);
+          soundManager.uiClick();
+        }
+        break;
+      }
+
+      case 'erase-life': {
+        const doomed = entityManagerRef.current?.query(tile.x, tile.y, radius + 0.8) ?? [];
+        if (doomed.length === 0) return false;
+        for (const victim of doomed) {
+          // Erased, not killed: no chronicle entry, no grief, no statistics.
+          // That distinction is the whole character of the tool.
+          entityManagerRef.current?.eraseEntity(victim);
+        }
+        effectsManagerRef.current?.spawnBurst(tileWorldPosition(tile), 0xd8b4fe, 12, 1.4);
         break;
       }
 

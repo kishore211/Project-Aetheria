@@ -943,3 +943,85 @@ canvas {
 @media (prefers-reduced-motion: reduce) {
   .mood-fill { transition: none; }
 }
+
+/* ---------------------------------------------------------------------------
+   List windows
+--------------------------------------------------------------------------- */
+
+.list-tab {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid rgb(148 163 184 / 0.22);
+  border-radius: 8px;
+  background: rgb(15 23 42 / 0.55);
+  color: rgb(148 163 184);
+  font-size: 0.7rem;
+  font-weight: 600;
+  transition: color 0.14s, background 0.14s, border-color 0.14s;
+}
+.list-tab:hover { color: rgb(226 232 240); background: rgb(51 65 85 / 0.7); }
+.list-tab.is-on {
+  color: rgb(255 255 255);
+  border-color: rgb(129 140 248 / 0.6);
+  background: rgb(79 70 229 / 0.85);
+}
+.list-tab-count {
+  padding: 0 0.28rem;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.3);
+  font-size: 0.6rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.list-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  text-align: left;
+  transition: background 0.14s, border-color 0.14s;
+}
+.list-row:not(.list-row-static):hover {
+  background: rgb(51 65 85 / 0.5);
+  border-color: rgb(148 163 184 / 0.25);
+}
+
+.list-swatch {
+  flex: 0 0 auto;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 2px;
+  border: 1px solid rgb(0 0 0 / 0.35);
+}
+
+.list-name {
+  flex: 0 0 auto;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: rgb(226 232 240);
+  white-space: nowrap;
+}
+
+.list-meta {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.66rem;
+  color: rgb(148 163 184);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.list-empty {
+  padding: 1.5rem 0.5rem;
+  font-size: 0.78rem;
+  font-style: italic;
+  text-align: center;
+  color: rgb(100 116 139);
+}

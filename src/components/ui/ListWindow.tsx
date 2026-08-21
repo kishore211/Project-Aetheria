@@ -1,0 +1,164 @@
+import { useMemo, useState } from 'react';
+import { Crown, Home, Swords, X } from 'lucide-react';
+import { useGameStore } from '../../store/gameStore';
+
+/**
+ * Browsable lists of everything the world contains.
+ *
+ * WorldBox has one of these per meta — wars, kingdoms, villages, clans — and
+ * they are how you find anything at all in a 256² world
+ * (06-WORLDBOX-COMPLETE-REFERENCE.md §3). Without them the only way to locate
+ * a village is to squint at the map, which stops working the moment there are
+ * more than a handful.
+ *
+ * One panel with tabs rather than one window per meta: the rows differ, the
+ * behaviour does not, and every row does the same thing when clicked.
+ */
+
+type ListTab = 'realms' | 'villages' | 'wars';
+
+const TABS: Array<{ id: ListTab; label: string; icon: typeof Crown }> = [
+  { id: 'realms', label: 'Realms', icon: Crown },
+  { id: 'villages', label: 'Towns', icon: Home },
+  { id: 'wars', label: 'Wars', icon: Swords },
+];
+
+const ListWindow = ({ open, onClose }: { open: boolean; onClose: () => void }) => {
+  const kingdoms = useGameStore((state) => state.kingdoms);
+  const villages = useGameStore((state) => state.villages);
+  const focusTile = useGameStore((state) => state.focusTile);
+  const [tab, setTab] = useState<ListTab>('realms');
+
+  /**
+   * Wars are derived rather than stored: each kingdom already knows who it is
+   * fighting, and a separate list would be a second copy of the same fact that
+   * could fall out of step. Pairs are de-duplicated so a war appears once
+   * rather than once per side.
+   */
+  const wars = useMemo(() => {
+    const seen = new Set<string>();
+    const rows: Array<{ key: string; a: string; b: string; colorA: string; colorB: string }> = [];
+    for (const kingdom of kingdoms) {
+      for (const enemyName of kingdom.atWarWith) {
+        const key = [kingdom.name, enemyName].sort().join(' vs ');
+        if (seen.has(key)) continue;
+        seen.add(key);
+        rows.push({
+          key,
+          a: kingdom.name,
+          b: enemyName,
+          colorA: kingdom.color,
+          colorB: kingdoms.find((other) => other.name === enemyName)?.color ?? '#94a3b8',
+        });
+      }
+    }
+    return rows;
+  }, [kingdoms]);
+
+  if (!open) return null;
+
+  const counts: Record<ListTab, number> = {
+    realms: kingdoms.length,
+    villages: villages.length,
+    wars: wars.length,
+  };
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="ui-modal w-full max-w-lg max-h-[80vh] flex flex-col bg-secondary rounded-xl shadow-2xl border border-muted/50 text-foreground">
+        <div className="flex items-center justify-between px-5 pt-4">
+          <h2 className="text-lg font-bold">The World's Register</h2>
+          <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="flex gap-1 px-5 pt-2.5">
+          {TABS.map((entry) => {
+            const Glyph = entry.icon;
+            return (
+              <button
+                key={entry.id}
+                type="button"
+                className={`list-tab ${tab === entry.id ? 'is-on' : ''}`}
+                onClick={() => setTab(entry.id)}
+              >
+                <Glyph size={13} />
+                {entry.label}
+                <span className="list-tab-count">{counts[entry.id]}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-3">
+          {tab === 'realms' && (kingdoms.length === 0
+            ? <p className="list-empty">No kingdom has been founded yet.</p>
+            : (
+              <ul className="space-y-1">
+                {kingdoms.map((kingdom) => (
+                  <li key={kingdom.id}>
+                    <div className="list-row list-row-static">
+                      <i className="list-swatch" style={{ background: kingdom.color }} />
+                      <span className="list-name">{kingdom.name}</span>
+                      <span className="list-meta">
+                        {kingdom.population} souls · {kingdom.villages} towns · {kingdom.territory} tiles
+                        {kingdom.atWarWith.length > 0 && (
+                          <span className="text-rose-300"> · at war</span>
+                        )}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ))}
+
+          {tab === 'villages' && (villages.length === 0
+            ? <p className="list-empty">Nowhere is settled yet. Put three of one race on good ground.</p>
+            : (
+              <ul className="space-y-1">
+                {villages.map((village) => (
+                  <li key={village.id}>
+                    <button
+                      type="button"
+                      className="list-row"
+                      title="Show me"
+                      onClick={() => { focusTile(village.x, village.y); onClose(); }}
+                    >
+                      <i className="list-swatch" style={{ background: village.color }} />
+                      <span className="list-name">
+                        {village.name}
+                        {village.capital && <Crown size={10} className="ml-1 inline text-amber-300" />}
+                      </span>
+                      <span className="list-meta">
+                        {village.kingdomName} · {village.population} living ·{' '}
+                        {village.buildings} buildings · {village.territory} tiles
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ))}
+
+          {tab === 'wars' && (wars.length === 0
+            ? <p className="list-empty">Nobody is fighting anybody. Give it time.</p>
+            : (
+              <ul className="space-y-1">
+                {wars.map((war) => (
+                  <li key={war.key} className="list-row list-row-static">
+                    <i className="list-swatch" style={{ background: war.colorA }} />
+                    <span className="list-name">{war.a}</span>
+                    <Swords size={12} className="shrink-0 text-rose-400" />
+                    <span className="list-name">{war.b}</span>
+                    <i className="list-swatch" style={{ background: war.colorB }} />
+                  </li>
+                ))}
+              </ul>
+            ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ListWindow;

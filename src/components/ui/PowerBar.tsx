@@ -12,6 +12,7 @@ import {
 import { MAP_LAYERS } from '../../utils/mapLayers';
 import SavePanel from './SavePanel';
 import StatsPanel from './StatsPanel';
+import ListWindow from './ListWindow';
 
 /**
  * The bottom power bar.
@@ -84,6 +85,7 @@ const PowerBar = () => {
   const [hover, setHover] = useState<HoverInfo | null>(null);
   const [showSaves, setShowSaves] = useState(false);
   const [showStats, setShowStats] = useState(false);
+  const [showList, setShowList] = useState(false);
 
   const hasUnit = Boolean(selectedEntity);
   const tabs = useMemo(
@@ -152,6 +154,12 @@ const PowerBar = () => {
           hint: 'Show what each creature does and what it is doing now.',
           quip: 'Crowns, hammers, and the occasional broken heart.',
           on: showUnitIcons, run: toggleUnitIcons,
+        },
+        {
+          key: 'register', label: 'Register', icon: 'ListTree',
+          hint: 'Every realm, town and war, with somewhere to click.',
+          quip: 'Squinting at the map stops working around the fourth village.',
+          run: () => setShowList(true),
         },
         {
           key: 'minimap', label: 'Minimap', icon: 'Map',
@@ -423,6 +431,7 @@ const PowerBar = () => {
 
       <SavePanel open={showSaves} onClose={() => setShowSaves(false)} />
       <StatsPanel open={showStats} onClose={() => setShowStats(false)} />
+      <ListWindow open={showList} onClose={() => setShowList(false)} />
     </>
   );
 };

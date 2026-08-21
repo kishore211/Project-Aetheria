@@ -403,6 +403,41 @@ export class EntityManager implements EntityIndex {
   }
 
   /**
+   * Remove a creature without any of the consequences of it dying.
+   *
+   * Deliberately not `killEntity`: no chronicle entry, no grief for its
+   * partner, no entry in the death statistics, no skull. That distinction is
+   * the whole character of the tool — a life eraser is a correction to the
+   * world, not an event in it, and a player tidying up a mis-click should not
+   * end up with a village in mourning and a fabricated line of history.
+   */
+  eraseEntity(entity: Entity): void {
+    if (!this.entities.has(entity.id)) return;
+
+    const ix = Math.floor(entity.position.x);
+    const iy = Math.floor(entity.position.y);
+    if (this.isInBounds(ix, iy)) {
+      const tile = this.tiles[ix][iy];
+      const index = tile.entities.findIndex(e => e.id === entity.id);
+      if (index !== -1) tile.entities.splice(index, 1);
+      tile.population = Math.max(0, tile.population - 1);
+    }
+
+    // Bonds still have to be cleared, or a survivor keeps a reference to
+    // somebody who no longer exists. They simply are not mourned.
+    for (const other of this.entities.values()) {
+      if (other.friendId === entity.id) other.friendId = null;
+      if (other.loverId === entity.id) other.loverId = null;
+    }
+
+    this.entities.delete(entity.id);
+    this.entityAIs.delete(entity.id);
+    forgetStatuses(entity.id);
+    this.unindexEntity(entity);
+    this.disposeMesh(entity);
+  }
+
+  /**
    * Tell the people who cared.
    *
    * Run before the entity is removed, so its partner and friend can still be

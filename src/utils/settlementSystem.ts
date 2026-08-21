@@ -15,7 +15,7 @@ import {
   type ResourceType,
   type Tile,
 } from '../types/world';
-import type { KingdomSummary, WorldLaws } from '../store/gameStore';
+import type { KingdomSummary, VillageSummary, WorldLaws } from '../store/gameStore';
 import type { EntityManager } from './entityManagerMinimal';
 import { getBuildingAtlas } from './pixelAtlas';
 import { SpriteCloud } from './spriteCloud';
@@ -204,6 +204,7 @@ const BUILDING_CLOUD_CAPACITY = 2048;
 export interface SettlementEvents {
   onEvent: (message: string, kind: 'kingdom' | 'war' | 'info', position?: { x: number; y: number }) => void;
   onKingdomsChanged: (summaries: KingdomSummary[]) => void;
+  onVillagesChanged?: (summaries: VillageSummary[]) => void;
 }
 
 export class SettlementSystem {
@@ -901,6 +902,28 @@ export class SettlementSystem {
     }
   }
 
+  /**
+   * Tear down whatever stands on a tile, for the demolish power.
+   *
+   * Public because the engine must not clear a village tile behind this
+   * system's back: doing so leaves the settlement holding a building it still
+   * believes in, and the next claim pass paints territory around a hall that
+   * is no longer there. Returns whether anything came down.
+   */
+  demolishAt(x: number, y: number): boolean {
+    for (const village of this.villages.values()) {
+      const building = village.buildings.find(candidate => candidate.x === x && candidate.y === y);
+      if (!building) continue;
+      this.removeBuilding(village, building);
+      // Claims radiate from buildings, so the border has to be recomputed or
+      // the village keeps land it can no longer reach.
+      this.claimTerritory(village);
+      this.publishSummaries();
+      return true;
+    }
+    return false;
+  }
+
   // -- diplomacy and war -------------------------------------------------
 
   // -- growth and colonisation -------------------------------------------
@@ -1513,6 +1536,35 @@ export class SettlementSystem {
 
     summaries.sort((a, b) => b.territory - a.territory);
     this.events.onKingdomsChanged(summaries);
+
+    // Villages, flattened the same way. Pre-computed rather than exposing the
+    // live Village objects: the panel re-renders on a React schedule and the
+    // simulation does not, and handing React a mutable Set it will iterate on
+    // its own timetable is how you get a torn read.
+    const villageRows: VillageSummary[] = [];
+    const memberCounts = new Map<string, number>();
+    for (const entity of this.entities.getAllEntities()) {
+      if (!entity.villageId) continue;
+      memberCounts.set(entity.villageId, (memberCounts.get(entity.villageId) ?? 0) + 1);
+    }
+
+    for (const village of this.villages.values()) {
+      const kingdom = this.kingdoms.get(village.kingdomId);
+      villageRows.push({
+        id: village.id,
+        name: village.name,
+        kingdomName: kingdom?.name ?? 'Unaffiliated',
+        color: kingdom?.colorHex ?? '#94a3b8',
+        capital: village.capital,
+        population: memberCounts.get(village.id) ?? 0,
+        buildings: village.buildings.length,
+        territory: village.territory.size,
+        x: village.centerX,
+        y: village.centerY,
+      });
+    }
+    villageRows.sort((a, b) => b.population - a.population || b.territory - a.territory);
+    this.events.onVillagesChanged?.(villageRows);
   }
 
   atWar(a?: string | null, b?: string | null): boolean {

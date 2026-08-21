@@ -59,6 +59,25 @@ export type HoverTarget =
     };
 
 /** Summary of a kingdom, published by the settlement system for the HUD. */
+/**
+ * A browsable row for the list windows. Flat and pre-computed because the
+ * panel must never reach into the settlement system — it re-renders on a React
+ * schedule and the simulation does not.
+ */
+export interface VillageSummary {
+  id: string;
+  name: string;
+  kingdomName: string;
+  color: string;
+  capital: boolean;
+  population: number;
+  buildings: number;
+  territory: number;
+  /** Where to fly the camera. */
+  x: number;
+  y: number;
+}
+
 export interface KingdomSummary {
   id: string;
   name: string;
@@ -122,6 +141,11 @@ export type Tool =
   | 'blessing'
   | 'curse'
   | 'poke'
+  // Erasers — the inverses of the powers above
+  | 'erase-forest'
+  | 'erase-life'
+  | 'erase-buildings'
+  | 'douse'
   | null;
 
 /** Radius in tiles for area tools: 0 = single tile, 1 = 3x3, 2 = 5x5. */
@@ -173,6 +197,7 @@ interface GameState {
    */
   uiHidden: boolean;
   kingdoms: KingdomSummary[];
+  villages: VillageSummary[];
   /** Entity the camera is following (spectate mode). */
   followEntityId: string | null;
   /** Set by the minimap and chronicle to fly the camera somewhere. */
@@ -221,6 +246,7 @@ interface GameState {
   /** Apply a whole set at once, for the law presets. */
   setWorldLaws: (laws: WorldLaws) => void;
   setKingdoms: (kingdoms: KingdomSummary[]) => void;
+  setVillages: (villages: VillageSummary[]) => void;
   setFollowEntity: (id: string | null) => void;
   focusTile: (x: number, y: number) => void;
   setHoverTarget: (target: HoverTarget | null) => void;
@@ -295,6 +321,7 @@ export const useGameStore = create<GameState>((set) => ({
   mapLayer: 'natural',
   uiHidden: false,
   kingdoms: [],
+  villages: [],
   followEntityId: null,
   cameraTarget: null,
   hoverTarget: null,
@@ -377,6 +404,7 @@ export const useGameStore = create<GameState>((set) => ({
   setWorldLaws: (worldLaws: WorldLaws) => set({ worldLaws: { ...worldLaws } }),
 
   setKingdoms: (kingdoms: KingdomSummary[]) => set({ kingdoms }),
+  setVillages: (villages: VillageSummary[]) => set({ villages }),
 
   setFollowEntity: (followEntityId: string | null) => set({ followEntityId }),
 
@@ -406,6 +434,7 @@ export const useGameStore = create<GameState>((set) => ({
     followEntityId: null,
     events: [],
     kingdoms: [],
+    villages: [],
   })),
 
   clearPendingSave: () => set({ pendingSave: null }),
@@ -451,6 +480,7 @@ export const useGameStore = create<GameState>((set) => ({
     weather: 'clear',
     events: [],
     kingdoms: [],
+    villages: [],
     timeOfDay: 'day',
   }),
 
@@ -461,5 +491,6 @@ export const useGameStore = create<GameState>((set) => ({
     followEntityId: null,
     events: [],
     kingdoms: [],
+    villages: [],
   }),
 }));

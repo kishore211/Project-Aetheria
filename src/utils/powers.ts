@@ -173,6 +173,33 @@ export const POWERS: PowerEntry[] = [
     hint: 'Prod a creature. It barely hurts. It notices.',
     quip: 'They cannot see you and they know something is there.',
   },
+
+  // -- Erasers --
+  //
+  // WorldBox gives every creative power an undo shaped like a tool rather than
+  // a menu item — a sickle for plants, a sponge for terrain, a life eraser
+  // (06-WORLDBOX-COMPLETE-REFERENCE.md §2). Building something you cannot
+  // unbuild makes a sandbox feel like a form you are filling in.
+  {
+    kind: 'tool', id: 'erase-forest', tab: 'shape', label: 'Clear', icon: 'Scissors',
+    hint: 'Cut back trees and undergrowth, leaving the ground.',
+    quip: 'Someone will want it back. That is their problem.',
+  },
+  {
+    kind: 'tool', id: 'erase-buildings', tab: 'shape', label: 'Demolish', icon: 'Hammer',
+    hint: 'Flatten whatever has been built here.',
+    quip: 'They took a season over that.',
+  },
+  {
+    kind: 'tool', id: 'douse', tab: 'nature', label: 'Douse', icon: 'Droplets',
+    hint: 'Put out fires without waiting for the rain.',
+    quip: 'The one merciful thing in this tab.',
+  },
+  {
+    kind: 'tool', id: 'erase-life', tab: 'divine', label: 'Unmake', icon: 'Eraser',
+    hint: 'Remove creatures from the world. No corpse, no chronicle entry.',
+    quip: 'Not death. Something tidier and worse.',
+  },
 ];
 
 export const POWERS_BY_TAB = (tab: PowerTabId): PowerEntry[] =>
