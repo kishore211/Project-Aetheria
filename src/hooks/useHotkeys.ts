@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { POWERS_BY_TAB, POWER_TABS, type PowerTabId } from '../utils/powers';
+import { nextLayer } from '../utils/mapLayers';
 import { soundManager } from '../utils/soundManager';
 
 /**
@@ -15,6 +16,7 @@ import { soundManager } from '../utils/soundManager';
  *   Space         pause / resume
  *   1-9           pick the nth power in the current tab
  *   Tab / S-Tab   cycle power tabs
+ *   Z / X         cycle map layers
  *   H             hide the interface
  *   F             follow whatever is under the cursor
  *   L             world laws
@@ -86,6 +88,8 @@ export const useHotkeys = (): void => {
       }
 
       switch (event.key.toLowerCase()) {
+        case 'z': store.setMapLayer(nextLayer(store.mapLayer, -1)); break;
+        case 'x': store.setMapLayer(nextLayer(store.mapLayer, 1)); break;
         case 'h': store.toggleUiHidden(); break;
         case 'l': store.setShowLaws(!store.showLaws); break;
         case 'm': store.toggleMinimap(); break;

@@ -10,6 +10,7 @@ import HoverTooltip from './components/ui/HoverTooltip';
 import MapLabels from './components/ui/MapLabels';
 import FloatingText from './components/ui/FloatingText';
 import ScreenFlash from './components/ui/ScreenFlash';
+import MapLayerBadge from './components/ui/MapLayerBadge';
 import { useGameStore } from './store/gameStore';
 import { useHotkeys } from './hooks/useHotkeys';
 
@@ -40,6 +41,7 @@ function App() {
             <>
               <TopBar />
               <RightRail />
+              <MapLayerBadge />
               <HoverTooltip />
             </>
           )}

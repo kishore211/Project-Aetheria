@@ -5,6 +5,7 @@ import type { SaveGame } from '../utils/saveSystem';
 // Type-only both ways: powers.ts imports `Tool` from here. Erased at compile
 // time, so there is no runtime cycle.
 import type { PowerTabId } from '../utils/powers';
+import type { MapLayer } from '../utils/mapLayers';
 import { loadUnlocked, persistUnlocked } from '../utils/achievements';
 
 export type Weather = 'clear' | 'rain' | 'storm';
@@ -160,6 +161,8 @@ interface GameState {
   showMapLabels: boolean;
   /** Which group of powers the bottom bar is showing. */
   activePowerTab: PowerTabId;
+  /** Which question the map is painted to answer. */
+  mapLayer: MapLayer;
   /**
    * Everything except the canvas is hidden. WorldBox binds this to a single
    * key because the world is the thing worth looking at, and screenshots of a
@@ -207,6 +210,7 @@ interface GameState {
   toggleUnitIcons: () => void;
   toggleMapLabels: () => void;
   setActivePowerTab: (tab: PowerTabId) => void;
+  setMapLayer: (layer: MapLayer) => void;
   toggleUiHidden: () => void;
   /** direction > 0 pulls the camera out, < 0 pushes it in. */
   requestZoom: (direction: number) => void;
@@ -283,6 +287,7 @@ export const useGameStore = create<GameState>((set) => ({
   showUnitIcons: true,
   showMapLabels: true,
   activePowerTab: 'shape',
+  mapLayer: 'natural',
   uiHidden: false,
   kingdoms: [],
   followEntityId: null,
@@ -353,6 +358,7 @@ export const useGameStore = create<GameState>((set) => ({
   toggleUnitIcons: () => set((state) => ({ showUnitIcons: !state.showUnitIcons })),
   toggleMapLabels: () => set((state) => ({ showMapLabels: !state.showMapLabels })),
   setActivePowerTab: (activePowerTab: PowerTabId) => set({ activePowerTab }),
+  setMapLayer: (mapLayer: MapLayer) => set({ mapLayer }),
   toggleUiHidden: () => set((state) => ({ uiHidden: !state.uiHidden })),
   requestZoom: (direction: number) =>
     set((state) => ({

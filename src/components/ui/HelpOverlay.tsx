@@ -60,6 +60,7 @@ const KEYS: Array<[string, string]> = [
   ['Space', 'Pause or resume time'],
   ['1 – 9', 'Pick a power from the open tab'],
   ['Tab', 'Next tab of powers (Shift+Tab back)'],
+  ['Z / X', 'Cycle how the map is painted'],
   ['F', 'Follow whatever is under the cursor'],
   ['H', 'Hide the whole interface'],
   ['N', 'Kingdom and village names'],

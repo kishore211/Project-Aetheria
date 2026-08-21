@@ -16,11 +16,14 @@ import {
   type Tile,
 } from '../types/world';
 import { getBiomeColor } from './worldGenerator';
+import { isDataLayer, sampleRamp, type MapLayer } from './mapLayers';
 import { getDetailAtlas } from './pixelAtlas';
 import { SpriteCloud } from './spriteCloud';
 import type { Season, TimeOfDay } from '../types/world';
 
 const FIRE_COLOR = new THREE.Color('#ff6a1f');
+/** Muted sea on data layers, so the coastline still reads. */
+const DATA_WATER = new THREE.Color('#182b45');
 const WHITE = new THREE.Color(0xffffff);
 const OVERLAY_LIFT = 0.014;
 const DETAIL_LIFT = 0.02;
@@ -101,6 +104,8 @@ export class TerrainRenderer {
   private overlayBorder: THREE.InstancedMesh;
   private details: SpriteCloud;
   private matrix = new THREE.Matrix4();
+  /** Which question the map is currently answering. */
+  private layer: MapLayer = 'natural';
   private scratchColor = new THREE.Color();
   private scratchPosition = new THREE.Vector3();
 
@@ -209,12 +214,73 @@ export class TerrainRenderer {
 
   private applyColor(tile: Tile, id: number, timeOfDay: TimeOfDay, season: Season): void {
     const color = getBiomeColor(tile.type, timeOfDay, season, tile.variant);
+
+    if (isDataLayer(this.layer)) {
+      // Data layers ignore the biome entirely — that is the point of them —
+      // but keep a whisper of the tile's variant so the surface still has
+      // grain rather than looking like a flat chart.
+      if (this.layer !== 'height' && isWaterBiome(tile.type)) {
+        // Sea painted with land data loses the coastline, and a heat map you
+        // cannot find the continents on is not much use. Height is the
+        // exception: there, depth is exactly what the layer is measuring.
+        color.copy(DATA_WATER);
+      } else {
+        sampleRamp(this.layer, this.layerValue(tile), color);
+      }
+      color.offsetHSL(0, 0, ((tile.variant ?? 0.5) - 0.5) * 0.03);
+    } else if (this.layer === 'political') {
+      // Drain the world so the territory overlay is the only saturated thing
+      // on screen. Borders you have to hunt for are borders you do not read.
+      const grey = (color.r + color.g + color.b) / 3;
+      color.setRGB(
+        grey * 0.82 + 0.05,
+        grey * 0.84 + 0.05,
+        grey * 0.9 + 0.06,
+      );
+    }
+
     if (tile.isOnFire) {
       color.lerp(FIRE_COLOR, 0.65);
     }
     tile.color = color;
     this.terrain.setColorAt(id, color);
     if (this.terrain.instanceColor) this.terrain.instanceColor.needsUpdate = true;
+  }
+
+  /** The 0-1 quantity a data layer paints. */
+  private layerValue(tile: Tile): number {
+    switch (this.layer) {
+      case 'height': return tile.height;
+      case 'rainfall': return tile.moisture;
+      case 'temperature': return tile.temperature;
+      case 'fertility': return tile.fertility;
+      default: return 0;
+    }
+  }
+
+  /**
+   * Switch layers and repaint. Returns false when nothing changed, so callers
+   * can skip a full-map recolour they do not need.
+   */
+  setMapLayer(layer: MapLayer, timeOfDay: TimeOfDay, season: Season): boolean {
+    if (layer === this.layer) return false;
+    const wasClean = isDataLayer(this.layer);
+    this.layer = layer;
+    this.refreshColors(timeOfDay, season);
+    // Decoration only needs rebuilding when crossing between a data layer and
+    // a normal one; switching between two data layers leaves it hidden either
+    // way, and this pass costs a full sweep of the map.
+    if (wasClean !== isDataLayer(layer)) this.refreshDetails();
+    return true;
+  }
+
+  private refreshDetails(): void {
+    for (let x = 0; x < this.mapSize; x++) {
+      for (let y = 0; y < this.mapSize; y++) {
+        const tile = this.tiles[x][y];
+        this.syncDetail(tile, tile.instanceId ?? this.instanceIdFor(x, y));
+      }
+    }
   }
 
   /** Recolour a single tile (fire, time of day, corruption). */
@@ -224,6 +290,12 @@ export class TerrainRenderer {
   }
 
   private syncDetail(tile: Tile, id: number): void {
+    // Data layers want a clean surface. Trees and rocks scattered over a
+    // topographic reading obscure the very thing the layer was opened to show.
+    if (isDataLayer(this.layer)) {
+      this.details.clear(id);
+      return;
+    }
     // A building on the tile takes visual priority over natural decoration.
     if (tile.villageId) {
       this.details.clear(id);

@@ -9,6 +9,7 @@ import {
   type PowerEntry,
   type PowerTabId,
 } from '../../utils/powers';
+import { MAP_LAYERS } from '../../utils/mapLayers';
 import SavePanel from './SavePanel';
 
 /**
@@ -69,6 +70,7 @@ const PowerBar = () => {
     worldTemplate, setWorldTemplate,
     entityPopulationDensity, setEntityPopulationDensity,
     setShowHelp, setShowLaws,
+    mapLayer, setMapLayer,
     showMinimap, toggleMinimap,
     showUnitIcons, toggleUnitIcons,
     showMapLabels, toggleMapLabels,
@@ -329,6 +331,30 @@ const PowerBar = () => {
                   )}
                 </select>
                 <span className="powerbar-seed">seed {worldSeed}</span>
+              </div>
+            )}
+
+            {tab === 'observe' && (
+              <div className="powerbar-inline">
+                <label className="powerbar-inline-label">Painted as</label>
+                <div className="powerbar-segmented">
+                  {MAP_LAYERS.map((entry) => (
+                    <button
+                      key={entry.id}
+                      type="button"
+                      className={mapLayer === entry.id ? 'is-on' : ''}
+                      onClick={() => { soundManager.uiClick(); setMapLayer(entry.id); }}
+                      onMouseEnter={() => setHover({
+                        label: entry.label,
+                        hint: entry.hint,
+                        quip: '',
+                        hotkey: 'Z / X',
+                      })}
+                    >
+                      {entry.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 

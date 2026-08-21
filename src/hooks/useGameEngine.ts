@@ -89,6 +89,7 @@ export const useGameEngine = () => {
     weather,
     selectedTool,
     selectedTile,
+    mapLayer,
   } = useGameStore();
 
   // Three.js references and state
@@ -240,6 +241,10 @@ export const useGameEngine = () => {
 
     // Build the instanced terrain
     const terrain = new TerrainRenderer(tilesData, storeState.timeOfDay, storeState.season);
+    // A new world inherits the layer you were looking through. Snapping back to
+    // natural on every regeneration would be the kind of small betrayal that
+    // makes an interface feel like it is not listening.
+    terrain.setMapLayer(storeState.mapLayer, storeState.timeOfDay, storeState.season);
     terrainRef.current = terrain;
     scene.add(terrain.group);
 
@@ -1471,6 +1476,15 @@ export const useGameEngine = () => {
     setupLights();
     refreshWorldColors();
   }, [isInitialized, timeOfDay, season, setupLights, refreshWorldColors]);
+
+  // Repaint the whole map when the player asks it a different question.
+  // Separate from the effect above so a layer change does not also rebuild the
+  // lighting, and so switching layers costs exactly one recolour pass.
+  useEffect(() => {
+    if (!isInitialized) return;
+    const state = useGameStore.getState();
+    terrainRef.current?.setMapLayer(mapLayer, state.timeOfDay, state.season);
+  }, [isInitialized, mapLayer]);
 
   // Let the AI (pyromaniac trait) and raids set tiles alight
   useEffect(() => {
