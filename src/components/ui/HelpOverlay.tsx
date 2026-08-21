@@ -8,7 +8,7 @@ const ROWS = [
   {
     icon: <Hand size={18} className="text-sky-300" />,
     title: 'Shape it',
-    body: 'Pick a tool on the left, choose a brush size, then click the world. Drag to pan, scroll to zoom, right-drag to turn.',
+    body: 'Pick a power on the bar below, choose a brush size, then click the world. Drag to pan, scroll to zoom, right-drag to turn.',
   },
   {
     icon: <Mountain size={18} className="text-stone-300" />,
@@ -52,6 +52,24 @@ const ROWS = [
   },
 ];
 
+/**
+ * The bindings, printed. A hotkey nobody can find is a hotkey nobody uses, and
+ * the bar only has room to show the nine number keys.
+ */
+const KEYS: Array<[string, string]> = [
+  ['Space', 'Pause or resume time'],
+  ['1 – 9', 'Pick a power from the open tab'],
+  ['Tab', 'Next tab of powers (Shift+Tab back)'],
+  ['F', 'Follow whatever is under the cursor'],
+  ['H', 'Hide the whole interface'],
+  ['N', 'Kingdom and village names'],
+  ['M', 'Minimap'],
+  ['I', 'Icons above creatures'],
+  ['L', 'World laws'],
+  ['+ / −', 'Zoom in and out'],
+  ['Esc', 'Back out one step'],
+];
+
 const HelpOverlay = () => {
   const { showHelp, setShowHelp } = useGameStore();
 
@@ -76,6 +94,20 @@ const HelpOverlay = () => {
               <span>
                 <b>{row.title}</b> — {row.body}
               </span>
+            </li>
+          ))}
+        </ul>
+
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+          Keyboard
+        </h2>
+        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs mb-6">
+          {KEYS.map(([key, what]) => (
+            <li key={key} className="flex items-center gap-2">
+              <kbd className="shrink-0 min-w-[3.1rem] text-center px-1.5 py-0.5 rounded border border-muted/60 border-b-2 bg-background/60 text-[0.65rem] font-semibold">
+                {key}
+              </kbd>
+              <span className="text-muted-foreground">{what}</span>
             </li>
           ))}
         </ul>

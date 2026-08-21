@@ -106,6 +106,7 @@ export const useGameEngine = () => {
   const ecologyTimerRef = useRef<number>(0);
   const autosaveTimerRef = useRef<number>(0);
   const lastCameraNonceRef = useRef<number>(0);
+  const lastZoomNonceRef = useRef<number>(0);
   const hoverTimerRef = useRef<number>(0);
   const hoverKeyRef = useRef<string>('');
   const brushPreviewRef = useRef<THREE.Mesh | null>(null);
@@ -1158,6 +1159,22 @@ export const useGameEngine = () => {
         camera.position.copy(position).add(offset);
         orbit.update?.();
       }
+    }
+
+    // Keyboard zoom. Moving the camera along its own view axis is what the
+    // scroll wheel does, so +/- and the wheel end up feeling like one control.
+    if (store.zoomRequest && store.zoomRequest.nonce !== lastZoomNonceRef.current) {
+      lastZoomNonceRef.current = store.zoomRequest.nonce;
+      const toCamera = camera.position.clone().sub(orbit.target);
+      const distance = toCamera.length();
+      const wanted = distance * (store.zoomRequest.direction > 0 ? 1.18 : 1 / 1.18);
+      const limits = controls as unknown as { minDistance?: number; maxDistance?: number };
+      const clamped = Math.min(
+        limits.maxDistance ?? Infinity,
+        Math.max(limits.minDistance ?? 1, wanted),
+      );
+      camera.position.copy(orbit.target).add(toCamera.setLength(clamped));
+      orbit.update?.();
     }
 
     // Spectate mode

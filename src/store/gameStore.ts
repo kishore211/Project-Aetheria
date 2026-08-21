@@ -2,6 +2,9 @@ import { create } from 'zustand';
 import type { Entity, Race, Season, Tile, TimeOfDay } from '../types/world';
 import type { WorldTemplate } from '../utils/worldGenerator';
 import type { SaveGame } from '../utils/saveSystem';
+// Type-only both ways: powers.ts imports `Tool` from here. Erased at compile
+// time, so there is no runtime cycle.
+import type { PowerTabId } from '../utils/powers';
 import { loadUnlocked, persistUnlocked } from '../utils/achievements';
 
 export type Weather = 'clear' | 'rain' | 'storm';
@@ -155,6 +158,14 @@ interface GameState {
   showUnitIcons: boolean;
   /** Kingdom and village names drawn on the map itself. */
   showMapLabels: boolean;
+  /** Which group of powers the bottom bar is showing. */
+  activePowerTab: PowerTabId;
+  /**
+   * Everything except the canvas is hidden. WorldBox binds this to a single
+   * key because the world is the thing worth looking at, and screenshots of a
+   * world covered in panels are nobody's screenshots.
+   */
+  uiHidden: boolean;
   kingdoms: KingdomSummary[];
   /** Entity the camera is following (spectate mode). */
   followEntityId: string | null;
@@ -162,6 +173,8 @@ interface GameState {
   cameraTarget: { x: number; y: number; nonce: number } | null;
   /** What the cursor is over right now, for the hover tooltip. */
   hoverTarget: HoverTarget | null;
+  /** Keyboard zoom, consumed by the engine's camera pass. */
+  zoomRequest: { direction: number; nonce: number } | null;
   /** Bumped to force a world rebuild without changing the seed. */
   worldRevision: number;
   /** A save waiting to be applied by the engine on the next world build. */
@@ -193,6 +206,10 @@ interface GameState {
   toggleMinimap: () => void;
   toggleUnitIcons: () => void;
   toggleMapLabels: () => void;
+  setActivePowerTab: (tab: PowerTabId) => void;
+  toggleUiHidden: () => void;
+  /** direction > 0 pulls the camera out, < 0 pushes it in. */
+  requestZoom: (direction: number) => void;
   toggleWorldLaw: (law: keyof WorldLaws) => void;
   setKingdoms: (kingdoms: KingdomSummary[]) => void;
   setFollowEntity: (id: string | null) => void;
@@ -265,10 +282,13 @@ export const useGameStore = create<GameState>((set) => ({
   showMinimap: wantsMinimap,
   showUnitIcons: true,
   showMapLabels: true,
+  activePowerTab: 'shape',
+  uiHidden: false,
   kingdoms: [],
   followEntityId: null,
   cameraTarget: null,
   hoverTarget: null,
+  zoomRequest: null,
   worldRevision: 0,
   pendingSave: null,
   achievements: loadUnlocked(),
@@ -332,6 +352,12 @@ export const useGameStore = create<GameState>((set) => ({
   toggleMinimap: () => set((state) => ({ showMinimap: !state.showMinimap })),
   toggleUnitIcons: () => set((state) => ({ showUnitIcons: !state.showUnitIcons })),
   toggleMapLabels: () => set((state) => ({ showMapLabels: !state.showMapLabels })),
+  setActivePowerTab: (activePowerTab: PowerTabId) => set({ activePowerTab }),
+  toggleUiHidden: () => set((state) => ({ uiHidden: !state.uiHidden })),
+  requestZoom: (direction: number) =>
+    set((state) => ({
+      zoomRequest: { direction, nonce: (state.zoomRequest?.nonce ?? 0) + 1 },
+    })),
 
   toggleWorldLaw: (law) => set((state) => ({
     worldLaws: { ...state.worldLaws, [law]: !state.worldLaws[law] },

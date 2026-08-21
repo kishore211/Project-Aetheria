@@ -1,7 +1,6 @@
 import { Canvas } from '@react-three/fiber';
 import GameContainer from './components/world/GameContainer';
-import Sidebar from './components/ui/Sidebar';
-import TimeControls from './components/ui/TimeControls';
+import PowerBar from './components/ui/PowerBar';
 import TopBar from './components/ui/TopBar';
 import HelpOverlay from './components/ui/HelpOverlay';
 import RightRail from './components/ui/RightRail';
@@ -9,8 +8,13 @@ import WorldLawsPanel from './components/ui/WorldLawsPanel';
 import AchievementWatcher from './components/ui/AchievementWatcher';
 import HoverTooltip from './components/ui/HoverTooltip';
 import MapLabels from './components/ui/MapLabels';
+import { useGameStore } from './store/gameStore';
+import { useHotkeys } from './hooks/useHotkeys';
 
 function App() {
+  useHotkeys();
+  const uiHidden = useGameStore((state) => state.uiHidden);
+
   return (
     <div className="w-full h-full flex flex-col">
       <div className="game-container flex flex-1">
@@ -23,15 +27,20 @@ function App() {
           <fog attach="fog" args={['#0b1120', 140, 420]} />
           <GameContainer />
         </Canvas>
+        {/* Labels are part of the world, not the HUD, so they survive Hide UI */}
         <MapLabels />
         <div className="game-ui">
-          <Sidebar />
-          <TopBar />
-          <TimeControls />
-          <RightRail />
+          {/* The bar draws its own peek button while hidden, so it always mounts */}
+          <PowerBar />
+          {!uiHidden && (
+            <>
+              <TopBar />
+              <RightRail />
+              <HoverTooltip />
+            </>
+          )}
           <WorldLawsPanel />
           <AchievementWatcher />
-          <HoverTooltip />
           <HelpOverlay />
         </div>
       </div>
