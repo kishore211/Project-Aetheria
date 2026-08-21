@@ -69,8 +69,8 @@ The emotional layer, which is what makes creatures read as characters.
 | 11.1 | **Map layer system** | ✅ done | `utils/mapLayers.ts`. Six layers: natural, borders, height, rainfall, warmth, fertility. `Z`/`X` cycle. Ramps monotonic in lightness (enforced by test) so they survive greyscale; decoration hidden and sea muted on data layers. Culture/religion layers land with Phase 15, which is when there is anything to paint |
 | 11.2 | **Map labels** | ✅ done | `utils/labelBridge.ts` + `MapLabels.tsx` |
 | 11.3 | **List windows** — villages, kingdoms, wars, herds, families; click a row to fly there | One reusable panel |
-| 11.4 | **Chronicle 2.0** — filter chips, per-kind icons, 2–4 rotating phrasings per event | Their multi-phrasing is why long logs stay readable |
-| 11.5 | **Statistics window** — population, deaths by cause, territory over time, species mix | We already collect all of it |
+| 11.4 | **Chronicle 2.0** | ✅ done | `utils/chronicle.ts` — 25 topics, 76 phrasings, no consecutive repeats. Four filter chips (not one per kind: seven is a second interface to learn) and per-kind glyphs so the log can be *skimmed*. Brought `matchesTopic` with it, because three settlement tests were asserting prose |
+| 11.5 | **Statistics window** | ✅ done | `utils/worldStats.ts` + `StatsPanel.tsx`. Ring buffer of 120 samples on *simulated* time, so triple speed fills it three times as fast and a paused world records nothing |
 | 11.6 | **Minimap layers** — leaders, armies, battles, species | Extend the existing minimap |
 
 **Gate:** ten different questions about the world can be answered from the map.
@@ -84,7 +84,7 @@ The emotional layer, which is what makes creatures read as characters.
 | 12.3 | **Erasers** — sponge, sickle, bucket, axe, demolish, life eraser, scissors | Mostly inverses of tools we have |
 | 12.4 | **Full hotkey scheme** + cheat sheet | ✅ done | `hooks/useHotkeys.ts`; `Space 1-9 Tab Z X H F N M I L +/- Esc`. Numbers printed on the buttons, full list in the help overlay. `Esc` backs out one step at a time |
 | 12.5 | **Hide UI** | ✅ done | `H`. Map labels and floaters belong to the world, not the HUD, so they stay |
-| 12.6 | **World Laws 2.0** — grouped, iconed, with flavour lines, ~20 laws | Ours has 8 bare toggles |
+| 12.6 | **World Laws 2.0** | ✅ done | Grouped, iconed, four presets, and a second line per law that changes with the switch: on it says what the rule does, off it says what your world becomes. More laws arrive with the systems that need them |
 
 **Gate:** the toolbar scales past 60 powers and is fully keyboard-driven.
 
@@ -166,11 +166,12 @@ items that were:
   a table — bigger than any individual HUD item.
 - **Pacing.** Day phases 30 s → 42 s, rain gated behind a seasonal factor.
 
-Still open in these phases: 9.9 (number tweens), 11.3 (list windows), 11.4
-(Chronicle 2.0), 11.5 (statistics), 11.6 (minimap layers), 12.3 (erasers),
-12.6 (World Laws 2.0). 11.4 is the most valuable of those: the chronicle is
-already the main place the world speaks in prose, and it currently has one
-phrasing per event and no filters.
+Still open in these phases: **9.9** (number tweens), **11.3** (list windows),
+**11.6** (minimap layers), **12.3** (erasers). None of them is large. After
+that, Phase 10 (happiness and mood) is the next thing that changes how the
+world *feels* rather than how it presents itself, and it is the last of the
+"talks back" work — the dialogue table built for 9.4 is the carrier it needs,
+so Phase 10 widens it rather than starting over.
 
 ---
 
