@@ -255,6 +255,11 @@ export interface Entity {
   /** Partner. Reproduction goes through this when the world has pairs in it. */
   loverId?: string | null;
 
+  // Identity. All three spread by the same pot mechanic; see utils/identity.ts.
+  cultureId?: string | null;
+  languageId?: string | null;
+  religionId?: string | null;
+
   // Progression
   /** Heritable traits. */
   traits?: TraitId[];

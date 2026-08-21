@@ -32,6 +32,7 @@ import { applyScenario, type Scenario } from '../utils/scenarios';
 import { nudgeMood } from '../utils/mood';
 import { AGES, AGE_LENGTH, nextAge, type AgeAction } from '../utils/ages';
 import { resetPlotIds } from '../utils/plots';
+import { resetIdentity } from '../utils/identity';
 import { ageBridge } from '../utils/ageBridge';
 import { recordDeath, resetStats, sampleWorld } from '../utils/worldStats';
 
@@ -227,6 +228,7 @@ export const useGameEngine = () => {
     clearImpacts();
     resetStats();
     resetPlotIds();
+    resetIdentity();
     if (selectionIndicatorRef.current) {
       scene.remove(selectionIndicatorRef.current);
       selectionIndicatorRef.current.geometry.dispose();
@@ -363,6 +365,9 @@ export const useGameEngine = () => {
       },
       onPlotsChanged: (summaries) => {
         useGameStore.getState().setPlots(summaries);
+      },
+      onIdentitiesChanged: (rows) => {
+        useGameStore.getState().setIdentities(rows);
       },
     });
     settlementRef.current = settlements;
@@ -1605,7 +1610,7 @@ export const useGameEngine = () => {
     if (isGamePaused) return;
 
     const store = useGameStore.getState();
-    publishSimulationContext(store.worldLaws, store.season, store.timeOfDay, store.age);
+    publishSimulationContext(store.worldLaws, store.season, store.timeOfDay, store.age, store.mapLayer);
 
     const scaledDelta = deltaTime * gameSpeed;
     tickTimerRef.current += scaledDelta;
@@ -1747,6 +1752,17 @@ export const useGameEngine = () => {
     if (!isInitialized) return;
     const state = useGameStore.getState();
     terrainRef.current?.setMapLayer(mapLayer, state.timeOfDay, state.season);
+    // The territory overlay is tinted by kingdom on most layers and by culture,
+    // language or faith on the identity ones, so it has to be repainted too —
+    // recolouring the terrain underneath and leaving the borders in the old
+    // scheme is worse than not switching at all.
+    //
+    // The layer is passed explicitly rather than read from the simulation
+    // context, because that context is only published from the game tick — which
+    // runs *after* this effect. Reading it here painted every border in the
+    // previous layer's scheme and left it that way until a claim happened to
+    // change.
+    settlementRef.current?.repaintAllTerritory(mapLayer);
   }, [isInitialized, mapLayer]);
 
   // Let the AI (pyromaniac trait) and raids set tiles alight

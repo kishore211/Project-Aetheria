@@ -4,6 +4,7 @@ import type { Entity, Resource, TraitId } from '../../types/world';
 import { TRAITS } from '../../utils/traits';
 import { MOOD_MAX, MOOD_MIN, moodFace } from '../../utils/mood';
 import { statusDef } from '../../utils/statusEffects';
+import { CULTURE_TRAITS, type CultureTraitId } from '../../utils/identity';
 import { worldAccess } from '../../utils/worldAccess';
 
 const NeedBar = ({ label, value, tone }: { label: string; value: number; tone: string }) => (
@@ -249,6 +250,35 @@ const InfoPanel = () => {
               <p className="text-xs text-muted-foreground">
                 Granary: {village.store.food} food · {village.store.wood} wood · {village.store.stone} stone
               </p>
+              {village.identity.culture && (
+                <div className="mt-1.5 pt-1.5 border-t border-muted/30">
+                  <p className="text-xs flex items-center gap-1.5">
+                    <span
+                      className="w-2.5 h-2.5 rounded-sm border border-black/30 shrink-0"
+                      style={{ backgroundColor: village.identity.cultureColor ?? '#64748b' }}
+                    />
+                    <span className="text-foreground">{village.identity.culture}</span>
+                  </p>
+                  {village.identity.cultureTraits.length > 0 && (
+                    <ul className="flex flex-wrap gap-1 mt-1">
+                      {village.identity.cultureTraits.map((trait) => (
+                        <li
+                          key={trait}
+                          title={CULTURE_TRAITS[trait as CultureTraitId]?.description}
+                          className="capitalize text-[0.62rem] px-1.5 py-0.5 rounded-full bg-muted/50 text-muted-foreground"
+                        >
+                          {CULTURE_TRAITS[trait as CultureTraitId]?.label ?? trait}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <p className="text-[0.68rem] text-muted-foreground mt-1">
+                    {village.identity.language}
+                    {village.identity.religion && ` · ${village.identity.religion}`}
+                  </p>
+                </div>
+              )}
+
               {village.ruler && (
                 <p className="text-xs text-muted-foreground mt-1">
                   Ruled by {village.ruler}

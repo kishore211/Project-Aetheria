@@ -83,6 +83,16 @@ export interface VillageSummary {
   y: number;
 }
 
+/** One identity in the world, for the map-layer key. */
+export interface IdentityRow {
+  id: string;
+  kind: 'culture' | 'language' | 'religion';
+  name: string;
+  colorHex: string;
+  /** How many creatures carry it. */
+  holders: number;
+}
+
 /** A live scheme, flattened for the register. */
 export interface PlotSummary {
   id: string;
@@ -231,6 +241,7 @@ interface GameState {
   kingdoms: KingdomSummary[];
   villages: VillageSummary[];
   plots: PlotSummary[];
+  identities: IdentityRow[];
   /** Entity the camera is following (spectate mode). */
   followEntityId: string | null;
   /** Set by the minimap and chronicle to fly the camera somewhere. */
@@ -283,6 +294,7 @@ interface GameState {
   setKingdoms: (kingdoms: KingdomSummary[]) => void;
   setVillages: (villages: VillageSummary[]) => void;
   setPlots: (plots: PlotSummary[]) => void;
+  setIdentities: (identities: IdentityRow[]) => void;
   setFollowEntity: (id: string | null) => void;
   focusTile: (x: number, y: number) => void;
   setHoverTarget: (target: HoverTarget | null) => void;
@@ -361,6 +373,7 @@ export const useGameStore = create<GameState>((set) => ({
   kingdoms: [],
   villages: [],
   plots: [],
+  identities: [],
   followEntityId: null,
   cameraTarget: null,
   hoverTarget: null,
@@ -448,6 +461,7 @@ export const useGameStore = create<GameState>((set) => ({
   setKingdoms: (kingdoms: KingdomSummary[]) => set({ kingdoms }),
   setVillages: (villages: VillageSummary[]) => set({ villages }),
   setPlots: (plots: PlotSummary[]) => set({ plots }),
+  setIdentities: (identities: IdentityRow[]) => set({ identities }),
 
   setFollowEntity: (followEntityId: string | null) => set({ followEntityId }),
 
@@ -479,6 +493,7 @@ export const useGameStore = create<GameState>((set) => ({
     kingdoms: [],
     villages: [],
     plots: [],
+    identities: [],
   })),
 
   clearPendingSave: () => set({ pendingSave: null }),
@@ -526,6 +541,7 @@ export const useGameStore = create<GameState>((set) => ({
     kingdoms: [],
     villages: [],
     plots: [],
+    identities: [],
     timeOfDay: 'day',
     age: 'hope',
     ageProgress: 0,
@@ -540,5 +556,6 @@ export const useGameStore = create<GameState>((set) => ({
     kingdoms: [],
     villages: [],
     plots: [],
+    identities: [],
   }),
 }));

@@ -8,6 +8,7 @@ import type { Entity, Season, TimeOfDay } from '../types/world';
 import type { AIOrder } from './entitySystemMinimal';
 import { DEFAULT_WORLD_LAWS, type WorldLaws } from '../store/gameStore';
 import { AGES, type AgeDef, type AgeId } from './ages';
+import type { MapLayer } from './mapLayers';
 
 /** Something that wants to know when a unit finished walking somewhere. */
 export type OrderHandler = (entity: Entity, order: AIOrder) => void;
@@ -24,6 +25,13 @@ export interface SimulationContext {
    * where ages come from.
    */
   age: AgeDef;
+  /**
+   * Which question the map is painted to answer. Read by the settlement system
+   * to decide whether territory is tinted by kingdom or by identity — the one
+   * piece of view state a simulation system legitimately needs, because the
+   * overlay it paints *is* the view.
+   */
+  mapLayer: MapLayer;
   /** Set a tile alight (pyromaniac trait, raids burning buildings). */
   igniteTile?: (x: number, y: number) => void;
   /** A unit reached the tile a village sent it to. */
@@ -44,6 +52,7 @@ export const simulation: SimulationContext = {
   timeOfDay: 'day',
   needsMultiplier: 1,
   age: AGES.hope,
+  mapLayer: 'natural',
 };
 
 /**
@@ -68,11 +77,13 @@ export const publishSimulationContext = (
   season: Season,
   timeOfDay: TimeOfDay,
   age: AgeId = 'hope',
+  mapLayer: MapLayer = 'natural',
 ): void => {
   simulation.laws = laws;
   simulation.season = season;
   simulation.timeOfDay = timeOfDay;
   simulation.age = AGES[age] ?? AGES.hope;
+  simulation.mapLayer = mapLayer;
   // Season and age compound. An Age of Ice in winter should be worse than
   // either alone, which is the kind of thing a player remembers.
   const seasonal = season === 'winter' ? 1.45 : season === 'autumn' ? 1.1 : 1;

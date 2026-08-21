@@ -146,3 +146,18 @@ describe('plot progress', () => {
     expect(plotReady(plot)).toBe(true);
   });
 });
+
+describe('the schism plot', () => {
+  it('exists, because the pot alone cannot invent a culture', () => {
+    // buildPot only ever draws from identities that already exist, so without
+    // a way for a new one to arise, two towns founded under one kingdom stay
+    // culturally identical for ever. This is that way.
+    expect(PLOTS.schism).toBeDefined();
+    expect(PLOTS.schism.hostile).toBe(false);
+    expect(PLOTS.schism.driver).toBe('intrigue');
+  });
+
+  it('takes longer than a rebellion, because it is a bigger decision', () => {
+    expect(PLOTS.schism.target).toBeGreaterThan(PLOTS.rebellion.target);
+  });
+});

@@ -24,7 +24,8 @@ export type PlotKind =
   | 'war'         // a king prepares to attack a neighbour
   | 'peace'       // a king prepares to end a war
   | 'alliance'    // a king prepares to bind a neighbour to him
-  | 'festival';   // somebody prepares to cheer the place up
+  | 'festival'    // somebody prepares to cheer the place up
+  | 'schism';     // a town prepares to become its own people
 
 export interface PlotDef {
   kind: PlotKind;
@@ -71,6 +72,21 @@ export const PLOTS: Record<PlotKind, PlotDef> = {
     kind: 'festival', label: 'Festival',
     description: 'A feast, on the theory that a fed village complains less.',
     glyph: '\u{1F389}', target: 35, driver: 'stewardship', hostile: false,
+  },
+  /**
+   * The one plot that makes Phase 15's gate reachable.
+   *
+   * The pot mechanic only ever spreads identities that already exist — it
+   * cannot invent one. So without a way for a new culture to *arise*, two towns
+   * founded under the same kingdom would stay culturally identical for ever
+   * however far apart they drifted in every other respect. WorldBox gates
+   * culture-splitting behind a plot with about eleven conditions; this is the
+   * same idea with the conditions we can actually check.
+   */
+  schism: {
+    kind: 'schism', label: 'Schism',
+    description: 'Deciding, slowly, that this town is its own people now.',
+    glyph: '\u{1F4DC}', target: 65, driver: 'intrigue', hostile: false,
   },
 };
 

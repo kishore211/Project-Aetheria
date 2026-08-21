@@ -45,6 +45,12 @@ const baseline = (over: Partial<LoyaltyInput> = {}): LoyaltyInput => ({
   losingWar: false,
   sameSpeciesAsKing: true,
   averageMood: 0,
+  // Null by default: an unremarkable province shares its realm's identity, and
+  // the formula skips the factor rather than reading it as a mismatch.
+  sameCulture: null,
+  sameLanguage: null,
+  sameReligion: null,
+  xenophobic: false,
   ...over,
 });
 
@@ -217,11 +223,34 @@ describe('loyalty', () => {
     const kin = loyaltyFor(baseline({ sameSpeciesAsKing: true })).score;
     const foreign = loyaltyFor(baseline({ sameSpeciesAsKing: false })).score;
     expect(foreign).toBeLessThan(kin - 20);
-    // And worse under a leader with no patience for outsiders.
+    // And worse where the culture itself resents outsiders.
     const bigoted = loyaltyFor(baseline({
-      sameSpeciesAsKing: false, leaderTraits: ['bloodthirsty'],
+      sameSpeciesAsKing: false, xenophobic: true,
     })).score;
     expect(bigoted).toBeLessThan(foreign);
+  });
+
+  it('counts drifting apart in culture, language and faith', () => {
+    const united = loyaltyFor(baseline({
+      sameCulture: true, sameLanguage: true, sameReligion: true,
+    })).score;
+    const estranged = loyaltyFor(baseline({
+      sameCulture: false, sameLanguage: false, sameReligion: false,
+    })).score;
+    // A province drifts culturally before it drifts politically, so this has
+    // to be enough on its own to matter.
+    expect(united - estranged).toBeGreaterThan(100);
+  });
+
+  it('skips an identity factor rather than counting a missing one as a mismatch', () => {
+    // A village with no culture is not culturally estranged; it simply has not
+    // been asked. Reading null as "different" would make every pre-identity
+    // world quietly rebellious.
+    const unknown = loyaltyFor(baseline({ sameCulture: null })).score;
+    const shared = loyaltyFor(baseline({ sameCulture: true })).score;
+    const split = loyaltyFor(baseline({ sameCulture: false })).score;
+    expect(unknown).toBeGreaterThan(split);
+    expect(unknown).toBeLessThan(shared);
   });
 
   it('lets the mood of the people drive it', () => {

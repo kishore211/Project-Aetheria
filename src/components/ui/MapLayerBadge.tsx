@@ -1,5 +1,6 @@
 import { useGameStore } from '../../store/gameStore';
-import { MAP_LAYERS, isDataLayer, sampleRamp } from '../../utils/mapLayers';
+import { MAP_LAYERS, isDataLayer, isIdentityLayer, sampleRamp } from '../../utils/mapLayers';
+
 import * as THREE from 'three';
 
 /**
@@ -13,6 +14,7 @@ const swatch = new THREE.Color();
 
 const MapLayerBadge = () => {
   const mapLayer = useGameStore((state) => state.mapLayer);
+  const identities = useGameStore((state) => state.identities);
   if (mapLayer === 'natural') return null;
 
   const info = MAP_LAYERS.find((entry) => entry.id === mapLayer);
@@ -39,7 +41,36 @@ const MapLayerBadge = () => {
           </div>
         </>
       )}
-      {stops.length === 0 && <div className="layer-badge-legend-single">{info.hint}</div>}
+      {/* Identity layers need a key rather than a ramp: the colours mean
+          particular peoples, and a colour with no name attached is decoration.
+          Read from the store rather than the registry, because the registry is
+          mutated by the simulation and nothing would re-render this when a
+          schism mints a new culture. */}
+      {isIdentityLayer(mapLayer) && (() => {
+        const known = identities.filter((row) => row.kind === mapLayer).slice(0, 6);
+        if (known.length === 0) {
+          return (
+            <div className="layer-badge-legend-single">
+              Nobody has a {mapLayer} yet. Found a village.
+            </div>
+          );
+        }
+        return (
+          <ul className="layer-key">
+            {known.map((meta) => (
+              <li key={meta.id}>
+                <i style={{ background: meta.colorHex }} />
+                <span>{meta.name}</span>
+                {meta.holders > 0 && <em>{meta.holders}</em>}
+              </li>
+            ))}
+          </ul>
+        );
+      })()}
+
+      {stops.length === 0 && !isIdentityLayer(mapLayer) && (
+        <div className="layer-badge-legend-single">{info.hint}</div>
+      )}
     </div>
   );
 };

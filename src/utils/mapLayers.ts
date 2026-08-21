@@ -15,10 +15,19 @@ import * as THREE from 'three';
 export type MapLayer =
   | 'natural'
   | 'political'
+  | 'culture'
+  | 'language'
+  | 'religion'
   | 'height'
   | 'rainfall'
   | 'temperature'
   | 'fertility';
+
+/** Layers that paint a group identity rather than a quantity. */
+export type IdentityLayer = 'culture' | 'language' | 'religion';
+
+export const isIdentityLayer = (layer: MapLayer): layer is IdentityLayer =>
+  layer === 'culture' || layer === 'language' || layer === 'religion';
 
 export interface MapLayerInfo {
   id: MapLayer;
@@ -37,6 +46,18 @@ export const MAP_LAYERS: MapLayerInfo[] = [
   {
     id: 'political', label: 'Borders', hint: 'Whose land is whose — the world drains to grey so the claims read.',
     legend: ['unclaimed', 'claimed'],
+  },
+  {
+    id: 'culture', label: 'Culture', hint: 'Who thinks of themselves as the same people.',
+    legend: ['', ''],
+  },
+  {
+    id: 'language', label: 'Tongue', hint: 'Who can understand whom.',
+    legend: ['', ''],
+  },
+  {
+    id: 'religion', label: 'Faith', hint: 'Who prays to the same thing.',
+    legend: ['', ''],
   },
   {
     id: 'height', label: 'Height', hint: 'Elevation, from trench to peak.',
@@ -74,7 +95,8 @@ export const MAP_LAYERS: MapLayerInfo[] = [
  * to hot red is established strongly enough that fighting it would be the
  * confusing choice.
  */
-const RAMPS: Record<Exclude<MapLayer, 'natural' | 'political'>, string[]> = {
+/** Only the four quantity layers have ramps; identity layers use meta colours. */
+const RAMPS: Record<'height' | 'rainfall' | 'temperature' | 'fertility', string[]> = {
   // Trench to snowline: dark water up through land to bright peaks.
   height: ['#0b1a3a', '#1a3f68', '#2f6b8e', '#5c8f72', '#8fa762', '#c2bd93', '#f2f2f5'],
   // Bleached dry ground down to deep water.
@@ -109,9 +131,14 @@ export const sampleRamp = (
   return target.copy(stops[low]).lerp(stops[high], scaled - low);
 };
 
-/** Does this layer replace the terrain colours outright? */
+/** Does this layer replace the terrain colours with a ramp? */
 export const isDataLayer = (layer: MapLayer): layer is keyof typeof RAMPS =>
-  layer !== 'natural' && layer !== 'political';
+  layer === 'height' || layer === 'rainfall'
+  || layer === 'temperature' || layer === 'fertility';
+
+/** Does this layer drain the terrain so an overlay can be read on top? */
+export const drainsTerrain = (layer: MapLayer): boolean =>
+  layer === 'political' || isIdentityLayer(layer);
 
 export const nextLayer = (current: MapLayer, step: number): MapLayer => {
   const order = MAP_LAYERS.map(entry => entry.id);

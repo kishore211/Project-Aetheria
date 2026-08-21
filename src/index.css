@@ -639,7 +639,7 @@ canvas {
   left: 0.6rem;
   bottom: 0.7rem;
   z-index: 25;
-  width: 10.5rem;
+  width: 11.5rem;
   padding: 0.4rem 0.55rem 0.45rem;
   border: 1px solid rgb(148 163 184 / 0.28);
   border-radius: 10px;
@@ -1138,4 +1138,38 @@ canvas {
 
 @media (prefers-reduced-motion: reduce) {
   .plot-track > i { transition: none; }
+}
+
+/* A key for the identity layers: colours that mean particular peoples. */
+.layer-key {
+  margin-top: 0.3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+.layer-key > li {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.6rem;
+  color: rgb(203 213 225);
+}
+.layer-key > li > i {
+  flex: 0 0 auto;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 2px;
+  border: 1px solid rgb(0 0 0 / 0.35);
+}
+.layer-key > li > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layer-key > li > em {
+  margin-left: auto;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  color: rgb(148 163 184 / 0.8);
 }

@@ -15,7 +15,9 @@ import {
   type ResourceType,
   type Tile,
 } from '../types/world';
-import type { KingdomSummary, VillageSummary, PlotSummary, WorldLaws } from '../store/gameStore';
+import type {
+  IdentityRow, KingdomSummary, PlotSummary, VillageSummary, WorldLaws,
+} from '../store/gameStore';
 import type { EntityManager } from './entityManagerMinimal';
 import { getBuildingAtlas } from './pixelAtlas';
 import { SpriteCloud } from './spriteCloud';
@@ -23,6 +25,19 @@ import type { TerrainRenderer } from './terrainRenderer';
 import { registerOrderHandler, simulation } from './simulation';
 import { emitFloater } from './floatBridge';
 import { applyScenario } from './scenarios';
+import { isIdentityLayer, type MapLayer } from './mapLayers';
+import {
+  allMetas,
+  forgetGroup,
+  groupMetas,
+  groupHasCultureTrait,
+  metaById,
+  mintMeta,
+  setGroupMetas,
+  setMetaOf,
+  writeBook,
+  type MetaKind,
+} from './identity';
 import {
   PLOTS,
   createPlot,
@@ -218,6 +233,9 @@ const EXPANSION_APPETITE: Record<Race, number> = {
  */
 const REBELLION_PATIENCE = 45;
 
+/** Claimed land whose village has no identity yet, on an identity layer. */
+const UNKNOWN_IDENTITY_COLOR = new THREE.Color('#64748b');
+
 /**
  * Villages beyond the governable count that a kingdom will still *try* for.
  * Past this even the keenest race stops, because a realm with six seceding
@@ -261,6 +279,7 @@ export interface SettlementEvents {
   onKingdomsChanged: (summaries: KingdomSummary[]) => void;
   onVillagesChanged?: (summaries: VillageSummary[]) => void;
   onPlotsChanged?: (summaries: PlotSummary[]) => void;
+  onIdentitiesChanged?: (rows: IdentityRow[]) => void;
 }
 
 export class SettlementSystem {
@@ -488,12 +507,35 @@ export class SettlementSystem {
     this.villages.set(village.id, village);
     kingdom.villageIds.push(village.id);
 
+    // Identity. A brand-new kingdom invents its own culture, language and
+    // faith; a village founded under an existing one inherits them. That is
+    // what makes two towns of the same race able to drift apart later — they
+    // start identical and the pot mechanic does the rest.
+    const inherited = groupMetas(kingdom.id);
+    if (inherited) {
+      setGroupMetas(village.id, inherited);
+    } else {
+      const minted = {
+        culture: mintMeta('culture').id,
+        language: mintMeta('language').id,
+        religion: mintMeta('religion').id,
+      };
+      setGroupMetas(kingdom.id, minted);
+      setGroupMetas(village.id, minted);
+    }
+    const identity = groupMetas(village.id)!;
+
     this.placeBuilding(village, 'bonfire', tile.x, tile.y);
 
     for (const founder of founders) {
       founder.villageId = village.id;
       founder.kingdomId = kingdom.id;
       founder.job = 'gatherer';
+      // Founders adopt the town's identity outright. Anyone who wanders in
+      // later has to be talked into it.
+      setMetaOf(founder, 'culture', identity.culture);
+      setMetaOf(founder, 'language', identity.language);
+      setMetaOf(founder, 'religion', identity.religion);
     }
 
     // Founding a village is one of the few moments worth interrupting for.
@@ -605,8 +647,72 @@ export class SettlementSystem {
       for (let dy = -1; dy <= 1; dy++) {
         const neighbour = this.tileAt(tile.x + dx, tile.y + dy);
         if (!neighbour) continue;
-        const owner = neighbour.ownerId ? this.kingdoms.get(neighbour.ownerId) : null;
-        this.terrain.syncOwnership(neighbour, owner?.color ?? null);
+        this.terrain.syncOwnership(neighbour, this.tintForTile(neighbour));
+      }
+    }
+  }
+
+  /**
+   * What colour a claimed tile should wear.
+   *
+   * Kingdom colour normally; the colour of the owning village's culture,
+   * language or faith on those layers. Resolved per tile rather than per
+   * kingdom because the whole point of an identity layer is that it can cut
+   * *across* a kingdom — a realm with two cultures in it should look like two
+   * colours, which is exactly the thing the political layer cannot show you.
+   */
+  private tintForTile(tile: Tile, layer: MapLayer = simulation.mapLayer): THREE.Color | null {
+    if (!tile.ownerId) return null;
+
+    if (!isIdentityLayer(layer)) {
+      return this.kingdoms.get(tile.ownerId)?.color ?? null;
+    }
+
+    const village = this.villageHolding(tile);
+    const set = village ? groupMetas(village.id) : null;
+    const metaId = set
+      ? layer === 'culture' ? set.culture
+        : layer === 'language' ? set.language
+          : set.religion
+      : null;
+    const meta = metaById(metaId);
+    if (!meta) return UNKNOWN_IDENTITY_COLOR;
+    return this.identityColor(meta.id, meta.colorHex);
+  }
+
+  /** Cached THREE.Colors, so a repaint does not allocate one per tile. */
+  private identityColors = new Map<string, THREE.Color>();
+
+  private identityColor(id: string, hex: string): THREE.Color {
+    let color = this.identityColors.get(id);
+    if (!color) {
+      color = new THREE.Color(hex);
+      this.identityColors.set(id, color);
+    }
+    return color;
+  }
+
+  /** Which village's claim covers this tile. */
+  private villageHolding(tile: Tile): Village | null {
+    const id = this.instanceId(tile);
+    for (const village of this.villages.values()) {
+      if (village.territory.has(id)) return village;
+    }
+    return null;
+  }
+
+  /**
+   * Repaint every claimed tile. Called when the map layer changes.
+   *
+   * Walks villages rather than the whole map, because territory is a small
+   * fraction of a 128² world and sweeping 16,384 tiles to repaint a few hundred
+   * is the kind of thing that makes switching layers feel heavy.
+   */
+  repaintAllTerritory(layer: MapLayer = simulation.mapLayer): void {
+    for (const village of this.villages.values()) {
+      for (const id of village.territory) {
+        const tile = this.tileFromInstanceId(id);
+        if (tile) this.terrain.syncOwnership(tile, this.tintForTile(tile, layer));
       }
     }
   }
@@ -641,9 +747,16 @@ export class SettlementSystem {
       // Jobs are staffed by what the village is short of, with caps — WorldBox
       // hires one berry gatherer when the granary is full and ten when it is
       // empty (research doc section 6).
+      // Culture decides how much of a town is under arms. This is the first
+      // place a culture trait becomes visible without opening a panel: a
+      // warlike town simply has more soldiers standing around in it.
+      const martial = groupHasCultureTrait(village.id, 'warlike') ? 1.6
+        : groupHasCultureTrait(village.id, 'pacifist') ? 0.45
+          : 1;
       const warriorTarget = members.length >= 8
-        ? Math.max(1, Math.round(members.length * (atWar ? 0.4 : 0.15)))
+        ? Math.max(1, Math.round(members.length * (atWar ? 0.4 : 0.15) * martial))
         : 0;
+      const appetite = groupHasCultureTrait(village.id, 'frugal') ? 0.7 : 1;
       const foragingNeed = village.store.food > 100 ? 1
         : village.store.food > 60 ? 3
         : village.store.food > 40 ? 5
@@ -652,7 +765,9 @@ export class SettlementSystem {
       // Leave room for the warband: without this clamp, everyone is already a
       // gatherer by the time warriors are considered and a village never arms
       // itself at all.
-      const gathererTarget = Math.max(0, Math.min(foragingNeed, members.length - warriorTarget));
+      const gathererTarget = Math.max(
+        0, Math.min(Math.ceil(foragingNeed * appetite), members.length - warriorTarget),
+      );
 
       let warriors = 0;
       let gatherers = 0;
@@ -692,7 +807,8 @@ export class SettlementSystem {
 
       // Recruit newcomers standing on village land
       const recruits = this.entities
-        .query(village.centerX, village.centerY, 8)
+        .query(village.centerX, village.centerY,
+          groupHasCultureTrait(village.id, 'hospitable') ? 14 : 8)
         .filter(entity => entity.type === village.race && !entity.villageId);
       for (const recruit of recruits) {
         recruit.villageId = village.id;
@@ -848,6 +964,12 @@ export class SettlementSystem {
 
   private buildRound(): void {
     for (const village of this.villages.values()) {
+      // Industrious towns get an extra attempt each round; everyone else
+      // occasionally skips one. Expressed as a chance rather than a separate
+      // timer so the two traits stay symmetrical and there is one place to
+      // read the rule.
+      if (!groupHasCultureTrait(village.id, 'industrious') && Math.random() < 0.25) continue;
+
       const recipe = this.nextRecipe(village);
       if (!recipe) continue;
       const spot = this.findBuildSpot(village, recipe.kind);
@@ -864,7 +986,17 @@ export class SettlementSystem {
           'kingdom',
           { x: spot.x, y: spot.y },
         );
+        // A temple or a library is where a people writes itself down.
       } else if (recipe.kind === 'temple' || recipe.kind === 'statue') {
+        const identity = groupMetas(village.id);
+        if (identity) {
+          const book = writeBook(spot.x, spot.y, identity);
+          this.events.onEvent(
+            chronicle('book_written', { name: book.title, a: village.name }),
+            'kingdom',
+            { x: spot.x, y: spot.y },
+          );
+        }
         this.events.onEvent(
           chronicle('monument_raised', { name: village.name, type: recipe.kind }),
           'kingdom',
@@ -906,7 +1038,16 @@ export class SettlementSystem {
     const maxRadius = kind === 'farm' ? 6 : 5;
     const occupied = new Set(village.buildings.map(b => `${b.x},${b.y}`));
 
-    for (let radius = 1; radius <= maxRadius; radius++) {
+    // House spacing is the most visible culture trait of all, because it is the
+    // *shape* of the town rather than a number in a panel. A dense culture
+    // starts filling from the centre; a spacious one leaves the first ring
+    // empty and builds outward.
+    const spacious = groupHasCultureTrait(village.id, 'spacious');
+    const dense = groupHasCultureTrait(village.id, 'dense');
+    const firstRing = spacious ? 2 : 1;
+    const lastRing = dense ? Math.max(2, maxRadius - 2) : spacious ? maxRadius + 2 : maxRadius;
+
+    for (let radius = firstRing; radius <= lastRing; radius++) {
       const ring: Array<{ x: number; y: number }> = [];
       for (let dx = -radius; dx <= radius; dx++) {
         for (let dy = -radius; dy <= radius; dy++) {
@@ -1127,6 +1268,7 @@ export class SettlementSystem {
           losingWar,
           sameSpeciesAsKing: !kingEntity || kingEntity.type === village.race,
           averageMood: mood,
+          ...this.identityFactorsFor(village, kingdom),
         });
 
         if (village.loyalty.score < REBELLION_THRESHOLD && !village.capital) {
@@ -1140,6 +1282,37 @@ export class SettlementSystem {
         }
       }
     }
+  }
+
+  /**
+   * How the province's identity compares with the realm's.
+   *
+   * A village's *institutional* identity is what counts here, not the shifting
+   * opinions of whoever happens to live there — a town does not secede because
+   * one resident converted, it secedes because the town itself has drifted.
+   */
+  private identityFactorsFor(village: Village, kingdom: Kingdom): {
+    sameCulture: boolean | null;
+    sameLanguage: boolean | null;
+    sameReligion: boolean | null;
+    xenophobic: boolean;
+  } {
+    const mine = groupMetas(village.id);
+    const theirs = groupMetas(kingdom.id);
+    const compare = (kind: MetaKind): boolean | null => {
+      const a = mine ? mine[kind] : null;
+      const b = theirs ? theirs[kind] : null;
+      // Skipped rather than counted as a mismatch: a village with no culture
+      // is not estranged, it simply has not been asked.
+      if (!a || !b) return null;
+      return a === b;
+    };
+    return {
+      sameCulture: compare('culture'),
+      sameLanguage: compare('language'),
+      sameReligion: compare('religion'),
+      xenophobic: metaById(mine?.culture)?.traits.includes('xenophobic') ?? false,
+    };
   }
 
   /** Total claimed tiles, for judging who is winning a war. */
@@ -1285,6 +1458,41 @@ export class SettlementSystem {
     this.cancelPlotsBy(entityId, 'dead');
   }
 
+  /**
+   * Every identity in the world with a count of who holds it.
+   *
+   * Published rather than read on demand, because the map-layer key is a React
+   * component and the registry is mutated by the simulation — the first version
+   * read it once per render and showed a stale key indefinitely, since nothing
+   * re-rendered when a schism minted a new culture.
+   */
+  private identityRows(): IdentityRow[] {
+    const holders = new Map<string, number>();
+    const note = (id: string | null | undefined) => {
+      if (id) holders.set(id, (holders.get(id) ?? 0) + 1);
+    };
+    for (const entity of this.entities.getAllEntities()) {
+      note(entity.cultureId);
+      note(entity.languageId);
+      note(entity.religionId);
+    }
+
+    const rows: IdentityRow[] = [];
+    for (const kind of ['culture', 'language', 'religion'] as MetaKind[]) {
+      for (const meta of allMetas(kind)) {
+        rows.push({
+          id: meta.id,
+          kind,
+          name: meta.name,
+          colorHex: meta.colorHex,
+          holders: holders.get(meta.id) ?? 0,
+        });
+      }
+    }
+    // Most-held first, so the key opens with whoever actually dominates.
+    return rows.sort((a, b) => b.holders - a.holders);
+  }
+
   /** Live schemes, flattened for the register. */
   private plotSummaries(): PlotSummary[] {
     const rows: PlotSummary[] = [];
@@ -1329,7 +1537,8 @@ export class SettlementSystem {
       }
 
       plot.age += delta;
-      plot.progress += plotRate(plot, civilStats(plotter)) * delta;
+      const learned = groupHasCultureTrait(plotter.villageId, 'scholarly') ? 1.4 : 1;
+      plot.progress += plotRate(plot, civilStats(plotter)) * learned * delta;
 
       if (plotReady(plot)) {
         this.plots.delete(id);
@@ -1346,6 +1555,7 @@ export class SettlementSystem {
   /** Who has a reason to be scheming, and about what. */
   private considerNewPlots(): void {
     const plotting = new Set(Array.from(this.plots.values()).map(plot => plot.plotterId));
+    const members = this.entities.getEntitiesByVillage();
 
     for (const kingdom of this.kingdoms.values()) {
       // A governor with an unhappy province starts thinking about leaving.
@@ -1361,6 +1571,22 @@ export class SettlementSystem {
         // warning, not an obituary.
         if (loyalty < 25 && Math.random() < 0.4) {
           this.startPlot('rebellion', leader, village.id, null);
+          plotting.add(leader.id);
+          continue;
+        }
+
+        // A town far from the capital, or one whose culture encourages thinking
+        // for itself, may decide it is its own people. This is the only way a
+        // *new* identity comes into the world after founding — the pot mechanic
+        // can spread cultures but cannot invent them.
+        const residents = members.get(village.id)?.length ?? 0;
+        const inclined = groupHasCultureTrait(village.id, 'scholarly');
+        if (
+          residents >= 6
+          && (loyalty < 55 || inclined)
+          && Math.random() < (inclined ? 0.18 : 0.08)
+        ) {
+          this.startPlot('schism', leader, village.id, null);
           plotting.add(leader.id);
         }
       }
@@ -1472,6 +1698,41 @@ export class SettlementSystem {
         this.events.onEvent(chronicle('alliance', { a: a.name, b: b.name }), 'kingdom');
         return;
       }
+      case 'schism': {
+        const village = this.villages.get(plot.subjectId);
+        if (!village) return;
+        const before = groupMetas(village.id);
+        if (!before) return;
+
+        // A new culture always; a new faith only sometimes, because a people
+        // splitting off usually keeps its gods for a while.
+        const culture = mintMeta('culture');
+        const religion = Math.random() < 0.45 ? mintMeta('religion') : null;
+        const after = {
+          culture: culture.id,
+          language: before.language,
+          religion: religion?.id ?? before.religion,
+        };
+        setGroupMetas(village.id, after);
+
+        for (const resident of this.entities.getAllEntities()) {
+          if (resident.villageId !== village.id) continue;
+          setMetaOf(resident, 'culture', after.culture);
+          if (religion) setMetaOf(resident, 'religion', after.religion);
+        }
+
+        this.events.onEvent(
+          chronicle('schism', { name: village.name, a: culture.name }),
+          'kingdom',
+          { x: village.centerX, y: village.centerY },
+        );
+        // The map is now showing something different, if the player is looking
+        // through an identity layer.
+        this.repaintAllTerritory();
+        this.publishSummaries();
+        return;
+      }
+
       case 'festival': {
         const kingdom = this.kingdoms.get(plot.subjectId);
         if (!kingdom) return;
@@ -1570,13 +1831,16 @@ export class SettlementSystem {
       const king = this.kingCivilStats(kingdom);
       const limit = governableVillages(king)
         + (EXPANSION_APPETITE[kingdom.race] ?? 0)
-        + OVERREACH_ALLOWANCE;
+        + OVERREACH_ALLOWANCE
+        + (groupHasCultureTrait(kingdom.id, 'expansionist') ? 2 : 0);
       const pending = Array.from(this.parties.values())
         .filter(party => party.kingdomId === kingdom.id).length;
       // One expedition at a time: three parties leaving at once empties the
       // capital and none of the colonies gets enough people to survive.
       if (pending > 0) continue;
       if (kingdom.villageIds.length + pending >= limit) continue;
+
+      if (groupHasCultureTrait(kingdom.id, 'insular')) continue;
 
       const source = this.pickSettlerSource(kingdom);
       if (!source) continue;
@@ -1966,6 +2230,11 @@ export class SettlementSystem {
    * struck from its kingdom. Used by conquest and by abandonment alike.
    */
   private releaseVillage(village: Village): void {
+    // A village that no longer exists is not an institution any more, and
+    // leaving its identity in the registry means the loyalty formula keeps
+    // comparing live provinces against a ghost.
+    forgetGroup(village.id);
+
     for (const building of Array.from(village.buildings)) {
       this.removeBuilding(village, building);
     }
@@ -2071,6 +2340,30 @@ export class SettlementSystem {
       this.claimTerritory(village);
     }
 
+    // Identities are minted at founding, and a restored world was never
+    // founded — so without this every loaded save comes back with no culture,
+    // no language and no faith. The loyalty formula would skip its three
+    // identity factors and the culture layer would be a grey map, which is a
+    // quiet, confusing kind of broken.
+    for (const kingdom of this.kingdoms.values()) {
+      if (groupMetas(kingdom.id)) continue;
+      const minted = {
+        culture: mintMeta('culture').id,
+        language: mintMeta('language').id,
+        religion: mintMeta('religion').id,
+      };
+      setGroupMetas(kingdom.id, minted);
+      for (const villageId of kingdom.villageIds) {
+        setGroupMetas(villageId, minted);
+      }
+      for (const entity of this.entities.getAllEntities()) {
+        if (entity.kingdomId !== kingdom.id) continue;
+        setMetaOf(entity, 'culture', minted.culture);
+        setMetaOf(entity, 'language', minted.language);
+        setMetaOf(entity, 'religion', minted.religion);
+      }
+    }
+
     this.publishSummaries();
   }
 
@@ -2098,6 +2391,18 @@ export class SettlementSystem {
       capital: village.capital,
       // The breakdown, not just the number. A rebellion the player cannot see
       // coming is indistinguishable from a bug.
+      // Identity, resolved to names so the panel never touches the registry.
+      identity: (() => {
+        const set = groupMetas(village.id);
+        const culture = metaById(set?.culture);
+        return {
+          culture: culture?.name ?? null,
+          cultureColor: culture?.colorHex ?? null,
+          cultureTraits: culture?.traits ?? [],
+          language: metaById(set?.language)?.name ?? null,
+          religion: metaById(set?.religion)?.name ?? null,
+        };
+      })(),
       loyalty: village.loyalty?.score ?? null,
       loyaltyFactors: village.loyalty?.factors ?? [],
       restless: village.restless,
@@ -2182,6 +2487,7 @@ export class SettlementSystem {
     // Restless provinces first: a town about to secede is the most interesting
     // row in the list, and burying it under the biggest towns hides the story.
     this.events.onPlotsChanged?.(this.plotSummaries());
+    this.events.onIdentitiesChanged?.(this.identityRows());
 
     villageRows.sort((a, b) => {
       if ((a.secedesIn === null) !== (b.secedesIn === null)) return a.secedesIn === null ? 1 : -1;

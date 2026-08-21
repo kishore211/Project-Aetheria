@@ -28,6 +28,13 @@ export interface WorldAccess {
     buildings: number;
     territory: number;
     capital: boolean;
+    identity: {
+      culture: string | null;
+      cultureColor: string | null;
+      cultureTraits: string[];
+      language: string | null;
+      religion: string | null;
+    };
     /** -100..+100, or null before the first political pass. */
     loyalty: number | null;
     /** Why it is that number, largest contribution first. */

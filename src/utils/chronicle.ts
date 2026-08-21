@@ -32,6 +32,9 @@ export type ChronicleTopic =
   | 'alliance'
   | 'festival'
   | 'plot_abandoned'
+  | 'book_written'
+  | 'schism'
+  | 'converted'
   | 'crowned_king'
   | 'succession_none'
   | 'war_declared'
@@ -165,6 +168,22 @@ const TEMPLATES: Record<ChronicleTopic, string[]> = {
     '{name} thinks better of the {type}',
     '{name} lets the {type} go',
     'Whatever {name} was planning, the {type} is off',
+  ],
+
+  schism: [
+    '{name} decides it is its own people, and calls itself {a}',
+    'The folk of {name} are {a} now, and say so',
+    '{name} breaks with its neighbours. There are {a} in the world from today.',
+  ],
+  book_written: [
+    '{a} sets down {name}',
+    '{name} is written at {a}',
+    'The scribes of {a} finish {name}',
+  ],
+  converted: [
+    '{name} comes round to the {type} of {a}',
+    '{name} has taken up the {type} of {a}',
+    'Something in {a} persuaded {name}. It is their {type} now.',
   ],
 
   crowned_king: [

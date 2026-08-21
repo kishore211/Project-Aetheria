@@ -136,6 +136,17 @@ export interface LoyaltyInput {
   sameSpeciesAsKing: boolean;
   /** Mean happiness of the residents, -100..+100. */
   averageMood: number;
+  /**
+   * Whether the province shares each of the kingdom's identities. `null` means
+   * one side or the other has none yet, and the factor is skipped rather than
+   * counted as a mismatch — a village with no culture is not culturally
+   * estranged, it simply has not been asked.
+   */
+  sameCulture: boolean | null;
+  sameLanguage: boolean | null;
+  sameReligion: boolean | null;
+  /** The province's culture resents foreign rule. */
+  xenophobic: boolean;
 }
 
 export const LOYALTY_MIN = -100;
@@ -218,8 +229,24 @@ export const loyaltyFor = (input: LoyaltyInput): LoyaltyResult => {
   if (input.losingWar) add('Enemies at the gate', 35);
 
   if (!input.sameSpeciesAsKing) {
-    const xenophobe = input.leaderTraits.includes('bloodthirsty');
-    add('Ruled by another people', xenophobe ? -50 : -25);
+    // A xenophobic *culture* doubles this. Their formula reads the trait off
+    // the subspecies; ours reads it off the culture, which is the closest thing
+    // we have and arguably the better fit — resenting outside rule is a
+    // learned attitude, not a physical one.
+    add('Ruled by another people', input.xenophobic ? -50 : -25);
+  }
+
+  // The three shared-identity factors, at their weights: a province drifts
+  // culturally *before* it drifts politically, so these are usually the first
+  // negative numbers to appear in a breakdown.
+  if (input.sameCulture !== null) {
+    add('Shared culture', input.sameCulture ? 15 : -25);
+  }
+  if (input.sameLanguage !== null) {
+    add('Shared language', input.sameLanguage ? 15 : -20);
+  }
+  if (input.sameReligion !== null) {
+    add('Shared faith', input.sameReligion ? 15 : -30);
   }
 
   // Ours, not theirs: Phase 10 gave every creature a mood, and a province full

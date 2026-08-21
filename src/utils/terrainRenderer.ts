@@ -16,7 +16,7 @@ import {
   type Tile,
 } from '../types/world';
 import { getBiomeColor } from './worldGenerator';
-import { isDataLayer, sampleRamp, type MapLayer } from './mapLayers';
+import { drainsTerrain, isDataLayer, isIdentityLayer, sampleRamp, type MapLayer } from './mapLayers';
 import { getDetailAtlas } from './pixelAtlas';
 import { SpriteCloud } from './spriteCloud';
 import type { Season, TimeOfDay } from '../types/world';
@@ -228,9 +228,10 @@ export class TerrainRenderer {
         sampleRamp(this.layer, this.layerValue(tile), color);
       }
       color.offsetHSL(0, 0, ((tile.variant ?? 0.5) - 0.5) * 0.03);
-    } else if (this.layer === 'political') {
-      // Drain the world so the territory overlay is the only saturated thing
-      // on screen. Borders you have to hunt for are borders you do not read.
+    } else if (drainsTerrain(this.layer)) {
+      // Drain the world so the overlay is the only saturated thing on screen.
+      // Borders you have to hunt for are borders you do not read — and the same
+      // is true of a culture boundary.
       const grey = (color.r + color.g + color.b) / 3;
       color.setRGB(
         grey * 0.82 + 0.05,
@@ -296,6 +297,10 @@ export class TerrainRenderer {
       this.details.clear(id);
       return;
     }
+    // Identity layers keep their decoration: unlike a heat map, a culture map
+    // is still a picture of a *place*, and stripping the trees makes it much
+    // harder to tell where you are.
+    if (isIdentityLayer(this.layer)) { /* fall through to the normal rules */ }
     // A building on the tile takes visual priority over natural decoration.
     if (tile.villageId) {
       this.details.clear(id);

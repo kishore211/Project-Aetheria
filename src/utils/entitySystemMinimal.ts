@@ -28,6 +28,7 @@ import { emitDamage, emitFloater } from './floatBridge';
 import { applyStatus, clearStatus, type StatusId } from './statusEffects';
 import { updateMood } from './mood';
 import { applyScenario } from './scenarios';
+import { bookAt, converse, readBook } from './identity';
 import { STATUSES, type StatusDef } from './statusEffects';
 import { speak, type Occasion } from './dialogue';
 
@@ -450,6 +451,7 @@ export class EntityAI {
       if (this.socialTimer <= 0) {
         this.socialTimer = 2.5 + Math.random() * 3;
         this.spreadMood();
+        this.exchangeIdentity();
         this.maybeBond();
       }
     }
@@ -1042,6 +1044,35 @@ export class EntityAI {
     if (Math.random() > 0.18) return;
     if (happiness > 35) this.addStatus(Math.random() < 0.5 ? 'laughing' : 'singing');
     else if (happiness < -35) this.addStatus('crying');
+  }
+
+  /**
+   * Trade identity with somebody nearby.
+   *
+   * Hooked to the same social pass as mood, because "two units converse" is
+   * precisely that moment and scanning the neighbourhood twice for the same
+   * event would be waste. The pot itself lives in identity.ts — everything
+   * here does is choose who is talking.
+   */
+  private exchangeIdentity(): void {
+    if (!this.index) return;
+
+    // A book on the ground nearby is read before anybody is talked to. This is
+    // how a culture outlives its last speaker: the text keeps arguing for it
+    // long after the people who wrote it are gone.
+    const book = bookAt(Math.floor(this.entity.position.x), Math.floor(this.entity.position.y));
+    if (book && Math.random() < 0.5) {
+      readBook(this.entity, book);
+      return;
+    }
+
+    const partners = this.index
+      .query(this.entity.position.x, this.entity.position.y, 2.5)
+      .filter(other => other.id !== this.entity.id && SPEAKING_TYPES.has(other.type));
+    if (partners.length === 0) return;
+
+    const other = partners[Math.floor(Math.random() * partners.length)];
+    converse(this.entity, other);
   }
 
   /**
