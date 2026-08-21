@@ -5,11 +5,17 @@ import { createEntity, createEntityMesh, updateEntityMesh, EntityAI, type AIOrde
 import { inheritTraits } from './traits';
 import { simulation } from './simulation';
 import { emitDamage, emitFloater } from './floatBridge';
-import { speak } from './dialogue';
 import { chronicle, deathTopic } from './chronicle';
 import { recordBirth } from './worldStats';
 import { applyStatus, clearStatus, forgetStatuses } from './statusEffects';
 import { seedMood } from './mood';
+import { applyScenario } from './scenarios';
+
+/**
+ * Races that need a partner to reproduce. Animals are deliberately absent:
+ * they have herds rather than pairs, and gating them would halt every ecology.
+ */
+const PAIRING_TYPES = new Set<string>(['human', 'elf', 'dwarf', 'orc']);
 import type { WorldLaws } from '../store/gameStore';
 import type { GameEvent } from '../store/gameStore';
 import type { SavedEntity } from './saveSystem';
@@ -310,6 +316,22 @@ export class EntityManager implements EntityIndex {
   private reproduceEntity(entity: Entity): void {
     if (this.getEntityCountByType(entity.type) >= this.getMaxEntityCount(entity.type)) return;
 
+    // The sentient races need a partner. Animals do not — they have herds and
+    // no notion of pairing, and gating them would quietly halt every ecology
+    // in the world. This replaces "reproduce alone", which was always a
+    // placeholder: a village's growth now depends on its people actually
+    // getting on with each other, which is a far better reason for a
+    // population to stall than an invisible probability.
+    if (PAIRING_TYPES.has(entity.type)) {
+      if (!entity.loverId) return;
+      const lover = this.entities.get(entity.loverId);
+      if (!lover || lover.health <= 0) return;
+      // Together, not merely betrothed.
+      const dx = lover.position.x - entity.position.x;
+      const dy = lover.position.y - entity.position.y;
+      if (dx * dx + dy * dy > 36) return;
+    }
+
     const { x, y } = entity.position;
     const suitable = this.getNearbyTiles(x, y, 2)
       .filter(t => this.isSuitableTileForEntity(entity.type, t));
@@ -335,12 +357,10 @@ export class EntityManager implements EntityIndex {
         kind: 'emote', text: '\u2665',
         x: entity.position.x, y: entity.position.y, entityId: entity.id,
       });
-      if (Math.random() < 0.35) {
-        emitFloater({
-          kind: 'speech', text: speak('newborn', Math.random()),
-          x: entity.position.x, y: entity.position.y, entityId: entity.id,
-        });
-      }
+      // Both parents feel it, when there are two.
+      applyScenario(entity, 'childBorn');
+      const other = entity.loverId ? this.entities.get(entity.loverId) : null;
+      if (other) applyScenario(other, 'childBorn');
     }
   }
 
@@ -357,6 +377,7 @@ export class EntityManager implements EntityIndex {
       kind: 'emote', text: '\u2620',
       x: entity.position.x, y: entity.position.y,
     });
+    this.mournFor(entity);
 
     const ix = Math.floor(entity.position.x);
     const iy = Math.floor(entity.position.y);
@@ -379,6 +400,39 @@ export class EntityManager implements EntityIndex {
       'death',
       { x: ix, y: iy },
     );
+  }
+
+  /**
+   * Tell the people who cared.
+   *
+   * Run before the entity is removed, so its partner and friend can still be
+   * looked up and their bond cleared. Grief is the strongest single number in
+   * the scenario table and it should be: it is the one thing in this
+   * simulation a creature cannot recover from by walking somewhere.
+   */
+  private mournFor(entity: Entity): void {
+    if (entity.loverId) {
+      const lover = this.entities.get(entity.loverId);
+      if (lover) {
+        lover.loverId = null;
+        if (lover.friendId === entity.id) lover.friendId = null;
+        applyScenario(lover, 'lostLover');
+      }
+    }
+    if (entity.friendId && entity.friendId !== entity.loverId) {
+      const friend = this.entities.get(entity.friendId);
+      if (friend) {
+        if (friend.friendId === entity.id) friend.friendId = null;
+        applyScenario(friend, 'lostFriend');
+      }
+    }
+
+    // Anyone close enough to watch it happen is shaken by it.
+    for (const witness of this.query(entity.position.x, entity.position.y, 4)) {
+      if (witness.id === entity.id) continue;
+      if (witness.id === entity.loverId || witness.id === entity.friendId) continue;
+      if (Math.random() < 0.25) applyScenario(witness, 'sawDeath');
+    }
   }
 
   private disposeMesh(entity: Entity): void {

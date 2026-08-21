@@ -168,6 +168,11 @@ export const POWERS: PowerEntry[] = [
     hint: 'Corrupt the land and everything on it.',
     quip: 'The ground remembers this one.',
   },
+  {
+    kind: 'tool', id: 'poke', tab: 'divine', label: 'Poke', icon: 'Pointer',
+    hint: 'Prod a creature. It barely hurts. It notices.',
+    quip: 'They cannot see you and they know something is there.',
+  },
 ];
 
 export const POWERS_BY_TAB = (tab: PowerTabId): PowerEntry[] =>

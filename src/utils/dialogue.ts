@@ -24,7 +24,10 @@ export type Occasion =
   | 'burning'
   | 'blessed'
   | 'cursed'
-  | 'crowned';
+  | 'crowned'
+  | 'inLove'
+  | 'grieving'
+  | 'poked';
 
 const LINES: Record<Occasion, string[]> = {
   hungry: [
@@ -121,6 +124,26 @@ const LINES: Record<Occasion, string[]> = {
     'I did not ask for this. I did accept it.',
     'Somebody has to hold the seal.',
     'Long may I, and so on.',
+  ],
+  inLove: [
+    'Oh. Oh no. Oh good.',
+    'I have made a decision and it was not mine.',
+    'Everything is suddenly very interesting.',
+    'I would like to be wherever they are.',
+  ],
+  grieving: [
+    'They were here yesterday.',
+    'I keep turning round to tell them things.',
+    'It does not feel like it happened yet.',
+    'Nobody warned me it would be this quiet.',
+  ],
+  // The player is felt. It does not know what you are, and it is right to be
+  // upset about it.
+  poked: [
+    'OW. What was that?',
+    'Something enormous just touched me.',
+    'Why? What did I do?',
+    'I know you are up there.',
   ],
 };
 

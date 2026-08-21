@@ -27,6 +27,8 @@ import { simulation } from './simulation';
 import { emitDamage, emitFloater } from './floatBridge';
 import { applyStatus, clearStatus, type StatusId } from './statusEffects';
 import { updateMood } from './mood';
+import { applyScenario } from './scenarios';
+import { STATUSES, type StatusDef } from './statusEffects';
 import { speak, type Occasion } from './dialogue';
 
 /** Who gets speech bubbles. Monsters brood; animals do not have a position. */
@@ -385,6 +387,12 @@ export class EntityAI {
   private repathCooldown = 0;
   private attackCooldown = 0;
   private pyroCooldown = 6;
+  /**
+   * Seconds until this creature next checks the mood of the crowd around it.
+   * Staggered by construction so a village does not do all its socialising on
+   * the same tick.
+   */
+  private socialTimer = Math.random() * 4;
   /** Seconds spent trying to move without actually getting anywhere. */
   private stuckTimer = 0;
   private lastStuckPosition = { x: 0, y: 0 };
@@ -426,6 +434,25 @@ export class EntityAI {
     // Mood shares the needs pass: it reads the same fields, needs the same
     // delta, and gives the status timers somewhere to tick from.
     updateMood(this.entity, deltaTime);
+
+    // Moods and bonds are checked wherever the creature happens to be, not
+    // only while it stands at a bonfire. Gating them on the socialising state
+    // sounded tidy and meant that anybody without a village could never make
+    // a friend — and since pairing now gates reproduction, a world of
+    // wanderers would quietly never grow.
+    // Gated on isPerson() out here rather than inside the two methods, so an
+    // animal does not even draw the next timer interval from the random
+    // stream. Animals have herds, not friendships; letting a sheep spend
+    // randomness on a social pass it can never reach makes herd behaviour
+    // move whenever the social code does.
+    if (this.isPerson()) {
+      this.socialTimer -= deltaTime;
+      if (this.socialTimer <= 0) {
+        this.socialTimer = 2.5 + Math.random() * 3;
+        this.spreadMood();
+        this.maybeBond();
+      }
+    }
     this.ensureStandable(tiles);
     this.trackStuck(tiles, deltaTime);
     this.maybeStartFire(tiles, deltaTime);
@@ -967,6 +994,97 @@ export class EntityAI {
         this.entity.lastPosition = { ...this.entity.position };
         this.entity.position = { x: spot.x + 0.5, y: spot.y + 0.5 };
       }
+    }
+  }
+
+  /**
+   * Catch a mood off somebody standing nearby.
+   *
+   * This is the mechanic that makes a crowd behave like a crowd rather than
+   * like a set of individuals who happen to be adjacent — WorldBox's laughter
+   * and crying spread through a village and that spreading *is* the social
+   * simulation (06-WORLDBOX-COMPLETE-REFERENCE.md §6). Only the three
+   * contagious statuses travel, and only between villagers who share a home:
+   * a stranger walking past does not set the square laughing.
+   */
+  private spreadMood(): void {
+    if (!this.index) return;
+
+    const neighbours = this.index.query(this.entity.position.x, this.entity.position.y, 3);
+    let caught: StatusDef | null = null;
+
+    for (const other of neighbours) {
+      if (other.id === this.entity.id) continue;
+      // Same village, or both unaffiliated. A stranger walking past does not
+      // set the square laughing, but two wanderers can still cheer each other
+      // up.
+      if ((other.villageId ?? null) !== (this.entity.villageId ?? null)) continue;
+      for (const value of other.status) {
+        const def = STATUSES[value as keyof typeof STATUSES];
+        if (def?.contagious && !this.entity.status.includes(def.id)) {
+          caught = def;
+          break;
+        }
+      }
+      if (caught) break;
+    }
+
+    if (caught) {
+      // Not certain, so a mood ripples outward over a few seconds instead of
+      // snapping through the whole village in one tick.
+      if (Math.random() < 0.45) this.addStatus(caught.id);
+      return;
+    }
+
+    // Nobody to catch anything from, so start something. A cheerful villager
+    // laughs or sings; a wretched one cries, and that spreads too.
+    const happiness = this.entity.happiness ?? 0;
+    if (Math.random() > 0.18) return;
+    if (happiness > 35) this.addStatus(Math.random() < 0.5 ? 'laughing' : 'singing');
+    else if (happiness < -35) this.addStatus('crying');
+  }
+
+  /**
+   * Find a friend, and maybe more.
+   *
+   * Pairs form on similar mood, which is WorldBox's rule and a good one: it
+   * means friendships are a *product* of the simulation rather than random
+   * assignment, and a village that is having a bad year makes fewer of them.
+   */
+  private maybeBond(): void {
+    if (!this.index) return;
+    if (this.entity.loverId) return;
+
+    const mine = this.entity.happiness ?? 0;
+    const candidates = this.index
+      .query(this.entity.position.x, this.entity.position.y, 2.5)
+      .filter(other => other.id !== this.entity.id
+        && other.type === this.entity.type
+        && (other.villageId ?? null) === (this.entity.villageId ?? null)
+        && Math.abs((other.happiness ?? 0) - mine) < 25);
+
+    if (candidates.length === 0) return;
+    const other = candidates[Math.floor(Math.random() * candidates.length)];
+
+    if (!this.entity.friendId) {
+      this.entity.friendId = other.id;
+      other.friendId ??= this.entity.id;
+      applyScenario(this.entity, 'madeFriend');
+      return;
+    }
+
+    // Lovers are rarer, and only ever between two adults who already get on.
+    if (
+      this.entity.friendId === other.id
+      && !other.loverId
+      && this.entity.age > this.entity.maxAge * 0.18
+      && other.age > other.maxAge * 0.18
+      && Math.random() < 0.2
+    ) {
+      this.entity.loverId = other.id;
+      other.loverId = this.entity.id;
+      applyScenario(this.entity, 'fellInLove');
+      applyScenario(other, 'fellInLove');
     }
   }
 

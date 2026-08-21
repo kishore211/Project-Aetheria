@@ -25,10 +25,10 @@ import { writeSave } from '../utils/saveSystem';
 import { worldAccess } from '../utils/worldAccess';
 import { buildSave } from '../utils/saveSystem';
 import { publishSimulationContext, simulation } from '../utils/simulation';
-import { advanceFloaters, clearFloaters, emitFloater, floatBridge } from '../utils/floatBridge';
+import { advanceFloaters, clearFloaters, floatBridge } from '../utils/floatBridge';
 import { clearImpacts, isShaking, requestFlash, requestShake, sampleShake } from '../utils/impactBridge';
-import { speak, type Occasion } from '../utils/dialogue';
 import { chronicle } from '../utils/chronicle';
+import { applyScenario, type Scenario } from '../utils/scenarios';
 import { recordDeath, resetStats, sampleWorld } from '../utils/worldStats';
 
 /** Mirrors entitySystemMinimal: only the sentient races get bubbles. */
@@ -531,26 +531,22 @@ export const useGameEngine = () => {
   }, []);
 
   /**
-   * Let the people standing in a divine act say something about it.
+   * Let the people standing in a divine act feel it.
    *
-   * Capped at two speakers: a blessing over a full village should read as a
-   * couple of people noticing, not as a chorus. The global speech budget in
-   * floatBridge would swallow the rest anyway; capping here keeps that from
-   * looking like a coincidence.
+   * This used to only make a couple of them say something. Now it goes through
+   * the scenario table, so being blessed means a mood change, a status and
+   * possibly a line — one door for the whole event rather than three places
+   * that could disagree about what happened.
+   *
+   * No cap on how many are affected. A whole village showing happy faces after
+   * a blessing is the feedback we want, and speech is already rationed
+   * globally in floatBridge, so the crowd does not all talk at once.
    */
-  const reactNearby = useCallback((tile: Tile, radius: number, occasion: Occasion) => {
+  const reactNearby = useCallback((tile: Tile, radius: number, scenario: Scenario) => {
     const witnesses = entityManagerRef.current?.query(tile.x, tile.y, radius + 1) ?? [];
-    let spoken = 0;
     for (const witness of witnesses) {
-      if (spoken >= 2) break;
       if (!SPEAKING_RACES.has(witness.type)) continue;
-      if (emitFloater({
-        kind: 'speech',
-        text: speak(occasion, Math.random()),
-        x: witness.position.x,
-        y: witness.position.y,
-        entityId: witness.id,
-      })) spoken += 1;
+      applyScenario(witness, scenario);
     }
   }, []);
 
@@ -757,6 +753,21 @@ export const useGameEngine = () => {
           'divine',
           { x: tile.x, y: tile.y },
         );
+        break;
+      }
+
+      case 'poke': {
+        // WorldBox's sharpest bit of writing is that the player is *felt*. A
+        // creature prodded by something enormous and unseen does not shrug it
+        // off, and it cannot name what did it. One point of damage; eighteen
+        // points of mood.
+        const victims = entityManagerRef.current?.query(tile.x, tile.y, 1.2) ?? [];
+        if (victims.length === 0) return false;
+        for (const victim of victims) {
+          victim.health = Math.max(1, victim.health - 1);
+          applyScenario(victim, 'poked');
+        }
+        soundManager.uiClick();
         break;
       }
 

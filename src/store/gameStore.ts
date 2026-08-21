@@ -121,6 +121,7 @@ export type Tool =
   | 'fire'
   | 'blessing'
   | 'curse'
+  | 'poke'
   | null;
 
 /** Radius in tiles for area tools: 0 = single tile, 1 = 3x3, 2 = 5x5. */
