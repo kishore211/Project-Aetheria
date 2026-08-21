@@ -1,11 +1,20 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { Map as MapIcon, X } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
+import { isDataLayer, sampleRamp } from '../../utils/mapLayers';
+import * as THREE from 'three';
 import { worldAccess } from '../../utils/worldAccess';
 import { BIOME_BASE_COLORS } from '../../utils/worldGenerator';
 import type { BiomeType } from '../../types/world';
 
 const REDRAW_INTERVAL = 220; // ms — the map does not need 60 fps
+
+/** Reused so the redraw loop does not allocate a colour per tile. */
+const scratch = new THREE.Color();
+
+/** Water biomes, matching the terrain renderer's rule for data layers. */
+const WATER = new Set<string>(['deep_ocean', 'ocean', 'shallow_water', 'river', 'lake']);
+const isWater = (type: string): boolean => WATER.has(type);
 
 /** Pre-split the biome palette into channels so the redraw loop stays cheap. */
 const CHANNELS = new Map<BiomeType, [number, number, number]>();
@@ -27,6 +36,7 @@ const Minimap = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<ImageData | null>(null);
   const showMinimap = useGameStore((state) => state.showMinimap);
+  const mapLayer = useGameStore((state) => state.mapLayer);
   const toggleMinimap = useGameStore((state) => state.toggleMinimap);
   const focusTile = useGameStore((state) => state.focusTile);
 
@@ -52,13 +62,48 @@ const Minimap = () => {
     const image = imageRef.current;
     const data = image.data;
 
+    // The minimap answers whatever question the big map is answering. Two
+    // views of one world that disagree about what they are showing is worse
+    // than having no minimap: you stop trusting either of them.
+    const layer = mapLayer;
+    const dataLayer = isDataLayer(layer);
+
     for (let x = 0; x < size; x++) {
       const column = access.tiles[x];
       for (let y = 0; y < size; y++) {
         const tile = column[y];
         // Canvas rows run along y, columns along x
         const offset = (y * size + x) * 4;
-        let [r, g, b] = CHANNELS.get(tile.type) ?? [130, 130, 130];
+        let r: number;
+        let g: number;
+        let b: number;
+
+        if (dataLayer) {
+          if (isWater(tile.type) && layer !== 'height') {
+            // Same rule as the terrain renderer: the sea keeps the coastline
+            // legible on every layer except the one measuring depth.
+            [r, g, b] = [24, 43, 69];
+          } else {
+            const value = layer === 'height' ? tile.height
+              : layer === 'rainfall' ? tile.moisture
+                : layer === 'temperature' ? tile.temperature
+                  : tile.fertility;
+            sampleRamp(layer, value, scratch);
+            r = scratch.r * 255;
+            g = scratch.g * 255;
+            b = scratch.b * 255;
+          }
+        } else {
+          [r, g, b] = CHANNELS.get(tile.type) ?? [130, 130, 130];
+          if (layer === 'political') {
+            // Drained, exactly as the big map drains, so the claims are the
+            // only saturated thing here too.
+            const grey = (r + g + b) / 3;
+            r = grey * 0.82 + 13;
+            g = grey * 0.84 + 13;
+            b = grey * 0.9 + 15;
+          }
+        }
 
         // Gentle relief shading so mountains read on the minimap
         const shade = 0.82 + tile.height * 0.36;
@@ -105,7 +150,7 @@ const Minimap = () => {
     context.strokeStyle = 'rgba(255,255,255,0.85)';
     context.lineWidth = 1;
     context.strokeRect(focus.x - half, focus.y - half, half * 2, half * 2);
-  }, []);
+  }, [mapLayer]);
 
   useEffect(() => {
     if (!showMinimap) return;
