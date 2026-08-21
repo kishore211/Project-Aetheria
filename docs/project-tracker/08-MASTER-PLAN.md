@@ -47,20 +47,33 @@ Landed alongside, both found by testing the above:
 **Gate:** a player can name three things happening in the world without
 clicking.
 
-## Phase 10 — Happiness, mood and voice
+## Phase 10 — Happiness, mood and voice  ✅ done
 
 The emotional layer, which is what makes creatures read as characters.
 
-| # | Item | Notes |
-|---|---|---|
-| 10.1 | **Happiness** −100…+100, six-step face icon, shown in the inspector and above units | Ours has needs but no mood |
-| 10.2 | **Scenario table** — ~20 events that move happiness, each with 3–4 lines of dialogue | Meal +10, gift +20, lost a child −60, slept outside −30, poked by the player −5 |
-| 10.3 | **Contagious social statuses** — laughing, crying, singing spread nearby and draw units in | This is how crowds form on their own |
-| 10.4 | **Best friends and lovers** — pair on similar happiness; lovers gate reproduction | Replaces our "reproduce alone" model |
-| 10.5 | **Status effects proper** — a real typed table with icon, duration, source, flavour line, replacing our ad-hoc status strings | ~20 statuses, not 57 |
-| 10.6 | **The player is felt** — poking a unit hurts it and it says so | Their sharpest bit of writing |
+| # | Item | Status | Notes |
+|---|---|---|---|
+| 10.1 | **Happiness** −100…+100, six-step face, in the inspector and above units | ✅ done | `utils/mood.ts`. Drifts toward a baseline from needs/health/belonging rather than being set directly, so a mood is a *consequence* of a life. Slow on purpose: a mood that tracked circumstance instantly would flicker every time a creature took a drink. Only the four strong moods draw a face above a head |
+| 10.2 | **Scenario table** — events that move happiness, with dialogue | ✅ done | `utils/scenarios.ts`, 22 entries. One door for every emotional event, so mood, status, speech and glyph cannot disagree |
+| 10.3 | **Contagious social statuses** | ✅ done | Laughing, crying, singing spread between people who share a home, over seconds rather than in one tick |
+| 10.4 | **Best friends and lovers** | ✅ done | Pair on similar mood; lovers gate reproduction for the four races. Animals exempt — herds, not pairs |
+| 10.5 | **Status effects proper** | ✅ done | `utils/statusEffects.ts`, 26 typed statuses with label, glyph, duration, mood weight and flavour. Fixed a real bug: timed statuses used `setTimeout`, so they ran on the wall clock — the only durations in the codebase not on simulated time |
+| 10.6 | **The player is felt** | ✅ done | The Poke power. One damage, eighteen mood, and it says so |
 
-**Gate:** creatures visibly react to their own lives, and say things.
+**Gate:** met. Creatures visibly react to their own lives, and say things.
+
+### The lesson this phase kept teaching
+
+Three separate times, a change here moved the random stream and broke the
+herd grazing test, because animals were drawing from `Math.random()` on behalf
+of features that could never apply to them — first the speech coin flip, then
+the social timer. **Guards go cheapest and most selective first, and a
+subsystem an entity cannot participate in must not consume its randomness.**
+The test was also at fault: with 8 sheep its p10 was 0 survivors and its p90
+was 10, so it was measuring its own sampling noise. It now runs 24 sheep and
+asserts the mean surviving *fraction*, which held at 0.78 across streams.
+
+---
 
 ## Phase 11 — Ways to look at the world
 
