@@ -232,3 +232,20 @@ describe('inspection', () => {
     if (follower) expect(harness.herds.describe(follower)?.isAlpha).toBe(false);
   });
 });
+
+describe('survival while travelling', () => {
+  it('lets a grazing herd feed itself on the move instead of starving', () => {
+    const harness = makeHarness(60);
+    spawnGroup(harness, 'sheep', 8, 25, 25);
+    for (const animal of harness.entities.getAllEntities()) {
+      animal.needs.hunger = 0.5;
+    }
+
+    run(harness, 200, 1);
+
+    const survivors = harness.entities.getAllEntities().filter(e => e.type === 'sheep');
+    expect(survivors.length).toBeGreaterThan(4);
+    const fed = survivors.filter(sheep => sheep.needs.hunger > 0.3).length;
+    expect(fed).toBeGreaterThan(survivors.length / 2);
+  });
+});

@@ -648,9 +648,34 @@ export class EntityAI {
       this.order = null;
     }
 
+    // Graze where you stand. Animals travelling with a herd used to walk over
+    // pasture without touching it and starve on the move; a mouthful from the
+    // current tile costs nothing and is what grazers actually do.
+    if (this.entity.needs.hunger < 0.7) {
+      const here = this.tileAt(tiles, Math.floor(this.entity.position.x), Math.floor(this.entity.position.y));
+      const graze = here?.resources.find(resource => resource.type === 'food' && resource.quantity > 0);
+      if (graze) {
+        graze.quantity -= 1;
+        this.entity.needs.hunger = Math.min(1, this.entity.needs.hunger + 0.35);
+        this.addTimedStatus('eating', 1500);
+        if (graze.quantity <= 0) {
+          const index = here!.resources.indexOf(graze);
+          if (index !== -1) here!.resources.splice(index, 1);
+        }
+        this.ticksSinceLastAction = 0;
+        return;
+      }
+    }
+
     // A straggler this far behind rejoins before doing anything else, or the
     // herd smears across the map and stops reading as a group.
-    if (this.anchor && this.anchor.health > 0 && this.anchor.id !== this.entity.id && !desperate) {
+    if (
+      this.anchor
+      && this.anchor.health > 0
+      && this.anchor.id !== this.entity.id
+      && this.entity.needs.hunger > 0.35
+      && this.entity.needs.thirst > 0.3
+    ) {
       const gap = Math.hypot(
         this.anchor.position.x - this.entity.position.x,
         this.anchor.position.y - this.entity.position.y,
