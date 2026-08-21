@@ -26,6 +26,7 @@ import { worldAccess } from '../utils/worldAccess';
 import { buildSave } from '../utils/saveSystem';
 import { publishSimulationContext, simulation } from '../utils/simulation';
 import { advanceFloaters, clearFloaters, emitFloater, floatBridge } from '../utils/floatBridge';
+import { clearImpacts, isShaking, requestFlash, requestShake, sampleShake } from '../utils/impactBridge';
 import { speak, type Occasion } from '../utils/dialogue';
 
 /** Mirrors entitySystemMinimal: only the sentient races get bubbles. */
@@ -112,6 +113,7 @@ export const useGameEngine = () => {
   const autosaveTimerRef = useRef<number>(0);
   const lastCameraNonceRef = useRef<number>(0);
   const lastZoomNonceRef = useRef<number>(0);
+  const shakingRef = useRef<boolean>(false);
   const hoverTimerRef = useRef<number>(0);
   const hoverKeyRef = useRef<string>('');
   const brushPreviewRef = useRef<THREE.Mesh | null>(null);
@@ -212,6 +214,7 @@ export const useGameEngine = () => {
     publishWorldAccess(null);
     publishLabels([]);
     clearFloaters();
+    clearImpacts();
     if (selectionIndicatorRef.current) {
       scene.remove(selectionIndicatorRef.current);
       selectionIndicatorRef.current.geometry.dispose();
@@ -672,6 +675,7 @@ export const useGameEngine = () => {
           reshapeTile(target, target.height + shift);
         });
         const kills = entityManagerRef.current?.damageArea(tile.x, tile.y, quakeRadius, 35) ?? 0;
+        requestShake(18 + store.brushRadius * 8, 1.1);
         effectsManagerRef.current?.spawnShockwave(tileWorldPosition(tile), 0xaa8855, 6);
         soundManager.earthquake();
         store.addEvent(
@@ -694,6 +698,9 @@ export const useGameEngine = () => {
           });
           const kills = entityManagerRef.current?.damageArea(tile.x, tile.y, craterRadius + 1, 80) ?? 0;
           soundManager.meteor();
+          // Scaled to the crater, so a 5x5 meteor lands harder than a 1x1
+          requestShake(26 + store.brushRadius * 10, 0.7);
+          requestFlash('impact', 0.9);
           store.addEvent(
             `A meteor devastates the region${kills > 0 ? ` — ${kills} perished` : ''}`,
             'disaster',
@@ -706,6 +713,8 @@ export const useGameEngine = () => {
       case 'lightning': {
         effectsManagerRef.current?.spawnLightning(tileWorldPosition(tile));
         soundManager.lightning();
+        requestShake(9, 0.3);
+        requestFlash('impact', 0.55);
         const kills = entityManagerRef.current?.damageArea(tile.x, tile.y, 1.2, 60) ?? 0;
         if (FLAMMABLE_BIOMES.includes(tile.type) && Math.random() < 0.6) igniteTile(tile);
         store.addEvent(
@@ -733,6 +742,7 @@ export const useGameEngine = () => {
         effectsManagerRef.current?.spawnAura(tileWorldPosition(tile), 0xffee88);
         soundManager.bless();
         reactNearby(tile, blessRadius, 'blessed');
+        requestFlash('divine', 0.5);
         store.addEvent(
           `A blessing radiates outward${healed > 0 ? `, healing ${healed} creatures` : ''}`,
           'divine',
@@ -754,6 +764,7 @@ export const useGameEngine = () => {
         effectsManagerRef.current?.spawnAura(tileWorldPosition(tile), 0x9922cc);
         soundManager.curse();
         reactNearby(tile, curseRadius, 'cursed');
+        requestFlash('plague', 0.7);
         store.addEvent(
           `Dark corruption spreads${kills > 0 ? ` — ${kills} souls claimed` : ''}`,
           'disaster',
@@ -1293,7 +1304,28 @@ export const useGameEngine = () => {
         }
       }
     }
-  }, [controls, camera, inBounds, tileWorldPosition]);
+
+    // Shake through the projection, not the position. See impactBridge for why
+    // moving the camera cannot work here: MapControls would absorb the offset
+    // into its own orbit state and the view would never come back.
+    const perspective = camera as THREE.PerspectiveCamera;
+    if (isShaking()) {
+      const canvas = gl.domElement;
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      if (width > 0 && height > 0) {
+        const jolt = sampleShake(delta);
+        const scale = height / 900;
+        perspective.setViewOffset(
+          width, height, jolt.x * scale, jolt.y * scale, width, height,
+        );
+        shakingRef.current = true;
+      }
+    } else if (shakingRef.current) {
+      shakingRef.current = false;
+      perspective.clearViewOffset();
+    }
+  }, [controls, camera, gl, inBounds, tileWorldPosition]);
 
   /**
    * Game tick logic

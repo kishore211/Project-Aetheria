@@ -9,6 +9,7 @@ import AchievementWatcher from './components/ui/AchievementWatcher';
 import HoverTooltip from './components/ui/HoverTooltip';
 import MapLabels from './components/ui/MapLabels';
 import FloatingText from './components/ui/FloatingText';
+import ScreenFlash from './components/ui/ScreenFlash';
 import { useGameStore } from './store/gameStore';
 import { useHotkeys } from './hooks/useHotkeys';
 
@@ -31,6 +32,7 @@ function App() {
         {/* Both belong to the world, not the HUD, so they survive Hide UI */}
         <MapLabels />
         <FloatingText />
+        <ScreenFlash />
         <div className="game-ui">
           {/* The bar draws its own peek button while hidden, so it always mounts */}
           <PowerBar />

@@ -22,6 +22,7 @@ import { SpriteCloud } from './spriteCloud';
 import type { TerrainRenderer } from './terrainRenderer';
 import { registerOrderHandler, simulation } from './simulation';
 import { emitFloater } from './floatBridge';
+import { requestFlash } from './impactBridge';
 import { speak } from './dialogue';
 import {
   generateKingdomName,
@@ -1184,6 +1185,9 @@ export class SettlementSystem {
       'war',
       capital ? { x: capital.centerX, y: capital.centerY } : undefined,
     );
+    // A war starting is one of maybe four things in this simulation worth
+    // interrupting the player for.
+    requestFlash('blood', 0.8);
   }
 
   private makePeace(a: Kingdom, b: Kingdom): void {
@@ -1308,6 +1312,7 @@ export class SettlementSystem {
     for (const kingdom of Array.from(this.kingdoms.values())) {
       if (kingdom.villageIds.length > 0) continue;
       this.events.onEvent(`${kingdom.name} has fallen`, 'war');
+      requestFlash('blood', 1);
       for (const entity of this.entities.getAllEntities()) {
         if (entity.kingdomId === kingdom.id) {
           entity.kingdomId = null;

@@ -579,3 +579,53 @@ canvas {
   border-bottom: 1px solid rgb(15 23 42 / 0.9);
   background: rgb(248 250 252 / 0.96);
 }
+
+/* ---------------------------------------------------------------------------
+   Screen flash
+--------------------------------------------------------------------------- */
+
+.screen-flash {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  opacity: 0;
+  /* A vignette rather than a flat wash: the edges going first reads as the
+     world being hit, where a flat white rectangle reads as a bug. */
+  background: radial-gradient(
+    ellipse at center,
+    transparent 25%,
+    var(--flash-inner, rgb(255 255 255 / 0.25)) 70%,
+    var(--flash-outer, rgb(255 255 255 / 0.6)) 100%);
+}
+
+.screen-flash-impact {
+  --flash-inner: rgb(255 244 214 / 0.3);
+  --flash-outer: rgb(255 214 120 / 0.75);
+  animation: flashOut 0.45s ease-out;
+}
+.screen-flash-divine {
+  --flash-inner: rgb(224 242 255 / 0.25);
+  --flash-outer: rgb(147 197 253 / 0.7);
+  animation: flashOut 0.7s ease-out;
+}
+.screen-flash-blood {
+  --flash-inner: rgb(190 18 60 / 0.18);
+  --flash-outer: rgb(136 19 55 / 0.7);
+  animation: flashOut 0.9s ease-out;
+}
+.screen-flash-plague {
+  --flash-inner: rgb(101 163 13 / 0.16);
+  --flash-outer: rgb(63 98 18 / 0.66);
+  animation: flashOut 1.1s ease-out;
+}
+
+@keyframes flashOut {
+  from { opacity: calc(var(--flash-strength, 1) * 1); }
+  to { opacity: 0; }
+}
+
+/* Flashes are exactly the sort of thing a photosensitive player turns off */
+@media (prefers-reduced-motion: reduce) {
+  .screen-flash { display: none; }
+}
