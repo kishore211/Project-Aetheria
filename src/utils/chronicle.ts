@@ -27,6 +27,9 @@ export type ChronicleTopic =
   | 'settlers_leave'
   | 'hall_raised'
   | 'monument_raised'
+  | 'secession'
+  | 'crowned_king'
+  | 'succession_none'
   | 'war_declared'
   | 'peace'
   | 'kingdom_fallen'
@@ -131,6 +134,23 @@ const TEMPLATES: Record<ChronicleTopic, string[]> = {
     '{name} completes a {type}',
     '{name} finishes its {type}',
     'A {type} now stands at {name}',
+  ],
+
+  secession: [
+    '{name} declares itself free of {a}, and calls itself {b}',
+    '{name} will not answer to {a} any longer — it is {b} now',
+    '{a} has lost {name}. The banners over it read {b}',
+    '{name} raises its own flag as {b}, and {a} will not forgive it',
+  ],
+  crowned_king: [
+    '{name} takes the crown of {a}',
+    '{name} is raised up to rule {a}',
+    'The seal of {a} passes to {name}',
+  ],
+  succession_none: [
+    '{a} has nobody left to crown',
+    'No hand is left to hold the seal of {a}',
+    '{a} is a kingdom with an empty throne',
   ],
 
   war_declared: [

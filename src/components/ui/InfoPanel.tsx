@@ -249,6 +249,62 @@ const InfoPanel = () => {
               <p className="text-xs text-muted-foreground">
                 Granary: {village.store.food} food · {village.store.wood} wood · {village.store.stone} stone
               </p>
+              {village.ruler && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Ruled by {village.ruler}
+                  {village.rulerStats && (
+                    <span className="text-muted-foreground/70">
+                      {' '}· dip {village.rulerStats.diplomacy} · stew {village.rulerStats.stewardship}
+                      {' '}· war {village.rulerStats.warfare}
+                    </span>
+                  )}
+                </p>
+              )}
+
+              {village.loyalty !== null && (
+                <div className="mt-2 pt-2 border-t border-muted/30">
+                  <div className="flex items-baseline justify-between">
+                    <h5 className="text-[0.68rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Loyalty
+                    </h5>
+                    <span className={`text-sm font-bold ${
+                      village.loyalty >= 40 ? 'text-emerald-300'
+                        : village.loyalty >= 0 ? 'text-amber-300' : 'text-rose-400'
+                    }`}>
+                      {village.loyalty > 0 ? '+' : ''}{village.loyalty}
+                    </span>
+                  </div>
+
+                  {village.secedesIn !== null && (
+                    <p className="text-[0.68rem] text-rose-300 mt-0.5">
+                      Secedes in {Math.ceil(village.secedesIn)}s unless something changes.
+                    </p>
+                  )}
+
+                  {/* The breakdown is the point. A number with no explanation is
+                      a number the player learns to ignore, and a rebellion you
+                      cannot see coming is indistinguishable from a bug. */}
+                  <ul className="mt-1 space-y-0.5">
+                    {village.loyaltyFactors.slice(0, 6).map((factor) => (
+                      <li key={factor.label} className="flex items-baseline gap-2 text-[0.68rem]">
+                        <span className="flex-1 min-w-0 truncate text-muted-foreground">
+                          {factor.label}
+                        </span>
+                        <span className={`font-semibold tabular-nums ${
+                          factor.value > 0 ? 'text-emerald-300' : 'text-rose-400'
+                        }`}>
+                          {factor.value > 0 ? '+' : ''}{factor.value}
+                        </span>
+                      </li>
+                    ))}
+                    {village.loyaltyFactors.length > 6 && (
+                      <li className="text-[0.66rem] text-muted-foreground/60">
+                        and {village.loyaltyFactors.length - 6} smaller
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              )}
             </div>
           )}
 

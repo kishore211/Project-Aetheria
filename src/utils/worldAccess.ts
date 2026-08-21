@@ -28,6 +28,20 @@ export interface WorldAccess {
     buildings: number;
     territory: number;
     capital: boolean;
+    /** -100..+100, or null before the first political pass. */
+    loyalty: number | null;
+    /** Why it is that number, largest contribution first. */
+    loyaltyFactors: Array<{ label: string; value: number }>;
+    restless: number;
+    /** Seconds until secession, or null when the province is settled. */
+    secedesIn: number | null;
+    ruler: string | null;
+    rulerStats: {
+      diplomacy: number;
+      warfare: number;
+      stewardship: number;
+      intrigue: number;
+    } | null;
   } | null;
 }
 

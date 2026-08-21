@@ -66,6 +66,10 @@ export type HoverTarget =
  * schedule and the simulation does not.
  */
 export interface VillageSummary {
+  /** -100..+100, or null before the first political pass. */
+  loyalty: number | null;
+  /** Seconds until secession, or null when the province is settled. */
+  secedesIn: number | null;
   id: string;
   name: string;
   kingdomName: string;

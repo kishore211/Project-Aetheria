@@ -676,6 +676,18 @@ export class EntityManager implements EntityIndex {
   }
 
   /** Population by kingdom id, used by the settlement system. */
+  /** Residents grouped by village, for the political passes. */
+  getEntitiesByVillage(): Map<string, Entity[]> {
+    const grouped = new Map<string, Entity[]>();
+    this.entities.forEach(entity => {
+      if (!entity.villageId) return;
+      const list = grouped.get(entity.villageId);
+      if (list) list.push(entity);
+      else grouped.set(entity.villageId, [entity]);
+    });
+    return grouped;
+  }
+
   getEntitiesByKingdom(): Map<string, Entity[]> {
     const grouped = new Map<string, Entity[]>();
     this.entities.forEach(entity => {

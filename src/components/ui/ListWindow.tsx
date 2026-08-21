@@ -131,8 +131,18 @@ const ListWindow = ({ open, onClose }: { open: boolean; onClose: () => void }) =
                         {village.capital && <Crown size={10} className="ml-1 inline text-amber-300" />}
                       </span>
                       <span className="list-meta">
+                        {village.secedesIn !== null && (
+                          <span className="text-rose-300">
+                            secedes in {Math.ceil(village.secedesIn)}s ·{' '}
+                          </span>
+                        )}
+                        {village.loyalty !== null && (
+                          <span className={village.loyalty < 0 ? 'text-rose-300' : 'text-muted-foreground'}>
+                            loyalty {village.loyalty > 0 ? '+' : ''}{village.loyalty} ·{' '}
+                          </span>
+                        )}
                         {village.kingdomName} · {village.population} living ·{' '}
-                        {village.buildings} buildings · {village.territory} tiles
+                        {village.territory} tiles
                       </span>
                     </button>
                   </li>

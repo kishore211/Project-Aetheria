@@ -22,9 +22,19 @@ import { SpriteCloud } from './spriteCloud';
 import type { TerrainRenderer } from './terrainRenderer';
 import { registerOrderHandler, simulation } from './simulation';
 import { emitFloater } from './floatBridge';
+import { applyScenario } from './scenarios';
 import { requestFlash } from './impactBridge';
 import { chronicle } from './chronicle';
 import { applyStatus, clearStatus, type StatusId } from './statusEffects';
+import {
+  civilStats,
+  governableVillages,
+  leadership,
+  loyaltyFor,
+  REBELLION_THRESHOLD,
+  type CivilStats,
+  type LoyaltyResult,
+} from './politics';
 import { speak } from './dialogue';
 import {
   generateKingdomName,
@@ -89,6 +99,14 @@ export interface Village {
   age: number;
   /** Seconds it has stood with nobody living in it. */
   emptyFor: number;
+  /**
+   * Last computed loyalty, with its breakdown. Cached rather than recomputed on
+   * read because the inspector, the register and the rebellion check all want
+   * it and the formula walks the whole kingdom.
+   */
+  loyalty?: LoyaltyResult;
+  /** Seconds this village has sat below the rebellion threshold. */
+  restless: number;
 }
 
 /** A group walking out to found a new village. */
@@ -116,6 +134,8 @@ export interface Kingdom {
   atWar: Set<string>;
   /** Rising friction with each neighbouring kingdom (0-1, war at 1). */
   tension: Map<string, number>;
+  /** Seconds this kingdom has existed, for the new-kingdom loyalty bonus. */
+  age: number;
 }
 
 interface BuildingRecipe {
@@ -162,13 +182,38 @@ const CLAIM_RADIUS: Record<BuildingKind, number> = {
   farm: 3, tower: 7, temple: 7, statue: 5, mine: 3,
 };
 
-/** Villages a kingdom of each race will grow to before it stops expanding. */
-const VILLAGE_LIMIT: Record<Race, number> = {
-  human: 5,
-  orc: 4,
-  elf: 3,
-  dwarf: 3,
+/**
+ * How keen each race is to expand, as an offset on what its ruler can govern.
+ *
+ * This used to be a hard ceiling — a kingdom simply stopped founding villages
+ * at the limit. That was a placeholder standing in for politics: real empires
+ * do not stop growing when governing gets hard, they grow anyway and start
+ * losing provinces. The number now shifts where loyalty begins to suffer
+ * (see `governableVillages`), and a kingdom is free to overreach and pay for
+ * it (docs/project-tracker/08-MASTER-PLAN.md 14.1).
+ */
+const EXPANSION_APPETITE: Record<Race, number> = {
+  human: 2,
+  orc: 2,
+  elf: 0,
+  dwarf: 0,
 };
+
+/**
+ * How long a province must sit below zero loyalty before it goes.
+ *
+ * A single bad harvest should not cost you a city, and the delay is the whole
+ * reason a rebellion is something the player can see coming and head off —
+ * which is what makes the loyalty breakdown worth opening.
+ */
+const REBELLION_PATIENCE = 45;
+
+/**
+ * Villages beyond the governable count that a kingdom will still *try* for.
+ * Past this even the keenest race stops, because a realm with six seceding
+ * provinces is noise rather than drama.
+ */
+const OVERREACH_ALLOWANCE = 2;
 
 /** Adults a village needs before it can spare anyone to settle elsewhere. */
 const SETTLER_SOURCE_POPULATION = 9;
@@ -227,6 +272,7 @@ export class SettlementSystem {
   private expansionTimer = 0;
   private colonyTimer = 0;
   private publishTimer = 0;
+  private loyaltyTimer = 0;
   private laws: WorldLaws = simulation.laws;
   /** Diplomacy rounds each active war has lasted, keyed by kingdom pair. */
   private warTimers = new Map<string, number>();
@@ -294,6 +340,7 @@ export class SettlementSystem {
     }
 
     for (const village of this.villages.values()) village.age += delta;
+    for (const kingdom of this.kingdoms.values()) kingdom.age += delta;
 
     this.expansionTimer += delta;
     if (this.expansionTimer >= 10) {
@@ -307,6 +354,17 @@ export class SettlementSystem {
       this.colonyRound(this.colonyTimer);
     }
     this.ageParties(delta);
+
+    this.loyaltyTimer += delta;
+    if (this.loyaltyTimer >= 5) {
+      // The pass is handed the *elapsed* time rather than its own interval, so
+      // a province's patience runs down in simulated seconds no matter how
+      // often this happens to be called.
+      const elapsed = this.loyaltyTimer;
+      this.loyaltyTimer = 0;
+      this.succession();
+      this.loyaltyRound(elapsed);
+    }
 
     this.diplomacyTimer += delta;
     if (this.diplomacyTimer >= 6) {
@@ -403,6 +461,7 @@ export class SettlementSystem {
       claimBonus: 0,
       age: 0,
       emptyFor: 0,
+      restless: 0,
     };
     this.villages.set(village.id, village);
     kingdom.villageIds.push(village.id);
@@ -460,6 +519,7 @@ export class SettlementSystem {
       villageIds: [],
       atWar: new Set(),
       tension: new Map(),
+      age: 0,
     };
     this.kingdoms.set(kingdom.id, kingdom);
     return kingdom;
@@ -640,21 +700,22 @@ export class SettlementSystem {
 
     let leader = this.entities.getEntityById(this.leaders.get(village.id) ?? '');
     if (!leader || leader.villageId !== village.id) {
+      // Governors are chosen on stewardship rather than raw intelligence now
+      // — it is the stat the job is actually measured by, and it is what
+      // loyalty reads.
       leader = eligible.reduce((best, member) => (
-        member.attributes.intelligence > best.attributes.intelligence ? member : best
+        leadership(civilStats(member)) > leadership(civilStats(best)) ? member : best
       ), eligible[0]);
-      for (const member of members) {
-        this.stripStatus(member, 'leader');
-        this.stripStatus(member, 'king');
-      }
+      for (const member of members) this.stripStatus(member, 'leader');
       this.leaders.set(village.id, leader.id);
     }
 
-    const crown = village.capital ? 'king' : 'leader';
-    const other = village.capital ? 'leader' : 'king';
-    this.stripStatus(leader, other);
-    if (!leader.status.includes(crown)) {
-      applyStatus(leader, crown);
+    // Only the governor's badge is set here. The crown belongs to `succession`
+    // — when both places assigned it, the capital's governor and the realm's
+    // ablest leader took turns claiming it every pass, and a kingdom whose
+    // ruler changes every five seconds has no politics at all.
+    if (!leader.status.includes('leader')) {
+      applyStatus(leader, 'leader');
       emitFloater({
         kind: 'speech',
         text: speak('crowned', Math.random()),
@@ -662,12 +723,6 @@ export class SettlementSystem {
         y: leader.position.y,
         entityId: leader.id,
       });
-    }
-
-    // A kingdom's ruler is now a person, not just a generated name
-    if (village.capital) {
-      const kingdom = this.kingdoms.get(village.kingdomId);
-      if (kingdom) kingdom.kingId = leader.id;
     }
   }
 
@@ -924,6 +979,214 @@ export class SettlementSystem {
     return false;
   }
 
+  // -- politics ----------------------------------------------------------
+
+  /**
+   * Make sure every kingdom has somebody on the throne.
+   *
+   * When a king dies the crown goes to the ablest village leader in the realm,
+   * which is a succession rule with a consequence: an heir with poor
+   * stewardship immediately drags loyalty down across every province, so a
+   * king dying can be the thing that starts a rebellion. That is the whole
+   * point of tying loyalty to the ruler's stats.
+   */
+  private succession(): void {
+    for (const kingdom of this.kingdoms.values()) {
+      const sitting = kingdom.kingId ? this.entities.getEntityById(kingdom.kingId) : null;
+      if (sitting && sitting.health > 0 && sitting.kingdomId === kingdom.id) continue;
+
+      const candidates: Entity[] = [];
+      for (const villageId of kingdom.villageIds) {
+        const leader = this.villages.get(villageId) && this.villageLeader(this.villages.get(villageId)!);
+        if (leader) candidates.push(leader);
+      }
+
+      if (candidates.length === 0) {
+        if (kingdom.kingId) {
+          kingdom.kingId = null;
+          this.events.onEvent(chronicle('succession_none', { a: kingdom.name }), 'kingdom');
+        }
+        continue;
+      }
+
+      // The ablest governor, not the nearest — a realm choosing its worst
+      // available heir makes for a funnier story but a duller simulation,
+      // because loyalty would collapse every time anybody died.
+      const heir = candidates.reduce((best, candidate) => (
+        leadership(civilStats(candidate)) > leadership(civilStats(best)) ? candidate : best
+      ), candidates[0]);
+
+      kingdom.kingId = heir.id;
+      kingdom.ruler = heir.name;
+      applyStatus(heir, 'king');
+      applyScenario(heir, 'crowned');
+      this.events.onEvent(
+        chronicle('crowned_king', { name: heir.name, a: kingdom.name }),
+        'kingdom',
+        { x: Math.floor(heir.position.x), y: Math.floor(heir.position.y) },
+      );
+    }
+  }
+
+  /** Civil stats of whoever actually wears the crown, if anybody does. */
+  private kingCivilStats(kingdom: Kingdom): CivilStats | null {
+    if (!kingdom.kingId) return null;
+    const king = this.entities.getEntityById(kingdom.kingId);
+    return king ? civilStats(king) : null;
+  }
+
+  private villageLeader(village: Village): Entity | null {
+    const id = this.leaders.get(village.id);
+    if (!id) return null;
+    const leader = this.entities.getEntityById(id);
+    return leader && leader.villageId === village.id ? leader : null;
+  }
+
+  /**
+   * Recompute loyalty for every village, and let the unhappy ones go.
+   *
+   * Done in one pass per kingdom rather than per village, because every factor
+   * is relative to the capital and looking that up once per village would walk
+   * the same data N times.
+   */
+  private loyaltyRound(delta: number): void {
+    const members = this.entities.getEntitiesByVillage();
+
+    for (const kingdom of this.kingdoms.values()) {
+      const king = this.kingCivilStats(kingdom);
+      const kingEntity = kingdom.kingId
+        ? this.entities.getEntityById(kingdom.kingId) : null;
+      const governable = governableVillages(king) + (EXPANSION_APPETITE[kingdom.race] ?? 0);
+      const over = Math.max(0, kingdom.villageIds.length - governable);
+
+      const capital = kingdom.villageIds
+        .map(id => this.villages.get(id))
+        .find(village => village?.capital) ?? null;
+      const capitalPopulation = capital ? (members.get(capital.id)?.length ?? 0) : 0;
+      const capitalTerritory = capital?.territory.size ?? 0;
+
+      // Losing a war is measured by held land rather than by casualties: it is
+      // the thing a villager would actually notice.
+      const losingWar = Array.from(kingdom.atWar).some(enemyId => {
+        const enemy = this.kingdoms.get(enemyId);
+        if (!enemy) return false;
+        return this.landOf(enemy) > this.landOf(kingdom) * 1.25;
+      });
+
+      for (const villageId of [...kingdom.villageIds]) {
+        const village = this.villages.get(villageId);
+        if (!village) continue;
+
+        const residents = members.get(village.id) ?? [];
+        const leader = this.villageLeader(village);
+        const mood = residents.length === 0
+          ? 0
+          : residents.reduce(
+            (sum: number, resident: Entity) => sum + (resident.happiness ?? 0), 0,
+          ) / residents.length;
+
+        village.loyalty = loyaltyFor({
+          isCapital: village.capital,
+          king,
+          leader: leader ? civilStats(leader) : null,
+          leaderTraits: leader?.traits ?? [],
+          population: residents.length,
+          capitalPopulation,
+          territory: village.territory.size,
+          capitalTerritory,
+          distanceToCapital: capital
+            ? Math.hypot(village.centerX - capital.centerX, village.centerY - capital.centerY)
+            : 0,
+          bordersCapital: capital ? this.bordersCapital(village, capital) : false,
+          villageAge: village.age,
+          kingdomAge: kingdom.age,
+          villagesOverLimit: over,
+          losingWar,
+          sameSpeciesAsKing: !kingEntity || kingEntity.type === village.race,
+          averageMood: mood,
+        });
+
+        if (village.loyalty.score < REBELLION_THRESHOLD && !village.capital) {
+          village.restless += delta;
+          // A province has to stay unhappy for a while before it goes. A single
+          // bad harvest should not cost you a city, and the delay is what makes
+          // a rebellion something the player can see coming and prevent.
+          if (village.restless >= REBELLION_PATIENCE) this.secede(village, kingdom);
+        } else {
+          village.restless = Math.max(0, village.restless - delta * 2);
+        }
+      }
+    }
+  }
+
+  /** Total claimed tiles, for judging who is winning a war. */
+  private landOf(kingdom: Kingdom): number {
+    let total = 0;
+    for (const id of kingdom.villageIds) total += this.villages.get(id)?.territory.size ?? 0;
+    return total;
+  }
+
+  /** Do these two villages' claims touch? */
+  private bordersCapital(village: Village, capital: Village): boolean {
+    if (village.id === capital.id) return false;
+    const reach = 3;
+    return Math.abs(village.centerX - capital.centerX) <= capital.claimBonus + reach + 6
+      && Math.abs(village.centerY - capital.centerY) <= capital.claimBonus + reach + 6;
+  }
+
+  /**
+   * A province declares itself a kingdom, and its former ruler declares war.
+   *
+   * The immediate war is WorldBox's rule and it is what turns a number going
+   * negative into a story: the map splits, and then the two halves fight over
+   * the seam.
+   */
+  private secede(village: Village, from: Kingdom): void {
+    const residents = this.entities.getEntitiesByVillage().get(village.id) ?? [];
+    if (residents.length === 0) return;
+
+    // Leave the old kingdom.
+    const index = from.villageIds.indexOf(village.id);
+    if (index !== -1) from.villageIds.splice(index, 1);
+
+    const kingdom = this.createKingdom(village.race);
+    village.kingdomId = kingdom.id;
+    village.capital = true;
+    village.restless = 0;
+    kingdom.villageIds.push(village.id);
+
+    for (const resident of residents) {
+      resident.kingdomId = kingdom.id;
+      this.clearOffices(resident);
+    }
+
+    // Territory changes hands with the town that holds it. Cleared first so
+    // claimTerritory sees the tiles as newly gained and repaints them in the
+    // new colours — otherwise the border keeps the old kingdom's paint.
+    for (const id of village.territory) {
+      const tile = this.tileFromInstanceId(id);
+      if (tile) tile.ownerId = null;
+    }
+    village.territory.clear();
+    this.claimTerritory(village);
+
+    if (this.laws.warfare) {
+      from.atWar.add(kingdom.id);
+      kingdom.atWar.add(from.id);
+      from.tension.set(kingdom.id, 1);
+      kingdom.tension.set(from.id, 1);
+      this.warTimers.set(pairKey(from.id, kingdom.id), 0);
+    }
+
+    this.events.onEvent(
+      chronicle('secession', { name: village.name, a: from.name, b: kingdom.name }),
+      'war',
+      { x: village.centerX, y: village.centerY },
+    );
+    for (const resident of residents.slice(0, 3)) applyScenario(resident, 'crowned');
+    this.publishSummaries();
+  }
+
   // -- diplomacy and war -------------------------------------------------
 
   // -- growth and colonisation -------------------------------------------
@@ -974,7 +1237,10 @@ export class SettlementSystem {
   private colonyRound(_delta: number): void {
     for (const kingdom of this.kingdoms.values()) {
       if (kingdom.atWar.size > 0) continue; // nobody colonises mid-war
-      const limit = VILLAGE_LIMIT[kingdom.race] ?? 3;
+      const king = this.kingCivilStats(kingdom);
+      const limit = governableVillages(king)
+        + (EXPANSION_APPETITE[kingdom.race] ?? 0)
+        + OVERREACH_ALLOWANCE;
       const pending = Array.from(this.parties.values())
         .filter(party => party.kingdomId === kingdom.id).length;
       // One expedition at a time: three parties leaving at once empties the
@@ -1434,6 +1700,9 @@ export class SettlementSystem {
         villageIds: [...saved.villageIds],
         atWar: new Set(saved.atWar),
         tension: new Map(saved.tension),
+        // Restored kingdoms start past the new-kingdom loyalty honeymoon: a
+        // loaded save is an established realm, not a freshly declared one.
+        age: 600,
       });
     }
 
@@ -1452,8 +1721,9 @@ export class SettlementSystem {
         founded: { year: 0, season: simulation.season },
         capital: saved.capital ?? false,
         claimBonus: saved.claimBonus ?? 0,
-        age: 0,
+        age: 600,
         emptyFor: 0,
+        restless: 0,
       };
       this.villages.set(village.id, village);
 
@@ -1495,6 +1765,17 @@ export class SettlementSystem {
       buildings: village.buildings.length,
       territory: village.territory.size,
       capital: village.capital,
+      // The breakdown, not just the number. A rebellion the player cannot see
+      // coming is indistinguishable from a bug.
+      loyalty: village.loyalty?.score ?? null,
+      loyaltyFactors: village.loyalty?.factors ?? [],
+      restless: village.restless,
+      /** Seconds until this province secedes, or null if it is settled. */
+      secedesIn: village.restless > 0
+        ? Math.max(0, REBELLION_PATIENCE - village.restless)
+        : null,
+      ruler: kingdom?.ruler ?? null,
+      rulerStats: kingdom ? this.kingCivilStats(kingdom) : null,
     };
   }
 
@@ -1561,9 +1842,19 @@ export class SettlementSystem {
         territory: village.territory.size,
         x: village.centerX,
         y: village.centerY,
+        loyalty: village.loyalty?.score ?? null,
+        secedesIn: village.restless > 0
+          ? Math.max(0, REBELLION_PATIENCE - village.restless)
+          : null,
       });
     }
-    villageRows.sort((a, b) => b.population - a.population || b.territory - a.territory);
+    // Restless provinces first: a town about to secede is the most interesting
+    // row in the list, and burying it under the biggest towns hides the story.
+    villageRows.sort((a, b) => {
+      if ((a.secedesIn === null) !== (b.secedesIn === null)) return a.secedesIn === null ? 1 : -1;
+      if (a.secedesIn !== null && b.secedesIn !== null) return a.secedesIn - b.secedesIn;
+      return b.population - a.population || b.territory - a.territory;
+    });
     this.events.onVillagesChanged?.(villageRows);
   }
 
