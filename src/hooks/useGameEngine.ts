@@ -19,6 +19,7 @@ import { TerrainRenderer } from '../utils/terrainRenderer';
 import { SettlementSystem } from '../utils/settlementSystem';
 import { HerdSystem } from '../utils/herdSystem';
 import { UnitIconLayer } from '../utils/unitIconLayer';
+import { FLAMMABLE_BIOMES, FireSystem } from '../utils/fireSystem';
 import { publishWorldAccess } from '../utils/worldAccess';
 import { writeSave } from '../utils/saveSystem';
 import { worldAccess } from '../utils/worldAccess';
@@ -36,11 +37,6 @@ const SKY_COLORS: Record<TimeOfDay, THREE.Color> = {
   dusk: new THREE.Color('#5a3550'),
   night: new THREE.Color('#0b1120'),
 };
-const FLAMMABLE_BIOMES = [
-  'deciduous_forest', 'coniferous_forest', 'taiga', 'rainforest',
-  'tropical_forest', 'enchanted_forest', 'grassland', 'savanna', 'hills',
-];
-
 /** Tools that paint an area and therefore honour the brush size. */
 const BRUSH_TOOLS = new Set([
   'raise-terrain', 'lower-terrain', 'place-water', 'place-mountain',
@@ -80,7 +76,7 @@ export const useGameEngine = () => {
   const herdRef = useRef<HerdSystem | null>(null);
   const unitIconsRef = useRef<UnitIconLayer | null>(null);
   const iconTimerRef = useRef<number>(0);
-  const burningTilesRef = useRef<Set<Tile>>(new Set());
+  const fireRef = useRef<FireSystem | null>(null);
   const phaseTimerRef = useRef<number>(0);
   const weatherTimerRef = useRef<number>(0);
   const statsTimerRef = useRef<number>(0);
@@ -185,7 +181,8 @@ export const useGameEngine = () => {
       (selectionIndicatorRef.current.material as THREE.Material).dispose();
       selectionIndicatorRef.current = null;
     }
-    burningTilesRef.current.clear();
+    fireRef.current?.clear();
+    fireRef.current = null;
 
     const storeState = useGameStore.getState();
     const { tilesData } = generateWorld({
@@ -286,6 +283,21 @@ export const useGameEngine = () => {
     // Animals travel in families; see utils/herdSystem.ts
     const herds = new HerdSystem(tilesData, manager);
     herdRef.current = herds;
+
+    // Fire lives in its own system so its spread rate can be tested; see
+    // utils/fireSystem.ts for why that matters.
+    const fire = new FireSystem(tilesData, {
+      onIgnite: (tile) => {
+        effectsManagerRef.current?.spawnFlame(tileWorldPosition(tile), tile.fireFuel ?? 4);
+        syncTile(tile);
+      },
+      // The scorching itself is the fire system's business; we only repaint.
+      onExtinguish: (tile) => syncTile(tile),
+      onDamage: (x, y, radius, amount) => {
+        entityManagerRef.current?.damageArea(x, y, radius, amount, 'burned');
+      },
+    });
+    fireRef.current = fire;
 
     // Icons above heads: profession and current activity
     const unitIcons = new UnitIconLayer(scene);
@@ -410,27 +422,12 @@ export const useGameEngine = () => {
   }, [inBounds]);
 
   const igniteTile = useCallback((tile: Tile) => {
-    if (tile.isOnFire || tile.height <= 0.25 || isWaterBiome(tile.type)) return;
-    tile.isOnFire = true;
-    tile.fireIntensity = 1;
-    tile.fireFuel = FLAMMABLE_BIOMES.includes(tile.type) ? 6 : 2.5;
-    burningTilesRef.current.add(tile);
-    effectsManagerRef.current?.spawnFlame(tileWorldPosition(tile), tile.fireFuel);
-    syncTile(tile);
-  }, [tileWorldPosition, syncTile]);
+    fireRef.current?.ignite(tile);
+  }, []);
 
   const extinguishTile = useCallback((tile: Tile, burned: boolean) => {
-    tile.isOnFire = false;
-    tile.fireIntensity = 0;
-    burningTilesRef.current.delete(tile);
-    if (burned && tile.height > 0.25) {
-      tile.type = 'badlands';
-      tile.structure = null;
-      tile.fertility = Math.max(0, tile.fertility - 0.4);
-      tile.resources = tile.resources.filter(r => !['wood', 'food'].includes(r.type));
-    }
-    syncTile(tile);
-  }, [syncTile]);
+    fireRef.current?.extinguish(tile, burned);
+  }, []);
 
   /** Terraform a tile and keep its biome/height/visuals consistent. */
   const reshapeTile = useCallback((tile: Tile, height: number, type?: Tile['type']) => {
@@ -741,35 +738,14 @@ export const useGameEngine = () => {
     }
   }, [selectedTile, tileWorldPosition]);
 
-  /** Spread, burn down, and extinguish fires. */
+  /** Advance the fire system with the current weather and world laws. */
   const simulateFire = useCallback((delta: number) => {
-    if (burningTilesRef.current.size === 0) return;
     const store = useGameStore.getState();
-    const raining = store.weather !== 'clear';
-    const canSpread = store.worldLaws.fireSpread && !raining;
-    const toExtinguish: { tile: Tile; burned: boolean }[] = [];
-
-    burningTilesRef.current.forEach(tile => {
-      tile.fireFuel = (tile.fireFuel ?? 1) - delta * (raining ? 3 : 1);
-      if (tile.fireFuel <= 0) {
-        toExtinguish.push({ tile, burned: !raining });
-        return;
-      }
-      entityManagerRef.current?.damageArea(tile.x, tile.y, 0.8, 8 * delta * 4, 'burned');
-      if (canSpread && Math.random() < 0.12) {
-        const dx = Math.floor(Math.random() * 3) - 1;
-        const dy = Math.floor(Math.random() * 3) - 1;
-        const nx = tile.x + dx;
-        const ny = tile.y + dy;
-        if (inBounds(nx, ny)) {
-          const neighbor = tilesRef.current[nx][ny];
-          if (!neighbor.isOnFire && FLAMMABLE_BIOMES.includes(neighbor.type)) igniteTile(neighbor);
-        }
-      }
+    fireRef.current?.update(delta, {
+      raining: store.weather !== 'clear',
+      spreadEnabled: store.worldLaws.fireSpread,
     });
-
-    for (const { tile, burned } of toExtinguish) extinguishTile(tile, burned);
-  }, [igniteTile, extinguishTile, inBounds]);
+  }, []);
 
   /**
    * Slow world processes: food regrows, forests creep outward, corruption
