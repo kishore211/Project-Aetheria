@@ -119,20 +119,26 @@ simulated clock. This is rule 2 of *Rules for the work* in practice.
 
 ---
 
-## Phase 14 — Politics: loyalty, plots, rebellion
+## Phase 14 — Politics: loyalty, plots, rebellion  ✅ mostly done
 
-The deepest remaining system, and the one with the biggest story payoff.
+| # | Item | Status | Notes |
+|---|---|---|---|
+| 14.1 | **Loyalty per village**, with a visible breakdown | ✅ done | `utils/politics.ts`, 13 factors. The breakdown is the point: a rebellion you cannot see coming is indistinguishable from a bug. Five of their eighteen factors need culture/language/religion/clans/subspecies and arrive with Phase 15 rather than reading zero until then |
+| 14.2 | **Rebellion** | ✅ done | 45 s below zero, then the province becomes its own kingdom and the old ruler declares war. The delay is what makes the breakdown worth opening |
+| 14.3 | **Plots** | ✅ done | `utils/plots.ts`, six schemes with progress bars, an icon above the plotter, and two ways for the player to break one — kill them or bless them |
+| 14.4 | **Civil stats driving behaviour** | ✅ done | diplomacy / warfare / stewardship / intrigue, derived from attributes plus a hash of the id, so nothing needs saving. Stewardship counts double and sets how wide a realm holds together |
+| 14.5 | **Succession** | ✅ done | The ablest governor inherits. A weak heir drags loyalty down everywhere, so a king dying can start a rebellion |
+| 14.6 | **Alliances, opinions, peace talks** | ◐ partial | Alliances and peace exist as plot outcomes and zero out tension. A full opinion matrix between kingdoms is still open |
 
-| # | Item | Notes |
-|---|---|---|
-| 14.1 | **Loyalty per village** — a visible breakdown of ~10 factors (distance from capital, size vs capital, shared culture, over-expansion, losing wars) | Ours has a hard village limit instead |
-| 14.2 | **Rebellion** — loyalty below zero → a village secedes and the old kingdom declares war | Their signature moment |
-| 14.3 | **Plots** — schemes with a progress bar and an icon above the plotter, cancellable by killing them or by divine light | The best design idea in their game |
-| 14.4 | **Kings, leaders, clans** with civil stats (diplomacy, warfare, stewardship, intelligence) driving behaviour | We have a ruler *name* only |
-| 14.5 | **Succession** — heirs, shattered crowns, fractured kingdoms | Rich chronicle material |
-| 14.6 | **Alliances, opinions, peace talks** | Beyond our tension→war→peace |
+**Gate:** met. Verified live: a distant, oversized, wretched province sat at
+−36 loyalty, grew restless for 45 s, seceded, crowned its own ruler and went to
+war with the realm it left — three chronicle lines, no player input.
 
-**Gate:** an empire can tear itself apart without the player touching it.
+**The hard village cap is gone.** A per-race ceiling used to stop expansion
+outright; that was a placeholder for politics. Race now shifts *where loyalty
+starts to suffer*, and a kingdom is free to overreach and pay for it.
+
+---
 
 ## Phase 15 — Identity: culture, religion, language
 
