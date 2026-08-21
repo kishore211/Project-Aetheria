@@ -84,7 +84,7 @@ asserts the mean surviving *fraction*, which held at 0.78 across streams.
 | 11.3 | **List windows** — villages, kingdoms, wars, herds, families; click a row to fly there | One reusable panel |
 | 11.4 | **Chronicle 2.0** | ✅ done | `utils/chronicle.ts` — 25 topics, 76 phrasings, no consecutive repeats. Four filter chips (not one per kind: seven is a second interface to learn) and per-kind glyphs so the log can be *skimmed*. Brought `matchesTopic` with it, because three settlement tests were asserting prose |
 | 11.5 | **Statistics window** | ✅ done | `utils/worldStats.ts` + `StatsPanel.tsx`. Ring buffer of 120 samples on *simulated* time, so triple speed fills it three times as fast and a paused world records nothing |
-| 11.6 | **Minimap layers** — leaders, armies, battles, species | Extend the existing minimap |
+| 11.6 | **Minimap layers** | ✅ done | Paints whatever layer the big map is painting. Two views of one world that disagree about what they show is worse than having no minimap |
 
 **Gate:** ten different questions about the world can be answered from the map.
 
