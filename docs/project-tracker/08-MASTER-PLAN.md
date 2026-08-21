@@ -101,16 +101,23 @@ asserts the mean surviving *fraction*, which held at 0.78 across streams.
 
 **Gate:** the toolbar scales past 60 powers and is fully keyboard-driven.
 
-## Phase 13 — Ages
+## Phase 13 — Ages  ✅ done
 
-| # | Item | Notes |
-|---|---|---|
-| 13.1 | **10 eras** with an age clock in the HUD | Hope, Sun, Dark, Tears, Moon, Chaos, Wonders, Ice, Ash, Despair |
-| 13.2 | **Screen overlay + particle layer** per era | Sits on the season system we already have |
-| 13.3 | **Real rule changes** — drought kills trees, frost kills crops, chaos turns creatures, rain douses fire | Their global actions, scaled to our clock |
-| 13.4 | **Loyalty / opinion modifiers** per era | Feeds Phase 14 |
+| # | Item | Status | Notes |
+|---|---|---|---|
+| 13.1 | **10 eras** with an age clock in the HUD | ✅ done | `utils/ages.ts`. Eight slots, half of them Hope — without that every age is an event, and when everything is an event nothing is. A ring in the top bar fills as the era runs out |
+| 13.2 | **Screen overlay** per era | ✅ done | `AgeOverlay.tsx`, crossfaded in a rAF loop. Plain veil, not a blend mode: `soft-light` against mid-grey is the identity, so the Age of Ash looked like nothing at all |
+| 13.3 | **Real rule changes** | ✅ done | Fire spread, growth and harshness multipliers, plus periodic global actions — drought, downpour, frost, derangement, ashfall, flourish. Season and age compound |
+| 13.4 | **Per-era mood** | ✅ done | Stands in for their loyalty/opinion bonuses until Phase 14 has loyalty to modify |
 
-**Gate:** the world visibly enters and leaves an era, and it matters.
+**Gate:** met. Also a World Law, so it can be switched off — which returns the
+world to Hope rather than freezing whatever era was running.
+
+**On rescaling.** Theirs are "≥30 years"; a WorldBox year is ~40 s and ours is
+~45 min, so copying the number gives a 22-hour age. Ours run ~7 minutes on the
+simulated clock. This is rule 2 of *Rules for the work* in practice.
+
+---
 
 ## Phase 14 — Politics: loyalty, plots, rebellion
 
