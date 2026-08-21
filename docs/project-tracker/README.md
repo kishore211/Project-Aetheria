@@ -8,6 +8,7 @@ This folder is the single source of truth for project progress, research, and pl
 | [02-WORLDBOX-RESEARCH.md](02-WORLDBOX-RESEARCH.md) | Everything learned about WorldBox from the internet — how the real game works |
 | [03-MAP-REDESIGN.md](03-MAP-REDESIGN.md) | Why the current map feels heavy + the exact plan to make it light and beautiful |
 | [04-ROADMAP.md](04-ROADMAP.md) | What is deliberately **not** built, and why |
+| [05-PEOPLE-DYNAMICS-RESEARCH.md](05-PEOPLE-DYNAMICS-RESEARCH.md) | Second WorldBox research pass: why the world felt empty, and the numbers behind villages, kingdoms, herds and jobs |
 
 **Status:** the roadmap is complete. Every tier that was outstanding — the map
 redesign, the civilization layer, sandbox depth, and performance and quality —

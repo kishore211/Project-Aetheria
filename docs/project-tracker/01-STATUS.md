@@ -118,10 +118,111 @@ New `utils/settlementSystem.ts` and `utils/nameGenerator.ts`.
 - **Birth blips could swarm.** The spawn sound is rate limited to one per 220 ms.
 - **A flaky test.** A trait test compared separate random rolls; rewritten to assert the actual invariant.
 
+---
+
+## Phase 8 — People Dynamics (done 2026-08-21)
+
+Driven by a second research pass —
+[05-PEOPLE-DYNAMICS-RESEARCH.md](05-PEOPLE-DYNAMICS-RESEARCH.md) — after the
+world was judged to look "big and empty, people not roaming", with creatures
+"falling into holes and not coming back".
+
+### Stranding, fixed
+
+Three bugs conspired to strand creatures:
+
+| Bug | Fix |
+|---|---|
+| `handleMovingState` never checked walkability. When A* failed it walked a straight line to the target, marching creatures through water and mountains | Unreachable errands are abandoned; a path is re-planned when a tile on it stops being passable |
+| `isWalkableForEntity` only blocked `deep_ocean`/`ocean`, so any land animal could stand in a lake | Water is off-limits except to strong swimmers fording shallows; land animals drink from the bank via `isShoreTile` |
+| Nothing detected a creature that could not move | Three escape hatches, following WorldBox's own (`move_from_block`, `check_if_stuck_on_small_land`, `teleport_back_home`): a 4-second movement watchdog, a flood-fill confinement check for creatures walled into good ground, and a last-resort teleport that prefers the unit's home village |
+
+Also fixed: diagonal A* steps could cut the corner between two blocked tiles,
+which is how a creature briefly appeared to stand in the sea while walking
+around a bay. Cornered animals now turn and fight instead of vibrating against
+a wall.
+
+**Evidence:** 90 animals spawned along coastlines and river banks, 25 s at 3×.
+Only strong swimmers were ever in water; 75 of 92 covered more than 1.5 tiles
+in 20 s. 11 regression tests in `stranding.test.ts`.
+
+### Herds (`utils/herdSystem.ts`)
+
+Animals gather into families capped per species (sheep 9, deer 8, wolf 5,
+bear 2; snakes solitary; the civilised races never herd). The oldest is the
+alpha; every ~50 s it picks somewhere far off — grazers toward the most fertile
+ground in reach, hunters toward prey — and the rest trail it via a new
+`following` AI state using direct steps rather than A*, because the target moves
+every frame. Herds churn: adults peel off full herds to start new ones, and a
+herd down to one animal dissolves. Cooldowns are WorldBox's, scaled to our much
+shorter day.
+
+**Evidence:** deer herds moved 20+ tiles together in 25 s; 26–32 herds alive in
+a populated world. 11 tests.
+
+### Colonisation and borders
+
+| Item | Detail |
+|---|---|
+| Scale | A WorldBox village claims 576 tiles at founding on a map the size of our "medium"; ours claimed ~50. Claim radii roughly doubled (bonfire 4→7, hall 6→9) and village spacing raised 11→16 |
+| Growing borders | Villages work their claim outward over time (WorldBox's `claim_land`), capped by how built-up they are, so borders visibly creep instead of only jumping when a building appears |
+| Colonisation | A settled village with people to spare picks a site a good walk away and sends 3–5 settlers, who found the village **on arrival** — the player watches it happen. One expedition per kingdom at a time; no expansion while any village is small or while at war. Village limits by race (human 5, orc 4, elf/dwarf 3) |
+| Capitals | The first village is the capital; the title passes if it falls |
+| Decay | A village whose people are all gone falls to ruin and releases its land, instead of leaving dead borders on the map |
+| Cost | `claimTerritory` now diffs gained/lost tiles instead of repainting hundreds of them on every build |
+
+**Evidence:** two kingdoms grew to three villages each holding 1,027 and 556
+tiles; capitals reached ~640 tiles and 18–20 buildings. 6 tests.
+
+### Village life
+
+| Item | Detail |
+|---|---|
+| Socialising | The `social` need drained and was never satisfied. Villagers now walk to their bonfire and talk, restoring the need for everyone present, and cluster there between errands |
+| Staying home | Idle wandering picked a tile near wherever the unit happened to be, so villagers drifted off and left their own village looking abandoned. They now roam within ~7 tiles of home |
+| Warbands | One captain per village (the strongest warrior); the rest anchor to it and only the captain gets marching orders. It moves at 72 % speed so the band keeps up, instead of warriors trickling in one at a time |
+| Jobs by demand | Warriors once a village has 8 people (15 %, 40 % at war); gatherers scale inversely with the granary as WorldBox's do — 1 when full, everyone when empty |
+| Grazing | Herds walked over pasture without touching it and starved on the move. Grazers now take a mouthful from the tile they stand on, and keeping up with the herd yields to hunger and thirst |
+
+**Evidence:** social need recovered from 0.05 to a median of 0.64 in 14 s of
+play; starvation events went from several per run to zero; 6 captains appointed
+across 8 villages.
+
+### Bugs found while building this
+
+- **Village ids came from a per-instance counter,** so two settlement systems
+  both minted `village-1` and a stale one could intercept a villager's
+  delivery — the granary would never fill. Ids are now globally unique.
+- **Systems relied on the engine wiring `simulation.onOrderComplete`.**
+  Constructed anywhere else they looked functional and silently received
+  nothing. Settlement and herd systems now register their own handlers.
+- **Colonisation was gated on a food stockpile,** which a busy village always
+  spends feeding people, so only *poor* villages could expand.
+- **Existing gatherers filled every job slot** before warriors were considered,
+  so no village ever armed itself.
+- **A\* cleared all 16,384 tiles on every call.** It now stamps tiles with a
+  search generation and invalidates lazily, with a 4,000-expansion ceiling.
+
+### Test determinism
+
+Behavioural assertions on an unseeded simulation are coin flips that hide real
+regressions behind reruns — five separate "flakes" during this phase turned out
+to be three real bugs and three assertions measuring the wrong moment.
+`Math.random` is now replaced with a seeded stream before every test, so a
+failure is reproducible and means something.
+
+**Gates after Phase 8:** `npm test` 93/93 (stable across repeated runs),
+`npm run lint` clean, `npm run build` clean, `npm audit` 0 vulnerabilities,
+**119 fps with 197 creatures, 4 kingdoms, 8 villages and 32 herds** on a
+128×128 map. Save/load round trip verified with the new village fields
+(4 villages, 2 kingdoms, 100 creatures, capitals and claim bonuses identical).
+
+---
+
 ## Current quality gates (2026-08-21)
 
-- `npm test` → **61/61 pass** (stable across 8 consecutive runs)
+- `npm test` → **93/93 pass**, deterministic (seeded `Math.random` per test)
 - `npm run lint` → 0 errors, 0 warnings
-- `npm run build` → green, no warnings; 181 kB app + 357 kB drei + 696 kB three (56 + 113 + 178 kB gzip)
+- `npm run build` → green, no warnings; ~185 kB app + 357 kB drei + 696 kB three (gzip 57 + 113 + 178 kB)
 - `npm audit` → **0 vulnerabilities**
-- Live: 120 fps on a 128×128 world with 50+ creatures, 6 kingdoms and 6 villages
+- Live: **119 fps** on a 128×128 world with 197 creatures, 4 kingdoms, 8 villages and 32 herds

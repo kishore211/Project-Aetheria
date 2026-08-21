@@ -159,24 +159,27 @@ Concrete numbers worth copying:
 Aetheria assigns a flat 12% of a village to warriors (35% at war) and everyone
 else to "gatherer", with no caps tied to what the village actually needs.
 
-## 7. What this means for Aetheria
+## 7. What this meant for Aetheria — all done
 
-Ranked by how much the world will *feel* different per unit of work:
+Ranked by how much the world would *feel* different per unit of work. Every one
+of these is now built; details and evidence in
+[01-STATUS.md](01-STATUS.md#phase-8--people-dynamics-done-2026-08-21).
 
-1. **Fix the stranding bugs.** Nothing else matters if creatures drown in
-   puddles and starve in craters. Add the walkability check, plus WorldBox's
-   escape hatches: unstick, swim, and a last-resort return home.
-2. **Herds with a leading alpha.** Cheap, and it is what makes a map look
-   inhabited rather than decorated.
-3. **Colonisation.** Turns "kingdom" from a label on one village into something
-   that spreads across the map, and it is what makes borders worth watching.
-4. **Bigger, self-expanding village claims.** Scale the territory to the map.
-5. **Socialising at the bonfire.** Gives the `social` need a purpose and makes
-   villages look busy at a glance.
-6. **Armies that march together** behind a slower captain, instead of warriors
-   trickling in one at a time and dying.
-7. **Demand-driven jobs with caps**, so a village's behaviour visibly reflects
-   what it is short of.
+1. ✅ **Stranding bugs fixed.** Movement validates the ground it walks onto,
+   water is off-limits to weak swimmers, land animals drink from the bank, and
+   there are three escape hatches: a movement watchdog, a flood-fill
+   confinement check, and a last-resort teleport toward home.
+2. ✅ **Herds with a leading alpha** (`utils/herdSystem.ts`). Deer herds now
+   cross 20 tiles together.
+3. ✅ **Colonisation.** Villages send 3–5 settlers who walk to a site and found
+   the village on arrival. Kingdoms reach 3–5 villages and ~1,000 tiles.
+4. ✅ **Bigger, self-expanding claims.** Claim radii roughly doubled and
+   villages work their borders outward over time; a capital reaches ~520 tiles,
+   in the same league as WorldBox's 576.
+5. ✅ **Socialising at the bonfire.** The `social` need is finally satisfiable.
+6. ✅ **Warbands** behind a captain that marches at 72% speed.
+7. ✅ **Demand-driven jobs with caps**, gatherers scaling inversely with the
+   granary exactly as WorldBox's do.
 
 Deliberately still out of scope (see [04-ROADMAP.md](04-ROADMAP.md)): cultures
 and knowledge trees, religion, money and taxation, items and equipment, boats,

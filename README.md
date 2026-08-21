@@ -31,9 +31,14 @@ win. The loop is **create → populate → watch → intervene → repeat**.
 - **Twenty creature types** — humans, elves, dwarves and orcs; wolves, bears,
   deer, rabbits, foxes, sheep, chickens, snakes, birds and fish; dragons,
   demons, zombies, skeletons, elementals and bandits.
-- **Nobody is scripted.** Every creature drinks when thirsty, forages or hunts
+- **Nobody is scripted.** Every creature drinks when thirsty, grazes or hunts
   when hungry, flees predators, sleeps at night, fights, breeds and dies. A*
-  pathfinding routes them around water and mountains.
+  pathfinding routes them around water and mountains — and if one does get
+  stranded in a crater or on a one-tile island, it works its way out.
+- **Herds and packs.** Animals gather into families led by their oldest member,
+  which picks somewhere far off every few minutes and takes the rest with it.
+  Grazers head for good pasture, hunters head for prey, and a herd that grows
+  too large sheds adults who start their own.
 - **Eleven heritable traits** — swift, strong, tough, genius, long-lived,
   fertile, immortal, regenerating, pyromaniac, coward, bloodthirsty. Children
   usually inherit their parent's traits, occasionally mutate a new one, and
@@ -46,18 +51,29 @@ win. The loop is **create → populate → watch → intervene → repeat**.
 
 - **Villages found themselves.** Put three of one race on good land and they
   raise a bonfire, name their settlement, and get to work.
-- **Borders you can watch grow.** Every building projects a claim; the tiles it
-  holds are washed in the kingdom's colour and outlined in a brighter border.
+- **Borders you can watch grow.** Every building projects a claim, and villages
+  push their borders outward as they build up. The land they hold is washed in
+  the kingdom's colour and outlined in a brighter border.
+- **Kingdoms spread.** A settled village with people to spare sends a party of
+  settlers walking off to found a new one, so a kingdom grows from a single
+  bonfire into several towns and a real stretch of territory. The first
+  settlement is its capital.
 - **Kingdoms** with generated names, rulers and colours — "the Iron Horde of
   Grakzul, led by Warchief Zugnak".
-- **Work and building** — villagers are assigned jobs, forage and haul timber
-  and stone home, and their village spends the store on tents, houses, farms,
-  towers, mines, a great hall, a temple and statues.
+- **Work and building** — jobs are staffed by what the village is short of, so
+  everyone forages when the granary is empty and almost nobody does when it is
+  full. Villagers haul timber and stone home, and their village spends the store
+  on tents, houses, farms, towers, mines, a great hall, a temple and statues.
+- **Village life.** Villagers stay near home, and gather at the bonfire to talk
+  when they want company rather than wandering off alone.
+- **Warbands.** Each village raises warriors under a captain who marches slower
+  so the band stays together, instead of fighters trickling into a battle one at
+  a time.
 - **War.** Kingdoms that share a border build tension — orcs faster than
   anyone. Tension becomes a declaration, warbands march on the nearest enemy
   village, buildings come down, and when a bonfire falls the settlement is
   razed and its land released. Lose every village and your kingdom passes into
-  history.
+  history. A village that simply runs out of people falls to ruin on its own.
 
 ### Your powers
 
@@ -98,7 +114,7 @@ npm run dev      # http://localhost:3000
 |---|---|
 | `npm run dev` | Development server |
 | `npm run build` | Type-check + production bundle |
-| `npm test` | Vitest suite (61 tests) |
+| `npm test` | Vitest suite (93 tests) |
 | `npm run lint` | ESLint |
 
 ## Controls
@@ -133,8 +149,9 @@ src/
     pixelAtlas.ts                procedural pixel-art atlases
     spriteCloud.ts               one-draw-call billboarded sprite cloud
     entityManagerMinimal.ts      lifecycle, spatial index, area effects, LOD
-    entitySystemMinimal.ts       needs-driven AI, combat, orders, sprites
-    settlementSystem.ts          villages, kingdoms, borders, work, war
+    entitySystemMinimal.ts       needs-driven AI, combat, orders, anti-stranding
+    herdSystem.ts                families, alphas and migration
+    settlementSystem.ts          villages, kingdoms, borders, work, colonies, war
     nameGenerator.ts             per-race village/kingdom/ruler names
     traits.ts                    heritable traits
     pathfinding.ts               A* with per-species terrain costs

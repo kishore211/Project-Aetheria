@@ -1086,6 +1086,8 @@ export const useGameEngine = () => {
       },
       get settlements() { return settlementRef.current; },
       get herds() { return herdRef.current; },
+      /** Snapshot the world, for save/load round-trip checks. */
+      captureSave: (label = 'debug') => worldAccess.current?.captureSave(label) ?? null,
       /** Move the camera to a tile at a given height, for tests and debugging. */
       lookAt: (x: number, y: number, height = 6) => {
         if (!inBounds(x, y)) return;

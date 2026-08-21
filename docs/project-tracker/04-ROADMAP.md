@@ -3,7 +3,10 @@
 Every item that was on this list when the project was picked up has been built
 and moved to [01-STATUS.md](01-STATUS.md): the map redesign (Tier 1), the
 civilization layer (Tier 2), sandbox depth (Tier 3) and the performance and
-quality work (Tier 4).
+quality work (Tier 4). A later people-dynamics pass
+([05-PEOPLE-DYNAMICS-RESEARCH.md](05-PEOPLE-DYNAMICS-RESEARCH.md)) added herds
+and migration, colonisation, growing borders, village social life and warbands,
+and fixed the bugs that stranded creatures.
 
 What follows is what is **deliberately not built**, and why. Nothing here is
 half-finished — the game is complete and playable as it stands.
@@ -33,8 +36,15 @@ shallower version of everything above.
 
 - **Kingdom banners and heraldry** — kingdoms have generated names, rulers and
   colours, but no generated flag art.
+- **Families and lineage** — creatures inherit traits from a parent, but there
+  is no family meta, no lovers, and children do not follow their parents.
+- **Boats** — settlers walk, so colonisation cannot cross open water. On an
+  archipelago map a kingdom is confined to its island.
 - **Diplomacy beyond war and peace** — no alliances, opinions, rebellions or
-  succession crises. Tension, war, conquest and peace are modelled.
+  succession crises. Tension, war, conquest, peace and abandonment are
+  modelled. WorldBox drives rebellion off a per-village *loyalty* number, with
+  -25 per village a kingdom holds beyond its race's limit; Aetheria uses a hard
+  village limit instead and has no loyalty at all.
 - **Unit equipment and levels** — creatures have traits, attributes and a kill
   count; there are no weapons or experience levels.
 - **Zombie variants per creature** — zombies and skeletons exist as their own
@@ -60,9 +70,10 @@ shallower version of everything above.
 
 In rough order of value per unit of effort:
 
-1. **Alliances and rebellions** — the tension model already exists; adding
-   opinions and loyalty would deepen the civilization layer the most for the
-   least new machinery.
+1. **Loyalty and rebellions** — the tension model and village limits already
+   exist; adding a loyalty number per village (falling as a kingdom
+   over-expands, as WorldBox does) would let colonies break away and would
+   deepen the civilization layer the most for the least new machinery.
 2. **Kingdom inspector with history** — a panel per kingdom listing its villages,
    wars won and lost, and rulers over time. All the data is already tracked.
 3. **Heraldry generator** — procedural banners from the kingdom colour and race,
