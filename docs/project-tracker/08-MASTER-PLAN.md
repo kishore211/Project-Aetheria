@@ -140,16 +140,24 @@ starts to suffer*, and a kingdom is free to overreach and pay for it.
 
 ---
 
-## Phase 15 — Identity: culture, religion, language
+## Phase 15 — Identity: culture, religion, language  ✅ done
 
-| # | Item | Notes |
-|---|---|---|
-| 15.1 | **The pot mechanic** — two units talk, both their metas enter a weighted pot, one wins | Elegant, tiny, and it gives our socialising a purpose |
-| 15.2 | **Cultures** with traits that change behaviour — house spacing, warrior ratio, expansionism, xenophobia | ~15 traits, not 78 |
-| 15.3 | **Religions and languages** on the same machinery, with map layers | Nearly free once 15.1 exists |
-| 15.4 | **Books** — a written work carries a culture and can convert its reader | Charming and cheap |
+| # | Item | Status | Notes |
+|---|---|---|---|
+| 15.1 | **The pot mechanic** | ✅ done | `utils/identity.ts`. Two speakers, each weighted 1–3 by whether their village and kingdom share their identity, one entry drawn. Measured: a settled villager converts a passing stranger about three times in four |
+| 15.2 | **Cultures with traits that change behaviour** | ✅ done | Twelve traits, every one wired to something the simulation does. Spacious/dense change the *shape of the town*, which is the most visible of the lot |
+| 15.3 | **Religions and languages on the same machinery, with map layers** | ✅ done | Same type, same pot. Three new map layers with a named key rather than a ramp |
+| 15.4 | **Books** | ✅ done | Temples and statues write the village down; a passer-by may read it, weighted 3 v 3. How a culture outlives its last speaker |
+| — | **Schism plot** | ✅ done | Not on the original list, and the gate was unreachable without it: the pot spreads identities but cannot invent one, so two towns under one kingdom would never have diverged |
 
-**Gate:** two villages of the same race can drift into different cultures.
+**Gate:** met. Two villages of one race started as "Gormesh / the Fal Rite"; fifty
+seconds later one was "Ythyn / the Eshr Mysteries".
+
+**Loyalty is now complete-ish.** Shared culture, language and faith are wired in
+at their WorldBox weights, taking the formula from 13 factors to 16. The two
+still missing (clan, subspecies) need systems nothing else is asking for yet.
+
+---
 
 ## Phase 16 — Town craft and economy
 
