@@ -38,8 +38,26 @@ import { recordDeath, resetStats, sampleWorld } from '../utils/worldStats';
 
 /** Mirrors entitySystemMinimal: only the sentient races get bubbles. */
 const SPEAKING_RACES = new Set<string>(['human', 'elf', 'dwarf', 'orc']);
+
+/**
+ * Which material a tile sounds like under the brush.
+ *
+ * Grouped by what the ear expects rather than by biome family: mesa and
+ * badlands are stone even though they are technically dry soil, because they
+ * look like rock.
+ */
+const terraformVoiceFor = (tile: Tile): TerraformVoice => {
+  if (isWaterBiome(tile.type)) return 'water';
+  if (tile.type === 'beach' || tile.type === 'desert') return 'sand';
+  if (tile.type.includes('forest') || tile.type === 'taiga') return 'forest';
+  if (
+    tile.type === 'mountains' || tile.type === 'hills'
+    || tile.type === 'mesa' || tile.type === 'badlands' || tile.type === 'volcanic'
+  ) return 'stone';
+  return 'soil';
+};
 import { labelBridge, publishLabels, type MapLabel } from '../utils/labelBridge';
-import { soundManager } from '../utils/soundManager';
+import { soundManager, type TerraformVoice } from '../utils/soundManager';
 
 // Constants for game engine
 const SELECTION_INDICATOR_HEIGHT = 0.1;
@@ -584,7 +602,10 @@ export const useGameEngine = () => {
           const amount = 0.1 * (1 - distance / (radius + 1));
           if (target.height < 0.98) reshapeTile(target, target.height + amount);
         });
-        soundManager.terraform();
+        // The voice comes from the ground actually under the brush, so dragging
+        // across a coastline audibly changes material. That is the whole point
+        // of having more than one — a fixed voice would just be a second click.
+        soundManager.terraform(terraformVoiceFor(tile));
         break;
 
       case 'lower-terrain':
@@ -592,21 +613,21 @@ export const useGameEngine = () => {
           const amount = 0.1 * (1 - distance / (radius + 1));
           if (target.height > 0.02) reshapeTile(target, target.height - amount);
         });
-        soundManager.terraform();
+        soundManager.terraform(terraformVoiceFor(tile));
         break;
 
       case 'place-water':
         forEachBrushTile(tile, radius, (target) => {
           if (target.height > 0.1) reshapeTile(target, 0.24, 'shallow_water');
         });
-        soundManager.terraform();
+        soundManager.terraform('water');
         break;
 
       case 'place-mountain':
         forEachBrushTile(tile, radius, (target, distance) => {
           reshapeTile(target, 0.9 - distance * 0.12, 'mountains');
         });
-        soundManager.terraform();
+        soundManager.terraform('stone');
         break;
 
       case 'place-forest':
@@ -627,7 +648,7 @@ export const useGameEngine = () => {
         });
         if (!acted) break;
         effectsManagerRef.current?.spawnBurst(tileWorldPosition(tile), 0x55cc55, 14, 1.5);
-        soundManager.terraform();
+        soundManager.terraform('forest');
         break;
 
       case 'spawn-human': acted = spawnRace(tile, 'human'); break;
