@@ -27,7 +27,10 @@ export default defineConfig({
   },
   server: {
     host: true,
-    port: 3000,
+    // Honour an assigned port when one is handed to us, falling back to 3000.
+    // Hardcoding 3000 meant a second dev server could never start alongside a
+    // first, and the preview tooling assigns its own port.
+    port: Number(process.env.PORT) || 3000,
   },
   test: {
     // jsdom gives the sprite/atlas code a `document` to draw into. Its canvas
