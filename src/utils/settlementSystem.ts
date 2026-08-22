@@ -31,11 +31,13 @@ import {
   forgetGroup,
   groupMetas,
   groupHasCultureTrait,
+  groupLayout,
   metaById,
   mintMeta,
   setGroupMetas,
   setMetaOf,
   writeBook,
+  type LayoutId,
   type MetaKind,
 } from './identity';
 import {
@@ -234,6 +236,82 @@ const EXPANSION_APPETITE: Record<Race, number> = {
  * reason a rebellion is something the player can see coming and head off —
  * which is what makes the loyalty breakdown worth opening.
  */
+/**
+ * Tiles per side of a placement zone.
+ *
+ * Theirs is 8x8 on an 8px tile map; ours is 3x3 because a whole town here is
+ * only six or seven tiles across, and an 8-tile zone would swallow it whole.
+ */
+const ZONE_SIZE = 3;
+
+const zoneKey = (x: number, y: number): string =>
+  `${Math.floor(x / ZONE_SIZE)},${Math.floor(y / ZONE_SIZE)}`;
+
+/** How many of the eight neighbouring zones already hold one of our buildings. */
+const adjacentZonesFilled = (
+  x: number, y: number, filled: ReadonlySet<string>,
+): number => {
+  let count = 0;
+  for (let dx = -1; dx <= 1; dx += 1) {
+    for (let dy = -1; dy <= 1; dy += 1) {
+      if (dx === 0 && dy === 0) continue;
+      if (filled.has(zoneKey(x + dx * ZONE_SIZE, y + dy * ZONE_SIZE))) count += 1;
+    }
+  }
+  return count;
+};
+
+/**
+ * The three siting classes, straight from their design.
+ *
+ * `cluster` needs a neighbouring zone already built in; `solitary` needs its
+ * neighbours empty; `border` needs an adjacent zone that is not ours. Between
+ * them they produce a dense core, a green belt and frontier towers with no
+ * authoring at all — which is the whole trick.
+ */
+type Siting = 'cluster' | 'solitary' | 'border' | 'anchor';
+
+const SITING: Record<string, Siting> = {
+  bonfire: 'anchor',
+  hall: 'anchor',
+  house: 'cluster',
+  farm: 'cluster',
+  mine: 'solitary',
+  temple: 'solitary',
+  statue: 'solitary',
+  tower: 'border',
+};
+
+/**
+ * Does a tile sit where this culture would put a building?
+ *
+ * Stage two of placement, and the reason two towns of different peoples look
+ * different. Each rule is a cheap predicate on the tile's offset from the town
+ * centre — no pathing, no street graph, just a shape.
+ */
+const fitsLayout = (
+  layout: LayoutId, x: number, y: number, village: Village,
+): boolean => {
+  const dx = x - village.centerX;
+  const dy = y - village.centerY;
+  switch (layout) {
+    // Streets on the even lines, buildings on the odd ones.
+    case 'grid': return Math.abs(dx) % 2 === 1 && Math.abs(dy) % 2 === 1;
+    // Concentric bands with a gap between them.
+    case 'rings': return Math.max(Math.abs(dx), Math.abs(dy)) % 2 === 1;
+    // Two columns built, one skipped, and the skip walks along each row —
+    // a staggered comb with a period of three rather than a checkerboard.
+    // The first version offset alternate rows by one, which reduces to exactly
+    // the diagonal rule below: two cultures, one silhouette.
+    case 'honeycomb': return (dx + Math.abs(dy)) % 3 !== 0;
+    // Diagonal lanes.
+    case 'diagonal': return (dx + dy) % 2 === 0;
+    // No rule at all, which is itself a look.
+    default: return true;
+  }
+};
+
+
 const REBELLION_PATIENCE = 45;
 
 /**
@@ -1067,23 +1145,88 @@ export class SettlementSystem {
     return false;
   }
 
+  /**
+   * Where the next building goes.
+   *
+   * Two stages, which is how WorldBox gets towns that look designed without a
+   * city planner (09-WORLDBOX-VISUAL-RESEARCH.md §6): choose a *zone*, then
+   * choose a tile inside it by the culture's layout rule. Regular spacing falls
+   * out of the zone grid for free, and the layout rule makes two towns of
+   * different peoples distinguishable at a glance.
+   *
+   * Replaces a ring-walk that picked the first free tile outward from the
+   * centre, which produced a solid blob with no streets and looked identical
+   * for every culture.
+   */
   private findBuildSpot(village: Village, kind: BuildingKind): { x: number; y: number } | null {
-    const maxRadius = kind === 'farm' ? 6 : 5;
+    const reach = kind === 'farm' ? 7 : 6;
     const occupied = new Set(village.buildings.map(b => `${b.x},${b.y}`));
+    const siting = SITING[kind] ?? 'cluster';
+    const layout = groupLayout(village.id);
 
-    // House spacing is the most visible culture trait of all, because it is the
-    // *shape* of the town rather than a number in a panel. A dense culture
-    // starts filling from the centre; a spacious one leaves the first ring
-    // empty and builds outward.
-    const spacious = groupHasCultureTrait(village.id, 'spacious');
-    const dense = groupHasCultureTrait(village.id, 'dense');
-    const firstRing = spacious ? 2 : 1;
-    const lastRing = dense ? Math.max(2, maxRadius - 2) : spacious ? maxRadius + 2 : maxRadius;
+    // Which zones already hold something of ours, so the siting rules below
+    // have neighbours to test against.
+    const filledZones = new Set<string>();
+    for (const building of village.buildings) {
+      filledZones.add(zoneKey(building.x, building.y));
+    }
 
-    for (let radius = firstRing; radius <= lastRing; radius++) {
+    const candidates: Array<{ x: number; y: number; score: number }> = [];
+
+    for (let dx = -reach; dx <= reach; dx += 1) {
+      for (let dy = -reach; dy <= reach; dy += 1) {
+        const x = village.centerX + dx;
+        const y = village.centerY + dy;
+        if (occupied.has(`${x},${y}`)) continue;
+
+        const tile = this.tileAt(x, y);
+        if (!tile || tile.villageId) continue;
+        if (isWaterBiome(tile.type) || tile.height < 0.28) continue;
+        if (tile.type === 'mountains' && kind !== 'mine') continue;
+        if (kind === 'farm' && tile.fertility < 0.3) continue;
+        if (kind === 'mine' && tile.type !== 'mountains' && tile.type !== 'hills') continue;
+
+        // Stage two: does this tile suit the culture's street pattern?
+        if (!fitsLayout(layout, x, y, village)) continue;
+
+        // Stage one, expressed as a filter on the tile's zone.
+        const neighbours = adjacentZonesFilled(x, y, filledZones);
+        if (siting === 'cluster' && filledZones.size > 0 && neighbours === 0) continue;
+        if (siting === 'solitary' && neighbours > 0) continue;
+        if (siting === 'border' && !this.zoneTouchesForeignLand(x, y, village)) continue;
+
+        // Prefer close to the centre, so a town grows outward rather than
+        // sprinkling itself across its whole claim.
+        candidates.push({ x, y, score: Math.abs(dx) + Math.abs(dy) + Math.random() * 3 });
+      }
+    }
+
+    if (candidates.length > 0) {
+      candidates.sort((a, b) => a.score - b.score);
+      return { x: candidates[0].x, y: candidates[0].y };
+    }
+
+    // Nothing satisfied the rules. Relax them rather than never building.
+    //
+    // A `solitary` temple in a town that has filled every zone would otherwise
+    // find nowhere for ever, and the failure is silent — the village simply
+    // stops progressing and nothing says why. A siting class is a preference
+    // about where a building looks right, not a law about whether it may exist.
+    if (siting !== 'cluster' || layout !== 'scattered') {
+      return this.findBuildSpotRelaxed(village, kind, occupied);
+    }
+    return null;
+  }
+
+  /** Any legal tile at all, ignoring zone and layout rules. */
+  private findBuildSpotRelaxed(
+    village: Village, kind: BuildingKind, occupied: ReadonlySet<string>,
+  ): { x: number; y: number } | null {
+    const reach = kind === 'farm' ? 7 : 6;
+    for (let radius = 1; radius <= reach; radius += 1) {
       const ring: Array<{ x: number; y: number }> = [];
-      for (let dx = -radius; dx <= radius; dx++) {
-        for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx += 1) {
+        for (let dy = -radius; dy <= radius; dy += 1) {
           if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue;
           const x = village.centerX + dx;
           const y = village.centerY + dy;
@@ -1100,6 +1243,27 @@ export class SettlementSystem {
       if (ring.length > 0) return ring[Math.floor(Math.random() * ring.length)];
     }
     return null;
+  }
+
+  /**
+   * Does this tile's zone border land that is not ours?
+   *
+   * Used by watchtowers, which is what makes them appear on the frontier rather
+   * than in the middle of town — with no code that mentions frontiers.
+   */
+  private zoneTouchesForeignLand(x: number, y: number, village: Village): boolean {
+    const kingdom = this.kingdoms.get(village.kingdomId);
+    if (!kingdom) return false;
+    for (let dx = -ZONE_SIZE; dx <= ZONE_SIZE; dx += ZONE_SIZE) {
+      for (let dy = -ZONE_SIZE; dy <= ZONE_SIZE; dy += ZONE_SIZE) {
+        if (dx === 0 && dy === 0) continue;
+        const tile = this.tileAt(x + dx, y + dy);
+        if (!tile) continue;
+        if (tile.ownerId && tile.ownerId !== kingdom.id) return true;
+        if (!tile.ownerId) return true;
+      }
+    }
+    return false;
   }
 
   private placeBuilding(village: Village, kind: BuildingKind, x: number, y: number): void {

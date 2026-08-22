@@ -105,6 +105,48 @@ export const CULTURE_TRAITS: Record<CultureTraitId, CultureTraitInfo> = {
   },
 };
 
+/**
+ * How a culture arranges its towns.
+ *
+ * WorldBox gives each culture a named layout trait — perfect grid, honeycomb,
+ * rings, labyrinth — and it is why you can identify a civilisation from the
+ * minimap silhouette alone (09-WORLDBOX-VISUAL-RESEARCH.md §6). Kept separate
+ * from `CultureTraitId` because it is not a behaviour that stacks with others:
+ * a culture has exactly one way of laying out a street.
+ */
+export type LayoutId = 'grid' | 'rings' | 'honeycomb' | 'diagonal' | 'scattered';
+
+export interface LayoutInfo {
+  id: LayoutId;
+  label: string;
+  description: string;
+}
+
+export const LAYOUTS: Record<LayoutId, LayoutInfo> = {
+  grid: {
+    id: 'grid', label: 'Ordered',
+    description: 'Builds on a strict grid, with streets that meet at corners.',
+  },
+  rings: {
+    id: 'rings', label: 'Concentric',
+    description: 'Builds in rings around its centre, leaving gaps between them.',
+  },
+  honeycomb: {
+    id: 'honeycomb', label: 'Honeycomb',
+    description: 'Builds two rows in three, with the gap walking along.',
+  },
+  diagonal: {
+    id: 'diagonal', label: 'Diagonal',
+    description: 'Lays its streets on the slant.',
+  },
+  scattered: {
+    id: 'scattered', label: 'Scattered',
+    description: 'Builds wherever there is room and thinks no more about it.',
+  },
+};
+
+const LAYOUT_IDS = Object.keys(LAYOUTS) as LayoutId[];
+
 export interface Meta {
   id: string;
   kind: MetaKind;
@@ -112,6 +154,8 @@ export interface Meta {
   colorHex: string;
   /** Only cultures carry traits; the others are identity alone. */
   traits: CultureTraitId[];
+  /** Only cultures carry a layout. */
+  layout?: LayoutId;
 }
 
 /** What a village or kingdom is, institutionally. */
@@ -283,6 +327,9 @@ export const mintMeta = (kind: MetaKind, roll = Math.random()): Meta => {
     name,
     colorHex: color,
     traits: kind === 'culture' ? rollCultureTraits(roll) : [],
+    layout: kind === 'culture'
+      ? LAYOUT_IDS[Math.floor(Math.abs(roll * 23)) % LAYOUT_IDS.length]
+      : undefined,
   });
 };
 
@@ -504,6 +551,12 @@ export const carriedMetas = (entities: Iterable<Entity>): Set<string> => {
     note(set.religion);
   }
   return carried;
+};
+
+/** How a group's culture lays out a town. */
+export const groupLayout = (groupId: string | null | undefined): LayoutId => {
+  const set = groupMetas(groupId);
+  return metaById(set?.culture)?.layout ?? 'scattered';
 };
 
 /** Does this creature's culture hold a trait? */
