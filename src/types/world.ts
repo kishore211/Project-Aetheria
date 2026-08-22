@@ -250,6 +250,11 @@ export interface Entity {
    * belonging; pushed by statuses and one-off events. See utils/mood.ts.
    */
   happiness?: number;
+  /**
+   * 0-1 position in the walk cycle. Advanced by distance travelled rather than
+   * by wall time, so a creature's feet match the ground at any game speed.
+   */
+  walkPhase?: number;
   /** Closest companion, if it has found one. */
   friendId?: string | null;
   /** Partner. Reproduction goes through this when the world has pairs in it. */

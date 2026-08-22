@@ -13,7 +13,7 @@ import {
   type Tile,
   type TraitId,
 } from '../types/world';
-import { getPixelSpriteTexture, getPixelSpriteFrames } from './pixelSprites';
+import { getPixelSpriteTexture, getPixelSpriteFrames, WALK_FRAMES } from './pixelSprites';
 import {
   canSwim,
   findNearestStandable,
@@ -191,6 +191,10 @@ export function createEntity(
     needs: { hunger: 1.0, thirst: 1.0, rest: 1.0, social: 1.0 },
     inventory: [],
     status: [],
+    // Staggered so a crowd does not breathe in unison. Two dozen creatures
+    // bobbing on the same beat reads as a mechanism; the same two dozen out of
+    // phase reads as a crowd.
+    walkPhase: Math.random(),
     traits: traits ?? rollTraitsForType(type),
     kills: 0,
     kingdomId: null,
@@ -286,6 +290,20 @@ export function getAnimationForEntityStatus(entity: Entity): string {
  * `detailLevel` (0-1) comes from the camera distance: chrome and animation are
  * dropped when the map is zoomed far out.
  */
+/**
+ * How fast this creature covers ground, for pacing its stride.
+ *
+ * Mirrors the AI's own `tilesPerSecond` rather than reaching into it, because
+ * this runs from the render path and the AI instance is not to hand. A small
+ * duplication in exchange for the render layer not depending on the AI layer.
+ */
+const tilesPerSecondOf = (entity: Entity): number => {
+  let speed = entity.attributes.speed * 0.12;
+  if (entity.status.includes('exhausted')) speed *= 0.5;
+  if (entity.status.includes('captain')) speed *= 0.72;
+  return speed;
+};
+
 export function updateEntityMesh(entity: Entity, deltaTime = 1 / 60, detailLevel = 1): void {
   if (!entity.mesh) return;
 
@@ -318,24 +336,48 @@ export function updateEntityMesh(entity: Entity, deltaTime = 1 / 60, detailLevel
 
   const baseY = getEntitySize(entity.type) * 1.5;
   const isMoving = entity.status.includes('moving');
+  const material = sprite.material as THREE.SpriteMaterial;
 
   if (isMoving && detailLevel > 0.25) {
-    sprite.position.y = baseY + Math.abs(Math.sin(Date.now() / 40)) * 0.05;
+    // The stride clock runs on the *simulated* delta, not the wall clock.
+    //
+    // The old version drove both the frame and the bob off Date.now(), so at
+    // triple speed a creature crossed the map three times as fast with its legs
+    // moving at the same rate — it skated. Advancing the phase by distance
+    // travelled instead means the feet always match the ground, at any speed,
+    // and it comes out free because the delta is already here.
+    const stridesPerSecond = Math.max(1.6, tilesPerSecondOf(entity) * 1.9);
+    entity.walkPhase = ((entity.walkPhase ?? 0) + deltaTime * stridesPerSecond) % 1;
+
     const frames = getPixelSpriteFrames(entity.type);
-    const frameIndex = Math.floor(Date.now() / 180) % 2;
-    const material = sprite.material as THREE.SpriteMaterial;
+    const frameIndex = Math.floor(entity.walkPhase * WALK_FRAMES) % frames.length;
     if (material.map !== frames[frameIndex]) {
       material.map = frames[frameIndex];
       material.needsUpdate = true;
     }
+
+    // One bounce per stride, in step with the frames rather than at its own
+    // frequency. The old bob ran at 25 Hz off Date.now() and read as vibration.
+    const size = getEntitySize(entity.type);
+    const bounce = Math.abs(Math.sin(entity.walkPhase * Math.PI * 2));
+    sprite.position.y = baseY + bounce * size * 0.22;
+    // A little lean into the direction of travel. Cheap, and it is most of what
+    // makes a walk look like effort rather than sliding.
+    sprite.material.rotation = (sprite.scale.x < 0 ? 1 : -1) * bounce * 0.06;
   } else {
-    sprite.position.y = baseY;
+    entity.walkPhase = ((entity.walkPhase ?? 0) + deltaTime * 0.35) % 1;
     const frames = getPixelSpriteFrames(entity.type);
-    const material = sprite.material as THREE.SpriteMaterial;
     if (material.map !== frames[0]) {
       material.map = frames[0];
       material.needsUpdate = true;
     }
+    // Idle breathing: slow, small, and always on. A creature that is perfectly
+    // still reads as a placed object; one that breathes reads as alive even
+    // when it is doing nothing.
+    const size = getEntitySize(entity.type);
+    const breath = Math.sin(entity.walkPhase * Math.PI * 2);
+    sprite.position.y = baseY + breath * size * 0.035;
+    sprite.material.rotation = 0;
   }
 
   applyStatusVisuals(entity, sprite, deltaTime);
@@ -356,7 +398,10 @@ function applyStatusVisuals(entity: Entity, sprite: THREE.Sprite, _deltaTime: nu
   }
 
   if (entity.status.includes('fleeing')) {
-    sprite.position.x = (Math.random() - 0.5) * 0.04;
+    // A shake, not a re-roll. Reading a fresh random number every frame is
+    // white noise at frame rate, which the eye reads as a rendering fault
+    // rather than as panic; a fast sine off the walk phase reads as trembling.
+    sprite.position.x = Math.sin((entity.walkPhase ?? 0) * Math.PI * 24) * 0.03;
   } else {
     sprite.position.x = 0;
   }
