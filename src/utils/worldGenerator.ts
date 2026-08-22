@@ -253,8 +253,8 @@ const TIME_TINTS: Record<TimeOfDayName, { color: THREE.Color; amount: number }> 
  */
 const VARIANT_SHIFTS = [
   { h: 0, s: 0, l: 0 },
-  { h: 0.018, s: -0.05, l: 0.035 },
-  { h: -0.022, s: 0.055, l: -0.03 },
+  { h: 0.014, s: -0.032, l: 0.018 },
+  { h: -0.016, s: 0.036, l: -0.016 },
 ];
 
 export const getBiomeColor = (
@@ -295,7 +295,12 @@ export const getBiomeColor = (
     color.offsetHSL(shift.h, shift.s, shift.l);
     // A little continuous jitter on top of the discrete variant, so two
     // neighbouring tiles of the same variant are still not identical.
-    color.multiplyScalar(0.975 + ((variant * 7) % 1) * 0.05);
+    //
+    // Both this and the variant shifts above were halved once the fragment
+    // shader started drawing an 8x8 grain inside every tile. Whole-tile colour
+    // steps were doing the job the grain now does better, and together they
+    // read as large flat blocks — which is the grid, wearing a new coat.
+    color.multiplyScalar(0.988 + ((variant * 7) % 1) * 0.024);
   }
 
   // Elevation reads as a colour change, not only as geometry. WorldBox gives

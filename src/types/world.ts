@@ -11,14 +11,28 @@ export const TILE_SIZE = 0.5;
 export const MIN_TILE_HEIGHT = 0.05;
 
 /**
- * Visual relief of the map. Kept deliberately low: Aetheria reads as a flat
- * top-down pixel map (see docs/project-tracker/03-MAP-REDESIGN.md) where colour
- * carries the biome and height only provides gentle depth cues.
+ * Visual relief of the map.
+ *
+ * This was 0.6 on a 0.5-unit tile, which made an ordinary field 0.44 units tall
+ * — very nearly a cube. That is the whole of the "when you zoom in it looks
+ * like square boxes" problem: a grid of cubes is a voxel diorama, and WorldBox
+ * is a flat map.
+ *
+ * Applied through a power curve rather than linearly (see RELIEF_CURVE), so
+ * plains are properly flat while mountains still rise. A uniform reduction
+ * would have flattened the mountains too and lost the one place relief earns
+ * its keep.
+ *
  * The raw `height` field (0-1) is untouched and drives all simulation.
  */
-export const BASE_TILE_SCALED_HEIGHT_MULTIPLIER = 0.6;
+export const BASE_TILE_SCALED_HEIGHT_MULTIPLIER = 0.55;
+/**
+ * Exponent on height before it becomes relief. Above 1 this pushes low ground
+ * flat and leaves high ground tall.
+ */
+export const RELIEF_CURVE = 1.9;
 /** Land sits on a small plinth above the sea so coastlines read clearly. */
-export const LAND_BASE_HEIGHT = 0.12;
+export const LAND_BASE_HEIGHT = 0.05;
 /** Water is nearly flat and slightly sunken. */
 export const WATER_DEPTH_SCALE = 0.18;
 
@@ -91,7 +105,8 @@ export const isDrinkableBiome = (type: BiomeType): boolean =>
  */
 export const computeScaledHeight = (height: number, type: BiomeType): number => {
   if (isWaterBiome(type)) return MIN_TILE_HEIGHT + height * WATER_DEPTH_SCALE;
-  return MIN_TILE_HEIGHT + LAND_BASE_HEIGHT + height * BASE_TILE_SCALED_HEIGHT_MULTIPLIER;
+  const relief = Math.pow(Math.max(0, height), RELIEF_CURVE);
+  return MIN_TILE_HEIGHT + LAND_BASE_HEIGHT + relief * BASE_TILE_SCALED_HEIGHT_MULTIPLIER;
 };
 
 // Resource types
