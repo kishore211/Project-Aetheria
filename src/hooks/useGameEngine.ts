@@ -1848,6 +1848,7 @@ export const useGameEngine = () => {
     // obvious tell that a place is a diagram. Same reason the sky keeps
     // drifting while paused.
     terrainRef.current?.advanceWater(deltaTime);
+    settlementRef.current?.advancePulse(deltaTime);
 
     projectLabels();
     // Clamped like the game tick: a tab returning from the background hands us

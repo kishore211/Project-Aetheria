@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
+import { useTweenedNumber } from '../../hooks/useTweenedNumber';
 import { soundManager } from '../../utils/soundManager';
 import {
   CloudRain, CloudSun, Crown, Eye, EyeOff, Flower2, Leaf, Moon, Music, Music2,
@@ -25,6 +26,7 @@ const TopBar = () => {
   const { population, year, day, season, timeOfDay, weather, kingdoms, age, ageProgress } = useGameStore();
   const showUnitIcons = useGameStore((state) => state.showUnitIcons);
   const toggleUnitIcons = useGameStore((state) => state.toggleUnitIcons);
+  const shownPopulation = useTweenedNumber(population);
   const [muted, setMuted] = useState(false);
   const [music, setMusic] = useState(false);
 
@@ -46,7 +48,7 @@ const TopBar = () => {
     <div className="ui-topbar fixed top-2 left-1/2 -translate-x-1/2 flex items-center gap-x-3 gap-y-1 flex-wrap justify-center max-w-[min(46rem,calc(100vw-2rem))] bg-secondary/90 backdrop-blur px-4 py-1.5 rounded-2xl shadow-lg text-xs sm:text-sm text-foreground border border-muted/40">
       <span className="flex items-center gap-1.5" title="World population">
         <Users size={16} className="text-emerald-300" />
-        {population}
+        {shownPopulation}
       </span>
 
       {kingdoms.length > 0 && (

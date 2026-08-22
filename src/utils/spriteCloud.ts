@@ -32,6 +32,16 @@ const VERTEX_SHADER = /* glsl */ `
     // instead of every tree leaning on the same beat — the same reason the
     // water swell is position-phased. Two frequencies again, because one sine
     // across a whole forest reads as a mechanism.
+    // Buildings pulse instead of swaying. WorldBox ships "little scale
+    // animations synced with flow of time speed", and it is why a paused
+    // WorldBox world still looks alive and a sped-up one looks frantic
+    // (09-WORLDBOX-VISUAL-RESEARCH.md §1). aSway < 0 marks a pulser.
+    float pulse = 1.0;
+    if (aSway < 0.0) {
+      float phase = world.x * 2.3 + world.z * 1.7;
+      pulse = 1.0 + sin(uWind * 1.6 + phase) * (-aSway) * 0.035;
+    }
+
     if (aSway > 0.0) {
       float phase = world.x * 0.7 + world.z * 0.45;
       float gust = sin(uWind * 0.9 + phase) * 0.65
@@ -43,7 +53,7 @@ const VERTEX_SHADER = /* glsl */ `
     }
 
     vec4 mvPosition = modelViewMatrix * vec4(world, 1.0);
-    gl_PointSize = aSize * (uScale / max(0.001, -mvPosition.z));
+    gl_PointSize = aSize * pulse * (uScale / max(0.001, -mvPosition.z));
     gl_Position = projectionMatrix * mvPosition;
   }
 `;
@@ -75,9 +85,14 @@ export interface SpriteCloudItem {
   /** Multiplicative tint (defaults to white). */
   tint?: THREE.Color;
   /**
-   * How much this sprite leans in the wind, 0-1. Defaults to 0, so anything
-   * that should stand still — a building, an icon over a head — does, without
-   * every caller having to say so.
+   * Motion for this sprite. Defaults to 0 — dead still — so an icon over a
+   * head needs no opt-out.
+   *
+   * Positive leans in the wind (foliage). **Negative pulses in scale**
+   * (buildings), which is a different motion for a different kind of thing:
+   * a swaying house looks broken, a breathing one looks inhabited. One
+   * attribute rather than two because the shader branch is cheaper than a
+   * second per-vertex float and the two are mutually exclusive by nature.
    */
   sway?: number;
 }

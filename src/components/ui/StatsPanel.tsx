@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { BarChart3, Skull, Sprout, X } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
+import { useTweenedNumber } from '../../hooks/useTweenedNumber';
 import {
   DEATH_CAUSES,
   DEATH_LABELS,
@@ -51,6 +52,7 @@ const StatsPanel = ({ open, onClose }: { open: boolean; onClose: () => void }) =
   const population = useGameStore((state) => state.population);
   const kingdoms = useGameStore((state) => state.kingdoms);
   const [stats, setStats] = useState<WorldStats | null>(null);
+  const shownPopulation = useTweenedNumber(population);
 
   // Polled rather than pushed. These numbers change constantly and nothing here
   // needs to be frame-accurate; twice a second reads as live and costs nothing.
@@ -84,7 +86,7 @@ const StatsPanel = ({ open, onClose }: { open: boolean; onClose: () => void }) =
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
           <div className="stats-tile">
-            <span className="stats-tile-value">{population}</span>
+            <span className="stats-tile-value">{shownPopulation}</span>
             <span className="stats-tile-label">alive now</span>
           </div>
           <div className="stats-tile">

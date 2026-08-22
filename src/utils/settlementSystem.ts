@@ -233,6 +233,25 @@ const EXPANSION_APPETITE: Record<Race, number> = {
  */
 const REBELLION_PATIENCE = 45;
 
+/**
+ * How much each building breathes, 0-1.
+ *
+ * A settlement that is perfectly still reads as a set of props. WorldBox syncs
+ * these little scale animations to the game-speed setting, which is why a
+ * paused world still looks alive and a fast one looks frantic — ours ride the
+ * same clock the wind does, which the engine advances every frame.
+ */
+const PULSE_BY_BUILDING: Record<string, number> = {
+  bonfire: 1,
+  farm: 0.7,
+  house: 0.45,
+  hall: 0.3,
+  temple: 0.35,
+  statue: 0.2,
+  tower: 0.25,
+  mine: 0.4,
+};
+
 /** Claimed land whose village has no identity yet, on an identity layer. */
 const UNKNOWN_IDENTITY_COLOR = new THREE.Color('#64748b');
 
@@ -347,6 +366,14 @@ export class SettlementSystem {
 
   setViewportScale(scale: number): void {
     this.buildingCloud.setViewportScale(scale);
+  }
+
+  /**
+   * Advance the building pulse. Driven from the engine's frame loop alongside
+   * the water and the wind, so all three share one clock and cannot drift.
+   */
+  advancePulse(delta: number): void {
+    this.buildingCloud.advanceWind(delta);
   }
 
   // -- main loop ---------------------------------------------------------
@@ -1105,6 +1132,10 @@ export class SettlementSystem {
       size,
       // Tint toward the kingdom colour so borders and buildings agree
       tint: kingdom ? new THREE.Color(0xffffff).lerp(kingdom.color, 0.22) : undefined,
+      // Negative sway means "pulse in scale" rather than "lean". A bonfire
+      // breathes hardest because it is literally a fire; a hall barely moves
+      // because a building that wobbles looks broken.
+      sway: -(PULSE_BY_BUILDING[kind] ?? 0.5),
     });
   }
 
