@@ -104,6 +104,10 @@ export class TerrainRenderer {
   private overlayBorder: THREE.InstancedMesh;
   private details: SpriteCloud;
   private matrix = new THREE.Matrix4();
+  /** 1 per water instance, 0 per land instance. Drives the wave in the shader. */
+  private waterFlags!: THREE.InstancedBufferAttribute;
+  /** Shared clock uniform, so every water tile moves together. */
+  private waveTime = { value: 0 };
   /** Which question the map is currently answering. */
   private layer: MapLayer = 'natural';
   private scratchColor = new THREE.Color();
@@ -118,8 +122,11 @@ export class TerrainRenderer {
     const boxGeometry = new THREE.BoxGeometry(TILE_SIZE, 1, TILE_SIZE);
     // Shift the pivot to the bottom face so the instance's Y scale grows upward.
     boxGeometry.translate(0, 0.5, 0);
-    const terrainMaterial = new THREE.MeshLambertMaterial();
+    const terrainMaterial = this.createTerrainMaterial();
     this.terrain = new THREE.InstancedMesh(boxGeometry, terrainMaterial, count);
+    // Per-instance flag: 1 for water, 0 for land. Read by the shader below.
+    this.waterFlags = new THREE.InstancedBufferAttribute(new Float32Array(count), 1);
+    boxGeometry.setAttribute('aWater', this.waterFlags);
     this.terrain.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.terrain.castShadow = false;
     this.terrain.receiveShadow = false;
@@ -188,6 +195,85 @@ export class TerrainRenderer {
     );
   }
 
+  /**
+   * The terrain material, with a water wave injected into it.
+   *
+   * On the GPU rather than on the CPU, and that is the whole reason this is
+   * worth doing at all. The alternative — rewriting the instance colour of
+   * every water tile each frame — means thousands of float writes and a buffer
+   * upload per frame, for something the vertex shader can do for free. A 128²
+   * world is 16,384 instances and roughly a third of them are sea.
+   *
+   * Two overlapping sines at different frequencies, because a single sine reads
+   * as a mechanical ripple; two that do not divide evenly read as water. The
+   * vertical displacement is deliberately tiny — this is a swell, not a storm,
+   * and at this tile size anything larger makes the coastline pull apart.
+   */
+  private createTerrainMaterial(): THREE.Material {
+    const material = new THREE.MeshLambertMaterial();
+
+    material.onBeforeCompile = (shader) => {
+      shader.uniforms.uWaveTime = this.waveTime;
+
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', `#include <common>
+          attribute float aWater;
+          uniform float uWaveTime;
+          varying float vWater;
+          varying float vWave;
+        `)
+        .replace('#include <begin_vertex>', `#include <begin_vertex>
+          vWater = aWater;
+          vWave = 0.0;
+          if (aWater > 0.5) {
+            // World-space position of this instance, so neighbouring tiles are
+            // offset from each other and the swell travels across the sea
+            // instead of every tile bobbing in place.
+            vec3 tileOrigin = instanceMatrix[3].xyz;
+            float phase = tileOrigin.x * 1.7 + tileOrigin.z * 1.1;
+            float swell = sin(uWaveTime * 1.15 + phase) * 0.6
+                        + sin(uWaveTime * 0.63 - phase * 1.9) * 0.4;
+            vWave = swell;
+            // Only the top face moves; the sides stay put so the tile does not
+            // detach from its neighbours.
+            if (position.y > 0.5) {
+              transformed.y += swell * 0.035;
+            }
+          }
+        `);
+
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', `#include <common>
+          varying float vWater;
+          varying float vWave;
+        `)
+        .replace('#include <dithering_fragment>', `#include <dithering_fragment>
+          if (vWater > 0.5) {
+            // A glint on the crests. Sharpened with a power curve so it reads
+            // as scattered highlights rather than as the whole sea pulsing.
+            //
+            // Tuned by eye against two forced phases: the first pass at half
+            // these numbers was technically correct and visually almost
+            // invisible, which for the one surface covering a third of the map
+            // is the same as not having done it.
+            float crest = pow(max(vWave, 0.0), 3.0);
+            gl_FragColor.rgb += vec3(0.10, 0.13, 0.17) * crest;
+            gl_FragColor.rgb *= 0.93 + vWave * 0.07;
+          }
+        `);
+    };
+
+    // Two materials that compile to different programs must not share a cache
+    // key, and three.js keys partly on this.
+    material.customProgramCacheKey = () => 'aetheria-terrain-water';
+    return material;
+  }
+
+  /** Advance the water clock. Called once per frame by the engine. */
+  advanceWater(delta: number): void {
+    this.waveTime.value = (this.waveTime.value + delta) % 10000;
+  }
+
   /** Object the raycaster should test to pick tiles. */
   get pickTarget(): THREE.Object3D {
     return this.terrain;
@@ -208,6 +294,7 @@ export class TerrainRenderer {
     this.terrain.instanceMatrix.needsUpdate = true;
 
     this.applyColor(tile, id, timeOfDay, season);
+    this.syncWaterFlag(tile, id);
     this.syncDetail(tile, id);
     this.syncOwnership(tile);
   }
@@ -246,6 +333,20 @@ export class TerrainRenderer {
     tile.color = color;
     this.terrain.setColorAt(id, color);
     if (this.terrain.instanceColor) this.terrain.instanceColor.needsUpdate = true;
+  }
+
+  /**
+   * Mark this instance as sea or land for the wave shader.
+   *
+   * Kept in `syncTile` rather than computed in the shader from colour, because
+   * terraforming changes a tile's type at runtime and a river carved through a
+   * hill has to start moving immediately.
+   */
+  private syncWaterFlag(tile: Tile, id: number): void {
+    const wanted = isWaterBiome(tile.type) ? 1 : 0;
+    if (this.waterFlags.array[id] === wanted) return;
+    this.waterFlags.setX(id, wanted);
+    this.waterFlags.needsUpdate = true;
   }
 
   /** The 0-1 quantity a data layer paints. */

@@ -1823,6 +1823,11 @@ export const useGameEngine = () => {
       labelTimerRef.current = 0;
       refreshLabels();
     }
+    // Water moves whether the world is paused or not: a frozen sea is the most
+    // obvious tell that a place is a diagram. Same reason the sky keeps
+    // drifting while paused.
+    terrainRef.current?.advanceWater(deltaTime);
+
     projectLabels();
     // Clamped like the game tick: a tab returning from the background hands us
     // a delta of several seconds, and unclamped that retires every floater at
