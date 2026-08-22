@@ -108,8 +108,24 @@ export const statusDef = (value: string): StatusDef | null =>
  */
 const timers = new Map<string, Map<StatusId, number>>();
 
+/**
+ * How long a creature flashes white when something happens to it.
+ *
+ * WorldBox flashes a unit for a few frames on every status gain, and it is how
+ * a thousand simultaneous agents stay readable — you see *that* something
+ * happened before you work out *what*
+ * (09-WORLDBOX-VISUAL-RESEARCH.md §10). In simulated seconds, so it survives
+ * a speed change like everything else.
+ */
+export const FLASH_SECONDS = 0.22;
+
 export const applyStatus = (entity: Entity, id: StatusId): void => {
-  if (!entity.status.includes(id)) entity.status.push(id);
+  if (!entity.status.includes(id)) {
+    entity.status.push(id);
+    // Only on a *new* status. Re-applying an existing one (a creature standing
+    // in a fire, refreshing 'burning' every tick) must not strobe.
+    entity.flashFor = FLASH_SECONDS;
+  }
 
   const duration = STATUSES[id].duration;
   if (duration <= 0) return;

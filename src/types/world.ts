@@ -255,6 +255,13 @@ export interface Entity {
    * by wall time, so a creature's feet match the ground at any game speed.
    */
   walkPhase?: number;
+  /**
+   * Seconds of white flash left. Set when a status is gained; counted down by
+   * the render pass. See utils/statusEffects.ts.
+   */
+  flashFor?: number;
+  /** -1 or 1: which way the sprite is mirrored. */
+  facing?: number;
   /** Closest companion, if it has found one. */
   friendId?: string | null;
   /** Partner. Reproduction goes through this when the world has pairs in it. */

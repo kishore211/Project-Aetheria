@@ -25,7 +25,7 @@ import {
 import { applyTraits, rollTraitsForType } from './traits';
 import { simulation } from './simulation';
 import { emitDamage, emitFloater } from './floatBridge';
-import { applyStatus, clearStatus, type StatusId } from './statusEffects';
+import { applyStatus, clearStatus, FLASH_SECONDS, type StatusId } from './statusEffects';
 import { updateMood } from './mood';
 import { applyScenario } from './scenarios';
 import { bookAt, converse, readBook } from './identity';
@@ -326,13 +326,23 @@ export function updateEntityMesh(entity: Entity, deltaTime = 1 / 60, detailLevel
   const sprite = entity.mesh.children.find(child => child instanceof THREE.Sprite) as THREE.Sprite | undefined;
   if (!sprite) return;
 
-  // Face the direction of travel
+  // Facing and the flash pop both live in the sprite's scale, so the scale is
+  // recomputed from the creature's size every frame rather than mutated in
+  // place. Mutating it meant a multiplicative effect could never be undone —
+  // the pop would compound and the creature would grow without limit.
+  const spriteBase = getEntitySize(entity.type) * 3;
   if (entity.lastPosition) {
     const dx = entity.position.x - entity.lastPosition.x;
-    if (Math.abs(dx) > 1e-4) {
-      sprite.scale.x = Math.abs(sprite.scale.x) * (dx > 0 ? 1 : -1);
-    }
+    if (Math.abs(dx) > 1e-4) entity.facing = dx > 0 ? 1 : -1;
   }
+  // A brief pop on the same clock as the white flash. Colour alone is not
+  // enough: an untinted sprite is already white, so lerping it toward white
+  // does nothing at all — which is how the first version of this managed to be
+  // invisible on exactly the creatures it most needed to work for.
+  const pop = entity.flashFor !== undefined && entity.flashFor > 0
+    ? 1 + Math.min(1, entity.flashFor / FLASH_SECONDS) * 0.16
+    : 1;
+  sprite.scale.set(spriteBase * pop * (entity.facing ?? 1), spriteBase * pop, 1);
 
   const baseY = getEntitySize(entity.type) * 1.5;
   const isMoving = entity.status.includes('moving');
@@ -386,7 +396,7 @@ export function updateEntityMesh(entity: Entity, deltaTime = 1 / 60, detailLevel
 /**
  * Tint and fade the sprite according to the entity's status effects.
  */
-function applyStatusVisuals(entity: Entity, sprite: THREE.Sprite, _deltaTime: number): void {
+function applyStatusVisuals(entity: Entity, sprite: THREE.Sprite, deltaTime: number): void {
   const material = sprite.material as THREE.SpriteMaterial;
   entity.currentAnimation = getAnimationForEntityStatus(entity);
 
@@ -413,7 +423,25 @@ function applyStatusVisuals(entity: Entity, sprite: THREE.Sprite, _deltaTime: nu
   } else if (entity.status.includes('blessed')) {
     material.color.setHex(0xfff3c0);
   }
+
+  // The flash goes last so it overrides every status tint. Something *just
+  // happened* is more urgent than what is ongoing, and the whole value of the
+  // flash is that it is unmissable.
+  //
+  // Counted down here rather than in the AI because it is a render concern and
+  // this is the one place that already has both the delta and the material.
+  if (entity.flashFor !== undefined && entity.flashFor > 0) {
+    // Ease out, so it reads as a flash landing rather than a lamp switching off.
+    const strength = Math.max(0, Math.min(1, entity.flashFor / FLASH_SECONDS));
+    material.color.lerp(WHITE_FLASH, strength * strength);
+    // Decremented last, and only here, so the scale pop above and the tint
+    // here always read the same value on the same frame.
+    entity.flashFor -= deltaTime;
+  }
 }
+
+/** Reused so the flash does not allocate a colour per creature per frame. */
+const WHITE_FLASH = new THREE.Color(0xffffff);
 
 /**
  * EntityAI - Controls the behavior of an entity
