@@ -1108,6 +1108,7 @@ canvas {
 .plot-head {
   display: block;
   font-size: 0.74rem;
+  line-height: 1.4;
   color: rgb(226 232 240);
 }
 .plot-head > b { color: rgb(248 250 252); }

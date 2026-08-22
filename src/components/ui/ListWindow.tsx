@@ -210,7 +210,7 @@ const ListWindow = ({ open, onClose }: { open: boolean; onClose: () => void }) =
                 {opinions.map((pair) => (
                   <li key={`${pair.a}|${pair.b}`} className="plot-row">
                     <span className="min-w-0 flex-1">
-                      <span className="plot-head flex items-center gap-1.5">
+                      <span className="plot-head flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
                         <i className="list-swatch" style={{ background: pair.colorA }} />
                         {pair.a}
                         {pair.atWar
@@ -220,7 +220,7 @@ const ListWindow = ({ open, onClose }: { open: boolean; onClose: () => void }) =
                             : <span className="text-muted-foreground">·</span>}
                         {pair.b}
                         <i className="list-swatch" style={{ background: pair.colorB }} />
-                        <b className={`ml-auto tabular-nums ${
+                        <b className={`ml-auto shrink-0 tabular-nums ${
                           pair.score >= 20 ? 'text-emerald-300'
                             : pair.score >= -20 ? 'text-amber-300' : 'text-rose-400'
                         }`}>

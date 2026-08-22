@@ -175,20 +175,23 @@ Ordered strictly by felt-impact per hour.
 |---|---|---|---|
 | 16.1 | **Real walk cycles** | ✅ done | The frame generator's "two-frame cycle" was a pixel-identical no-op for 6 of 7 templates. Four frames now, as a pose transform on the template, tested. `utils/pixelSprites.ts` |
 | 16.2 | **Animated water** | ✅ done | Two overlapping sines, phase from world position, on the GPU via `onBeforeCompile`. A third of the map used to be frozen. `utils/terrainRenderer.ts` |
-| 16.3 | **Three art variants per ground tile**, picked by position hash | todo | *The* grid-killer. WorldBox ships 3 variants for 52 biome tiles. We have one flat colour per biome plus a ±3% variant jitter — not the same thing. `utils/pixelAtlas.ts`, `utils/terrainRenderer.ts` |
+| 16.3 | **Three material variants per ground tile** | ✅ done | *The* grid-killer. WorldBox ships 3 variants for 52 biome tiles. We have one flat colour per biome plus a ±3% variant jitter — not the same thing. `utils/pixelAtlas.ts`, `utils/terrainRenderer.ts` |
 | 16.4 | **Separate edge colour, spent only on the waterline and snowline** | todo | 12 of WorldBox's 185 tiles have an outline. That restraint is what makes the silhouette read. `utils/worldGenerator.ts`, `utils/terrainRenderer.ts` |
-| 16.5 | **Wind sway on trees and decoration** | todo | Same GPU trick as the water, on the `SpriteCloud`. `utils/spriteCloud.ts` |
-| 16.6 | **Building scale-pulse tied to game speed** | todo | WorldBox's *"little scale animations synced with flow of time speed"* — why a paused WorldBox still looks alive and a sped-up one looks frantic |
-| 16.7 | **White flash on status gain** | todo | One line, and it is how 200 simultaneous agents stay readable. `utils/entitySystemMinimal.ts` |
+| 16.5 | **Wind sway on trees and decoration** | ✅ done | Same GPU trick as the water, on the `SpriteCloud`. `utils/spriteCloud.ts` |
+| 16.6 | **Building scale-pulse** | ✅ done | WorldBox's *"little scale animations synced with flow of time speed"* — why a paused WorldBox still looks alive and a sped-up one looks frantic |
+| 16.7 | **White flash + scale pop on status gain** | ✅ done | One line, and it is how 200 simultaneous agents stay readable. `utils/entitySystemMinimal.ts` |
 | 16.8 | **Hop locomotion + per-unit idle shake** | todo | Their locomotion is a hop, not a walk; they ship *"units random shake animation"*. Cheap on top of 16.1 |
-| 16.9 | **Sound variant pools, 6–16 per action** | todo | WorldBox: 4 loops, 1,432 one-shots, 20 variants for placing TNT alone. Ours plays one identical tone per action. `utils/soundManager.ts` |
-| 16.10 | **One paint sound per material** | todo | `_Sand`, `_Soil`, `_Forest`, `_Mountains`. The map starts to sound like a place |
+| 16.9 | **Sound variant pools** | ✅ done | WorldBox: 4 loops, 1,432 one-shots, 20 variants for placing TNT alone. Ours plays one identical tone per action. `utils/soundManager.ts` |
+| 16.10 | **One paint sound per material** | ✅ done | `_Sand`, `_Soil`, `_Forest`, `_Mountains`. The map starts to sound like a place |
 | 16.11 | **Border fills fade to outline as the camera descends** | todo | How one map is both a strategy view and a diorama |
-| 16.12 | **Number tweens** (was 9.9) | todo | *"Make the numbers go brrrr."* `components/ui/TopBar.tsx`, `StatsPanel.tsx` |
+| 16.12 | **Number tweens** (was 9.9) | ✅ done | *"Make the numbers go brrrr."* `components/ui/TopBar.tsx`, `StatsPanel.tsx` |
 | 16.13 | **Saturation as progress on plot icons** | todo | Read "how close" without opening a panel. `utils/unitIconLayer.ts` |
 | 16.14 | **Held-item sprites** (4 shapes × material tint) | speculative | Tech tier readable across the map with no UI. Needs an item system we do not have |
 
 **Gate:** pause the game, look at the map, and it is still visibly alive.
+**Status:** met for water, foliage, buildings and creatures. 16.4 (edge
+colours), 16.8 (hop locomotion), 16.11 (border fade on zoom) and 16.13
+(saturation as progress) remain — all small, none load-bearing.
 
 ---
 
@@ -253,10 +256,10 @@ phases 16–18.
 
 ## Still open from earlier phases
 
-| # | Item | Why it is still here |
+| # | Item | Status |
 |---|---|---|
-| 14.6 | **A kingdom opinion matrix** | Alliances and peace exist as plot outcomes; a full pairwise opinion score does not. Small |
-| 11.4 | **Chronicle: three phrasings per disaster line** | The chronicle rotates phrasings for 25 topics; the engine's disaster suffixes are still single-form |
+| 14.6 | **A kingdom opinion matrix** | ✅ done. Signed −100…+100 per neighbouring pair with named factors, and tension now drifts *from* opinion instead of from a pair of magic constants. Peace became the same mechanism as war rather than a special case |
+| 11.4 | **Three phrasings per disaster toll** | ✅ done. The counts were fixed strings, so every meteor in history ended with the same four words however many ways the meteor itself was described |
 
 ---
 
