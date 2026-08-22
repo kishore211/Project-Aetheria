@@ -1,5 +1,13 @@
 import { useMemo, useState } from 'react';
-import * as Icons from 'lucide-react';
+import {
+  Activity, ArrowDown, ArrowUp, Axe, BadgeCheck, BarChart3, ChevronRight,
+  Circle, CloudRain, Droplets, Eraser, Eye, EyeOff, Flame, Gem, Ghost,
+  Globe2, Hammer, HardDriveDownload, Heart, HelpCircle, Leaf, ListTree, Map,
+  Mountain, MousePointer2, Pause, PawPrint, Play, Pointer, Rocket, Scale,
+  Scissors, Skull, Sparkle, Sparkles, Sprout, Swords, Tag, TreePine, Trees,
+  User, Users, Video, VideoOff, Waves, X, Zap,
+  type LucideIcon,
+} from 'lucide-react';
 import { useGameStore, type BrushRadius } from '../../store/gameStore';
 import { soundManager } from '../../utils/soundManager';
 import { WORLD_TEMPLATES, type WorldTemplate } from '../../utils/worldGenerator';
@@ -26,9 +34,18 @@ import ListWindow from './ListWindow';
  */
 
 /** Resolve a lucide icon by name, so the catalogue can stay plain data. */
+const ICONS: Record<string, LucideIcon> = {
+  Activity, ArrowDown, ArrowUp, Axe, BadgeCheck, BarChart3, Circle, CloudRain,
+  Droplets, Eraser, Eye, EyeOff, Flame, Gem, Ghost, Globe2, Hammer,
+  HardDriveDownload, Heart, HelpCircle, Leaf, ListTree, Map, Mountain,
+  MousePointer2, PawPrint, Pointer, Rocket, Scale, Scissors, Skull, Sparkle,
+  Sparkles, Sprout, Swords, Tag, TreePine, Trees, User, Users, Video, VideoOff,
+  Waves, X, Zap,
+};
+
 const Icon = ({ name, size = 20 }: { name: string; size?: number }) => {
-  const Resolved = (Icons as unknown as Record<string, React.ComponentType<{ size?: number }>>)[name];
-  return Resolved ? <Resolved size={size} /> : <Icons.Circle size={size} />;
+  const Resolved = ICONS[name] ?? Circle;
+  return <Resolved size={size} />;
 };
 
 const BRUSHES: Array<{ radius: BrushRadius; label: string; dots: number }> = [
@@ -202,7 +219,7 @@ const PowerBar = () => {
         className="powerbar-peek"
         onClick={toggleUiHidden}
       >
-        <Icons.Eye size={16} />
+        <Eye size={16} />
       </button>
     );
   }
@@ -261,7 +278,7 @@ const PowerBar = () => {
                 hotkey: 'Space',
               })}
             >
-              {isGamePaused ? <Icons.Play size={16} /> : <Icons.Pause size={16} />}
+              {isGamePaused ? <Play size={16} /> : <Pause size={16} />}
             </button>
             {speeds.map((speed) => (
               <button
@@ -277,7 +294,7 @@ const PowerBar = () => {
               >
                 <span className="powerbar-chevrons">
                   {Array.from({ length: speed.chevrons }, (_, index) => (
-                    <Icons.ChevronRight key={index} size={14} />
+                    <ChevronRight key={index} size={14} />
                   ))}
                 </span>
               </button>
