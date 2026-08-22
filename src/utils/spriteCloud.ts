@@ -13,14 +13,36 @@ const VERTEX_SHADER = /* glsl */ `
   attribute float aSlot;
   attribute float aSize;
   attribute vec3 aTint;
+  attribute float aSway;
   uniform float uScale;
+  uniform float uWind;
   varying float vSlot;
   varying vec3 vTint;
 
   void main() {
     vSlot = aSlot;
     vTint = aTint;
-    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+
+    vec3 world = position;
+
+    // Wind. Only sprites that opted in (aSway > 0) move, so buildings and
+    // icons stay put while foliage does not.
+    //
+    // The phase comes from world position, so a gust travels across a forest
+    // instead of every tree leaning on the same beat — the same reason the
+    // water swell is position-phased. Two frequencies again, because one sine
+    // across a whole forest reads as a mechanism.
+    if (aSway > 0.0) {
+      float phase = world.x * 0.7 + world.z * 0.45;
+      float gust = sin(uWind * 0.9 + phase) * 0.65
+                 + sin(uWind * 0.37 - phase * 1.7) * 0.35;
+      // Horizontal only, and scaled by the sprite's own size so a tree leans
+      // further than a tuft of grass.
+      world.x += gust * aSway * aSize * 0.09;
+      world.z += gust * aSway * aSize * 0.035;
+    }
+
+    vec4 mvPosition = modelViewMatrix * vec4(world, 1.0);
     gl_PointSize = aSize * (uScale / max(0.001, -mvPosition.z));
     gl_Position = projectionMatrix * mvPosition;
   }
@@ -52,6 +74,12 @@ export interface SpriteCloudItem {
   size: number;
   /** Multiplicative tint (defaults to white). */
   tint?: THREE.Color;
+  /**
+   * How much this sprite leans in the wind, 0-1. Defaults to 0, so anything
+   * that should stand still — a building, an icon over a head — does, without
+   * every caller having to say so.
+   */
+  sway?: number;
 }
 
 export class SpriteCloud {
@@ -61,6 +89,7 @@ export class SpriteCloud {
   private slots: THREE.BufferAttribute;
   private sizes: THREE.BufferAttribute;
   private tints: THREE.BufferAttribute;
+  private sways: THREE.BufferAttribute;
   private material: THREE.ShaderMaterial;
   readonly capacity: number;
 
@@ -73,18 +102,21 @@ export class SpriteCloud {
     this.slots = new THREE.BufferAttribute(new Float32Array(capacity), 1);
     this.sizes = new THREE.BufferAttribute(new Float32Array(capacity), 1);
     this.tints = new THREE.BufferAttribute(new Float32Array(capacity * 3), 3);
+    this.sways = new THREE.BufferAttribute(new Float32Array(capacity), 1);
 
     for (let i = 0; i < capacity; i++) {
       this.positions.setXYZ(i, 0, PARKED_Y, 0);
       this.slots.setX(i, -1);
       this.sizes.setX(i, 0);
       this.tints.setXYZ(i, 1, 1, 1);
+      this.sways.setX(i, 0);
     }
 
     geometry.setAttribute('position', this.positions);
     geometry.setAttribute('aSlot', this.slots);
     geometry.setAttribute('aSize', this.sizes);
     geometry.setAttribute('aTint', this.tints);
+    geometry.setAttribute('aSway', this.sways);
     // Everything is parked or placed manually; a fixed sphere avoids per-frame
     // bounding recomputation and keeps the cloud from being culled.
     geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e5);
@@ -94,6 +126,7 @@ export class SpriteCloud {
         uAtlas: { value: atlas.texture },
         uCells: { value: new THREE.Vector2(atlas.cols, atlas.rows) },
         uScale: { value: 400 },
+        uWind: { value: 0 },
       },
       vertexShader: VERTEX_SHADER,
       fragmentShader: FRAGMENT_SHADER,
@@ -103,6 +136,15 @@ export class SpriteCloud {
 
     this.points = new THREE.Points(geometry, this.material);
     this.points.frustumCulled = false;
+  }
+
+  /**
+   * Advance the wind clock. Called once per frame; runs while paused, because a
+   * frozen forest is as much of a tell as a frozen sea.
+   */
+  advanceWind(delta: number): void {
+    const wind = this.material.uniforms.uWind;
+    wind.value = (wind.value + delta) % 10000;
   }
 
   /** Keep point sizes stable across window sizes (half the drawing height). */
@@ -120,6 +162,7 @@ export class SpriteCloud {
     this.sizes.setX(index, item.size);
     const tint = item.tint;
     this.tints.setXYZ(index, tint ? tint.r : 1, tint ? tint.g : 1, tint ? tint.b : 1);
+    this.sways.setX(index, item.sway ?? 0);
     this.markDirty();
   }
 
@@ -136,6 +179,7 @@ export class SpriteCloud {
     if (index < 0 || index >= this.capacity) return;
     this.tints.setXYZ(index, tint.r, tint.g, tint.b);
     this.tints.needsUpdate = true;
+    this.sways.needsUpdate = true;
   }
 
   /** Hide the slot. */

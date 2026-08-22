@@ -28,6 +28,24 @@ const WHITE = new THREE.Color(0xffffff);
 const OVERLAY_LIFT = 0.014;
 const DETAIL_LIFT = 0.02;
 
+/**
+ * How much each kind of decoration leans in the wind.
+ *
+ * Rock and crystal are deliberately zero: a swaying boulder is worse than a
+ * still one, and the contrast is what sells the movement on everything else.
+ * Reeds get the most because they are the thinnest thing on the map.
+ */
+const SWAY_BY_SPRITE: Record<string, number> = {
+  reed: 1,
+  tree: 0.7,
+  palm: 0.85,
+  pine: 0.4,
+  cactus: 0.12,
+  deadwood: 0.3,
+  rock: 0,
+  crystal: 0,
+};
+
 /** Deterministic decoration for a tile, or null when the tile stays bare. */
 const pickDetail = (tile: Tile): { sprite: string; size: number } | null => {
   const variant = tile.variant ?? 0.5;
@@ -269,9 +287,14 @@ export class TerrainRenderer {
     return material;
   }
 
-  /** Advance the water clock. Called once per frame by the engine. */
+  /**
+   * Advance the water swell and the wind. Called once per frame by the engine,
+   * and deliberately not gated on the game being unpaused: a frozen sea and a
+   * frozen forest are the two most obvious tells that a place is a diagram.
+   */
   advanceWater(delta: number): void {
     this.waveTime.value = (this.waveTime.value + delta) % 10000;
+    this.details.advanceWind(delta);
   }
 
   /** Object the raycaster should test to pick tiles. */
@@ -300,7 +323,7 @@ export class TerrainRenderer {
   }
 
   private applyColor(tile: Tile, id: number, timeOfDay: TimeOfDay, season: Season): void {
-    const color = getBiomeColor(tile.type, timeOfDay, season, tile.variant);
+    const color = getBiomeColor(tile.type, timeOfDay, season, tile.variant, tile.height);
 
     if (isDataLayer(this.layer)) {
       // Data layers ignore the biome entirely — that is the point of them —
@@ -419,6 +442,7 @@ export class TerrainRenderer {
       sprite: detail.sprite,
       size: detail.size,
       tint: DETAIL_TINTS[tile.type],
+      sway: SWAY_BY_SPRITE[detail.sprite] ?? 0,
     });
   }
 

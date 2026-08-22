@@ -244,11 +244,25 @@ const TIME_TINTS: Record<TimeOfDayName, { color: THREE.Color; amount: number }> 
  * `variant` (0-1) applies a small deterministic shade jitter so large areas of
  * one biome do not look flat.
  */
+/**
+ * The three material variants, as HSL offsets from a biome's base colour.
+ *
+ * Hue and saturation move, not just lightness. That is the whole point: a
+ * brightness-only jitter reads as one surface under uneven light, which is
+ * exactly the grid effect it was meant to break up.
+ */
+const VARIANT_SHIFTS = [
+  { h: 0, s: 0, l: 0 },
+  { h: 0.018, s: -0.05, l: 0.035 },
+  { h: -0.022, s: 0.055, l: -0.03 },
+];
+
 export const getBiomeColor = (
   type: BiomeType,
   timeOfDay: TimeOfDayName = 'day',
   season: SeasonName = 'summer',
   variant?: number,
+  elevation?: number,
 ): THREE.Color => {
   const color = new THREE.Color(BIOME_BASE_COLORS[type] ?? 0x9e9e9e);
 
@@ -264,9 +278,33 @@ export const getBiomeColor = (
     if (boost) color.multiplyScalar(boost);
   }
 
-  // Per-tile shade jitter (+/- 5%)
+  // Three material variants per biome, plus elevation shading.
+  //
+  // A single colour per biome with a brightness jitter on top is what made
+  // large areas read as a grid of one thing: brightness noise looks like
+  // *lighting* on one surface, where a hue and saturation shift looks like a
+  // different patch of ground. WorldBox ships three hand-authored art variants
+  // for 52 of its tiles and calls it out as the thing that "adds diversity to
+  // your worldscape automatically"
+  // (09-WORLDBOX-VISUAL-RESEARCH.md §3).
+  //
+  // Derived from the base colour rather than authored, because 28 biomes times
+  // three is 84 colours to pick blind, and offsets stay tunable in one place.
   if (variant !== undefined) {
-    color.multiplyScalar(0.95 + variant * 0.1);
+    const shift = VARIANT_SHIFTS[Math.min(2, Math.floor(variant * 3))];
+    color.offsetHSL(shift.h, shift.s, shift.l);
+    // A little continuous jitter on top of the discrete variant, so two
+    // neighbouring tiles of the same variant are still not identical.
+    color.multiplyScalar(0.975 + ((variant * 7) % 1) * 0.05);
+  }
+
+  // Elevation reads as a colour change, not only as geometry. WorldBox gives
+  // high and low ground genuinely different hex values (grass 5F833C vs
+  // 7EAF46) so height is legible with no lighting pass at all — which matters
+  // most looking straight down, where our tile heights foreshorten away.
+  if (elevation !== undefined && !isWaterBiome(type)) {
+    const band = Math.max(0, Math.min(1, (elevation - 0.28) / 0.5));
+    color.offsetHSL(0, -band * 0.06, -band * 0.05);
   }
 
   // Time of day

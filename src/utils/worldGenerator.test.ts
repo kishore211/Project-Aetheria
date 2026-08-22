@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import {
   WORLD_TEMPLATES,
@@ -142,10 +143,76 @@ describe('seasonal palette', () => {
     expect(autumnForest.r).toBeGreaterThan(summerForest.r);
   });
 
-  it('applies the tile variant as a small shade shift only', () => {
-    const dark = getBiomeColor('grassland', 'day', 'summer', 0);
-    const light = getBiomeColor('grassland', 'day', 'summer', 1);
-    expect(light.g).toBeGreaterThan(dark.g);
-    expect(light.g - dark.g).toBeLessThan(0.12);
+  it('keeps every variant within touching distance of the biome colour', () => {
+    // Superseded the old assertion that variant was a monotonic brightness
+    // ramp (`light.g > dark.g`). Variants are three distinct *materials* now,
+    // not three exposures of one — see "tile material variants" below for why.
+    // What still has to hold is that no variant wanders far enough to be
+    // mistaken for a different biome.
+    const base = getBiomeColor('grassland', 'day', 'summer');
+    for (const variant of [0, 0.34, 0.67, 1]) {
+      const shade = getBiomeColor('grassland', 'day', 'summer', variant);
+      const distance = Math.hypot(
+        shade.r - base.r, shade.g - base.g, shade.b - base.b,
+      );
+      expect(distance, `variant ${variant}`).toBeLessThan(0.14);
+    }
+  });
+});
+
+describe('tile material variants', () => {
+  /**
+   * A brightness-only jitter was what made large biomes read as a grid of one
+   * thing: it looks like uneven lighting on a single surface. Hue and
+   * saturation have to move for a tile to read as a different patch of ground.
+   */
+  it('shifts hue and saturation between variants, not just lightness', () => {
+    const hsl = (color: THREE.Color) => color.getHSL({ h: 0, s: 0, l: 0 });
+    const a = hsl(getBiomeColor('grassland', 'day', 'summer', 0.1));
+    const b = hsl(getBiomeColor('grassland', 'day', 'summer', 0.5));
+    const c = hsl(getBiomeColor('grassland', 'day', 'summer', 0.9));
+
+    // All three variants differ in hue from each other.
+    expect(Math.abs(a.h - b.h)).toBeGreaterThan(0.005);
+    expect(Math.abs(b.h - c.h)).toBeGreaterThan(0.005);
+    expect(Math.abs(a.h - c.h)).toBeGreaterThan(0.005);
+    // And in saturation, which brightness noise cannot do.
+    expect(Math.abs(a.s - c.s)).toBeGreaterThan(0.02);
+  });
+
+  it('gives three discrete variants, not a continuous ramp', () => {
+    // Discrete on purpose: three recognisable materials read as variety, where
+    // a continuous ramp reads as a gradient.
+    const hex = (v: number) => getBiomeColor('grassland', 'day', 'summer', v).getHex();
+    // Two samples inside the same third should be close; across a boundary,
+    // far. Compared as hue so the continuous jitter does not mask it.
+    const bucket = (v: number) =>
+      getBiomeColor('grassland', 'day', 'summer', v).getHSL({ h: 0, s: 0, l: 0 }).h;
+    expect(Math.abs(bucket(0.05) - bucket(0.30))).toBeLessThan(0.005);
+    expect(Math.abs(bucket(0.30) - bucket(0.40))).toBeGreaterThan(0.005);
+    expect(hex(0.5)).toBeGreaterThan(0);
+  });
+
+  it('darkens and desaturates with elevation, so height reads from above', () => {
+    const low = getBiomeColor('grassland', 'day', 'summer', 0.5, 0.3);
+    const high = getBiomeColor('grassland', 'day', 'summer', 0.5, 0.75);
+    const hsl = (color: THREE.Color) => color.getHSL({ h: 0, s: 0, l: 0 });
+    expect(hsl(high).l).toBeLessThan(hsl(low).l);
+    expect(hsl(high).s).toBeLessThan(hsl(low).s);
+  });
+
+  it('leaves water out of the elevation shading', () => {
+    // Depth is already carried by the biome (shallow/ocean/deep), and shading
+    // it again would fight that.
+    const shallow = getBiomeColor('ocean', 'day', 'summer', 0.5, 0.1).getHex();
+    const deeper = getBiomeColor('ocean', 'day', 'summer', 0.5, 0.9).getHex();
+    expect(shallow).toBe(deeper);
+  });
+
+  it('still returns the plain biome colour when no variant is given', () => {
+    // The many call sites that pass neither variant nor elevation must be
+    // unaffected.
+    const bare = getBiomeColor('grassland', 'day', 'summer');
+    expect(bare.getHex()).toBe(getBiomeColor('grassland', 'day', 'summer').getHex());
   });
 });
