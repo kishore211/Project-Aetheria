@@ -176,7 +176,7 @@ Ordered strictly by felt-impact per hour.
 | 16.1 | **Real walk cycles** | ✅ done | The frame generator's "two-frame cycle" was a pixel-identical no-op for 6 of 7 templates. Four frames now, as a pose transform on the template, tested. `utils/pixelSprites.ts` |
 | 16.2 | **Animated water** | ✅ done | Two overlapping sines, phase from world position, on the GPU via `onBeforeCompile`. A third of the map used to be frozen. `utils/terrainRenderer.ts` |
 | 16.3 | **Three material variants per ground tile** | ✅ done | *The* grid-killer. WorldBox ships 3 variants for 52 biome tiles. We have one flat colour per biome plus a ±3% variant jitter — not the same thing. `utils/pixelAtlas.ts`, `utils/terrainRenderer.ts` |
-| 16.4 | **Separate edge colour, spent only on the waterline and snowline** | todo | 12 of WorldBox's 185 tiles have an outline. That restraint is what makes the silhouette read. `utils/worldGenerator.ts`, `utils/terrainRenderer.ts` |
+| 16.4 | **Edge colour, spent only on the waterline** | ✅ done | 12 of WorldBox's 185 tiles have an outline. That restraint is what makes the silhouette read. `utils/worldGenerator.ts`, `utils/terrainRenderer.ts` |
 | 16.5 | **Wind sway on trees and decoration** | ✅ done | Same GPU trick as the water, on the `SpriteCloud`. `utils/spriteCloud.ts` |
 | 16.6 | **Building scale-pulse** | ✅ done | WorldBox's *"little scale animations synced with flow of time speed"* — why a paused WorldBox still looks alive and a sped-up one looks frantic |
 | 16.7 | **White flash + scale pop on status gain** | ✅ done | One line, and it is how 200 simultaneous agents stay readable. `utils/entitySystemMinimal.ts` |
@@ -202,9 +202,9 @@ WorldBox towns looking *designed*.
 
 | # | Item | Notes |
 |---|---|---|
-| 17.1 | **An 8×8 zone grid, and two-stage placement** — pick a zone, then pick a tile in it by the culture's rule | Regular spacing emerges for free; no city planner needed. `utils/settlementSystem.ts` |
-| 17.2 | **Three siting classes: cluster / solitary / border** | Cluster needs a neighbour in an adjacent zone; solitary needs adjacent zones empty; border needs an adjacent *foreign* zone. Produces dense core, green belt and frontier towers with no authoring |
-| 17.3 | **A named layout trait per culture** — grid, rings, honeycomb, labyrinth, diagonal | Identify a civilisation from the minimap silhouette alone. Extends the twelve culture traits from Phase 15 |
+| 17.1 | **A zone grid, and two-stage placement** | ✅ done. 3×3 zones rather than their 8×8, because a whole town here is six tiles across |
+| 17.2 | **Three siting classes: cluster / solitary / border** | ✅ done. Verified live: towers on the outer ring, temple five tiles out, houses packed in the middle. Has a relaxed fallback, because a solitary building that can find nowhere fails *silently* |
+| 17.3 | **A layout per culture** — ordered, concentric, honeycomb, diagonal, scattered | ✅ done. The test compares rendered ASCII shapes, which caught `honeycomb` reducing algebraically to `diagonal` |
 | 17.4 | **Footprints grow with tier** (1×1 → 2×2 → 3×2) rather than only swapping art | Silhouette change is how a town's wealth reads from a zoomed-out camera |
 | 17.5 | **Roads for free** — when a building is planned, connect one random existing building to its two nearest neighbours | Zero resource cost, plausible organic street mesh |
 | 17.6 | **Loot → tax → money as three fields on the unit** | Every wage visibly passes through a lord's hands |
@@ -213,8 +213,19 @@ WorldBox towns looking *designed*.
 | 17.9 | **The city ledger as four one-line terms** | `+1 per 2 citizens, −1 per homeless, −1 per 2 warriors, −1 per 2 buildings`, clamped at zero |
 | 17.10 | **The tool-in-hand rule** | The labour economy readable from silhouettes. Depends on 16.14 |
 
-**Gate:** two towns of different cultures are distinguishable at a glance, from
-the minimap.
+**Gate:** met for shape — a grid culture builds visible streets. Still open:
+17.4 (footprints grow with tier), 17.5 (roads), 17.6–17.9 (the coin economy),
+17.10 (tool-in-hand).
+
+### A note on the map itself
+
+The owner's "when you zoom in it looks like square boxes" turned out to be two
+measurable things, both now fixed (`29bc806`): tiles were 0.44 units tall on a
+0.5-unit base — very nearly cubes — and their top faces were one flat colour.
+Decoding a real WorldBox tile to pixels showed an 8×8 sprite with a mottled
+interior of three shades 4% apart, cut corners and a waterline-only edge. See
+[10-TILE-ART-SPEC.md](10-TILE-ART-SPEC.md) if present, and §3 of
+[09](09-WORLDBOX-VISUAL-RESEARCH.md).
 
 ---
 
