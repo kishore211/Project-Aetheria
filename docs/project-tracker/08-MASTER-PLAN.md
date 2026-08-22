@@ -159,95 +159,128 @@ still missing (clan, subspecies) need systems nothing else is asking for yet.
 
 ---
 
-## Phase 16 — Town craft and economy
+## Phase 16 — Presentation: make the world *move*  ★ the actual complaint
 
-| # | Item | Notes |
-|---|---|---|
-| 16.1 | **Siting rules** — solitary / cluster / border placement | Why their towns look like towns and ours look scattered |
-| 16.2 | **Building tiers** — houses and halls upgrade instead of multiplying | 6 house tiers, 3 hall tiers |
-| 16.3 | **Race build styles** — dwarves build tidily (centre-biased), others random | Free character |
-| 16.4 | **Roads** between buildings and villages | Strong visual payoff |
-| 16.5 | **Coins, taxes, tribute** with money-flow particles | Their "money flow" toggle is delightful |
-| 16.6 | **Jobs proper** — blacksmith, builder, farmer, miner, woodcutter, fireman, hunter, with per-job caps | We have gatherer/warrior |
+Built from [09-WORLDBOX-VISUAL-RESEARCH.md](09-WORLDBOX-VISUAL-RESEARCH.md).
 
-**Gate:** a mature village is architecturally legible as a town.
+This phase exists because the same complaint came back three times — *"I still
+don't feel the map, animations and everything"* — after three rounds of work
+that each added real features. The second research pass found out why: **the
+terrain had zero per-frame animation and creature animation did not work at
+all.** Everything built on top of that was paint on a photograph.
 
-## Phase 17 — Content and long tail
+Ordered strictly by felt-impact per hour.
 
-| # | Item | Notes |
-|---|---|---|
-| 17.1 | **More creatures** toward ~40, each with an evolved form | Their base→evolved pairing is a cheap doubling |
-| 17.2 | **Fantasy biomes** — mushroom, crystal, enchanted, infernal, candy | We have 28 naturals |
-| 17.3 | **Equipment** — 6 slots, rarity, generated names, kill counters | |
-| 17.4 | **Diseases and plague** | |
-| 17.5 | **Boats and docks** — so island maps can be colonised | Recorded as a known limitation today |
-| 17.6 | **Codex / knowledge** — discover creatures, traits, biomes across worlds | Their 774-item collection hook, scaled to ~120 |
-| 17.7 | **Contextual audio** — biome, faction, weather and war layers over the pad | Still zero files |
-| 17.8 | **Stamps** — landscape printers | Pure toy |
+| # | Item | Status | Notes |
+|---|---|---|---|
+| 16.1 | **Real walk cycles** | ✅ done | The frame generator's "two-frame cycle" was a pixel-identical no-op for 6 of 7 templates. Four frames now, as a pose transform on the template, tested. `utils/pixelSprites.ts` |
+| 16.2 | **Animated water** | ✅ done | Two overlapping sines, phase from world position, on the GPU via `onBeforeCompile`. A third of the map used to be frozen. `utils/terrainRenderer.ts` |
+| 16.3 | **Three art variants per ground tile**, picked by position hash | todo | *The* grid-killer. WorldBox ships 3 variants for 52 biome tiles. We have one flat colour per biome plus a ±3% variant jitter — not the same thing. `utils/pixelAtlas.ts`, `utils/terrainRenderer.ts` |
+| 16.4 | **Separate edge colour, spent only on the waterline and snowline** | todo | 12 of WorldBox's 185 tiles have an outline. That restraint is what makes the silhouette read. `utils/worldGenerator.ts`, `utils/terrainRenderer.ts` |
+| 16.5 | **Wind sway on trees and decoration** | todo | Same GPU trick as the water, on the `SpriteCloud`. `utils/spriteCloud.ts` |
+| 16.6 | **Building scale-pulse tied to game speed** | todo | WorldBox's *"little scale animations synced with flow of time speed"* — why a paused WorldBox still looks alive and a sped-up one looks frantic |
+| 16.7 | **White flash on status gain** | todo | One line, and it is how 200 simultaneous agents stay readable. `utils/entitySystemMinimal.ts` |
+| 16.8 | **Hop locomotion + per-unit idle shake** | todo | Their locomotion is a hop, not a walk; they ship *"units random shake animation"*. Cheap on top of 16.1 |
+| 16.9 | **Sound variant pools, 6–16 per action** | todo | WorldBox: 4 loops, 1,432 one-shots, 20 variants for placing TNT alone. Ours plays one identical tone per action. `utils/soundManager.ts` |
+| 16.10 | **One paint sound per material** | todo | `_Sand`, `_Soil`, `_Forest`, `_Mountains`. The map starts to sound like a place |
+| 16.11 | **Border fills fade to outline as the camera descends** | todo | How one map is both a strategy view and a diorama |
+| 16.12 | **Number tweens** (was 9.9) | todo | *"Make the numbers go brrrr."* `components/ui/TopBar.tsx`, `StatsPanel.tsx` |
+| 16.13 | **Saturation as progress on plot icons** | todo | Read "how close" without opening a panel. `utils/unitIconLayer.ts` |
+| 16.14 | **Held-item sprites** (4 shapes × material tint) | speculative | Tech tier readable across the map with no UI. Needs an item system we do not have |
 
----
-
-## Progress note — after the Phase 9 / 11 / 12 pass
-
-Done since this plan was written: 9.1-9.8, 11.1, 11.2, 12.1, 12.2, 12.4, 12.5,
-plus two things not on the list that turned out to matter more than several
-items that were:
-
-- **Camera framing.** The starting camera was a fixed position, so a 128 world
-  sat marooned mid-screen with sky all round it. The distance now scales to the
-  world so the map runs past the frame. This was the single biggest change to
-  whether the place reads as somewhere you are *above* rather than a diorama on
-  a table — bigger than any individual HUD item.
-- **Pacing.** Day phases 30 s → 42 s, rain gated behind a seasonal factor.
-
-Still open in these phases: **9.9** (number tweens), **11.3** (list windows),
-**11.6** (minimap layers), **12.3** (erasers). None of them is large. After
-that, Phase 10 (happiness and mood) is the next thing that changes how the
-world *feels* rather than how it presents itself, and it is the last of the
-"talks back" work — the dialogue table built for 9.4 is the carrier it needs,
-so Phase 10 widens it rather than starting over.
+**Gate:** pause the game, look at the map, and it is still visibly alive.
 
 ---
 
-## Sequencing and why
+## Phase 17 — Town craft and economy
 
-```
-9  ─ world talks back      ← do this first; pure payoff, no new simulation
-10 ─ happiness & voice     ← turns sprites into characters
-11 ─ ways to look          ← layers, lists, chronicle, stats
-12 ─ power bar             ← now there is enough to organise
-13 ─ ages                  ← world-scale drama, cheap on top of seasons
-14 ─ politics              ← the deep one; needs 10 (mood) and 11 (lists)
-15 ─ identity              ← needs 10 (socialising) to have a carrier
-16 ─ town craft            ← makes settlements look designed
-17 ─ content               ← last, because content without feedback is invisible
-```
+Revised against the new research, which explained the mechanism behind
+WorldBox towns looking *designed*.
 
-Phases 9–12 are the answer to *"it doesn't look like WorldBox"*. Phases 13–16
-are the answer to *"their world feels deeper"*. Phase 17 is volume, and it is
-deliberately last: **content with no feedback layer is content nobody notices**,
-which is exactly the trap our first 28 biomes fell into.
+| # | Item | Notes |
+|---|---|---|
+| 17.1 | **An 8×8 zone grid, and two-stage placement** — pick a zone, then pick a tile in it by the culture's rule | Regular spacing emerges for free; no city planner needed. `utils/settlementSystem.ts` |
+| 17.2 | **Three siting classes: cluster / solitary / border** | Cluster needs a neighbour in an adjacent zone; solitary needs adjacent zones empty; border needs an adjacent *foreign* zone. Produces dense core, green belt and frontier towers with no authoring |
+| 17.3 | **A named layout trait per culture** — grid, rings, honeycomb, labyrinth, diagonal | Identify a civilisation from the minimap silhouette alone. Extends the twelve culture traits from Phase 15 |
+| 17.4 | **Footprints grow with tier** (1×1 → 2×2 → 3×2) rather than only swapping art | Silhouette change is how a town's wealth reads from a zoomed-out camera |
+| 17.5 | **Roads for free** — when a building is planned, connect one random existing building to its two nearest neighbours | Zero resource cost, plausible organic street mesh |
+| 17.6 | **Loot → tax → money as three fields on the unit** | Every wage visibly passes through a lord's hands |
+| 17.7 | **Buildings yield per tick, scaled by tier and modified by biome** | The architecture *is* the income graph |
+| 17.8 | **Eating is a purchase** — 5 coins, with exemptions, and hungry thieves rob the treasury | One rule turns food from a bar into a class system |
+| 17.9 | **The city ledger as four one-line terms** | `+1 per 2 citizens, −1 per homeless, −1 per 2 warriors, −1 per 2 buildings`, clamped at zero |
+| 17.10 | **The tool-in-hand rule** | The labour economy readable from silhouettes. Depends on 16.14 |
+
+**Gate:** two towns of different cultures are distinguishable at a glance, from
+the minimap.
+
+---
+
+## Phase 18 — The world behaving on its own
+
+New phase. The research turned up two mechanisms that do a disproportionate
+amount of WorldBox's "this place is alive while I am not touching it" work, and
+neither is on any earlier plan.
+
+| # | Item | Notes |
+|---|---|---|
+| 18.1 | **A world-behaviour table** — one scheduler where every ambient process is a row of `{name, minInterval, maxInterval, action}` | Vegetation spread, mineral surfacing, animal spawning, road decay, disasters. Replaces our scattered ad-hoc timers with one readable table |
+| 18.2 | **A per-tile `temperature` scalar with a threshold cascade** | >5 thaw, >10 ignite, >20 strip biome, >30 soil→sand, >100 sand→lava. Melting a continent becomes emergent rather than a bespoke power. Merges with the existing Age harshness system |
+| 18.3 | **Clouds as one drifting sprite with a drop type** | Weather, plague, blessing-rain and biome seeding all become rows in one ~100-line system |
+| 18.4 | **Biome step-actions at ~5%** | Swamp −40% speed, corrupted curses you, badlands parches you. One field on the tile type, enormous character |
+| 18.5 | **Disasters that consume a building** | A disaster that needs a windmill and destroys it makes the player's own infrastructure the attack surface |
+
+**Gate:** leave the game running untouched for five minutes and things happen
+that are worth watching.
+
+---
+
+## Phase 19 — Content and the long tail
+
+Deliberately last, for the reason at the top of this file: content with no
+feedback layer is content nobody notices. Everything here is cheap *given*
+phases 16–18.
+
+| # | Item | Notes |
+|---|---|---|
+| 19.1 | **Creature colour ramps** — one greyscale sprite + a two-stop palette per subspecies | WorldBox got its entire creature variety from 52 From→To pairs. This is the highest variety-per-byte item in the whole plan |
+| 19.2 | **Beast/uplifted pairs** — one mechanic converts between them | 56 creatures became 118 entries; 36 were free |
+| 19.3 | **Size as one float, with traits adding deltas**, plus a discrete tier gating predation | A visible food chain from one comparison |
+| 19.4 | **A joke line for every creature and every biome** | Treated as a shipping requirement, not a nice-to-have. It is most of the game's voice |
+| 19.5 | **More biomes and more disasters**, each with a step-action and a flavour line | Volume, but only once 18.4 makes it readable |
+| 19.6 | **Ten user-assignable hotkey slots** | `0`–`9`, `Ctrl`+digit to save |
+
+---
+
+## Still open from earlier phases
+
+| # | Item | Why it is still here |
+|---|---|---|
+| 14.6 | **A kingdom opinion matrix** | Alliances and peace exist as plot outcomes; a full pairwise opinion score does not. Small |
+| 11.4 | **Chronicle: three phrasings per disaster line** | The chronicle rotates phrasings for 25 topics; the engine's disaster suffixes are still single-form |
+
+---
 
 ## Rules for the work
 
 1. **Every phase ships green.** `npm test`, `npm run lint`, `npm run build`,
    `npm audit` clean, verified live in the browser.
-2. **Numbers get rescaled.** A WorldBox year is ~40 s; ours is 320 s. Never
-   paste a cooldown straight from the wiki — the herd-cooldown lesson.
-3. **Tests stay deterministic.** Seeded `Math.random` per test. A behavioural
-   assertion that needs a rerun is hiding a bug. But a *single-sample*
-   assertion on emergent behaviour is a tripwire, not a test: any new
-   `Math.random()` call anywhere in the AI re-rolls the whole stream and the
-   assertion fails for a reason that has nothing to do with the change. Where
-   the claim is statistical ("a grazing herd usually survives"), loop over
-   seeds and assert the distribution. `herdSystem.test.ts` learned this the
-   hard way.
-4. **Everything stays procedural.** No art or audio files, ever.
-5. **Write the copy as we go.** A power without a description is unfinished.
-6. **One commit per coherent change,** with the *why* in the message.
+2. **Numbers get rescaled.** A WorldBox year is ~40 s; ours is ~45 min. Never
+   paste a cooldown from the wiki — the herd-cooldown and age-length lessons.
+3. **Tests stay deterministic**, and a *statistical* claim gets a *sampled*
+   test. A single-sample assertion on emergent behaviour is a tripwire: any new
+   `Math.random()` call anywhere re-rolls it. `herdSystem.test.ts` learned this
+   twice.
+4. **A subsystem an entity cannot participate in must not consume its
+   randomness.** Guards go cheapest and most selective first. This bit three
+   times in Phase 10 alone.
+5. **Simulated time, never wall-clock.** `setTimeout` statuses and `Date.now()`
+   animation were the same bug in two places, and both were invisible.
+6. **Everything stays procedural.** No art or audio files, ever.
+7. **Write the copy as we go.** A power without a description is unfinished.
+8. **One commit per coherent change,** with the *why* in the message.
 
 ## Honest estimate of scale
 
-Phases 9–12 are roughly the same size as everything built so far. Phases 13–17
-are larger again. This is a long road, and the plan is ordered so that **it is
-worth stopping after any phase** — each one leaves the game better on its own.
+Phase 16 is a week of work and is the one that answers the actual complaint.
+Phases 17–19 are each larger than 16 and each leaves the game better on its own,
+so it is worth stopping after any of them.

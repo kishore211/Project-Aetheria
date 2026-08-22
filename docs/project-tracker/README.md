@@ -21,3 +21,8 @@ documents the scope that was deliberately left out.
 **How to use:** when a roadmap item is completed, move it into 01-STATUS.md with the date and verification evidence. Never delete history.
 
 Last updated: 2026-08-21
+
+- **[09-WORLDBOX-VISUAL-RESEARCH.md](09-WORLDBOX-VISUAL-RESEARCH.md)** — second
+  research pass, asking only *how does WorldBox look and move*. The first pass
+  (06) catalogued systems and was aimed at the wrong question. This one found
+  that our creature animation had never worked at all.
