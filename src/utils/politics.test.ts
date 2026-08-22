@@ -8,7 +8,12 @@ import {
   governableVillages,
   leadership,
   loyaltyFor,
+  OPINION_MAX,
+  OPINION_MIN,
+  opinionBetween,
+  tensionDrift,
   type LoyaltyInput,
+  type OpinionInput,
 } from './politics';
 
 const makeEntity = (id: string, over: Partial<Entity> = {}): Entity => ({
@@ -306,5 +311,125 @@ describe('how much a king can govern', () => {
 
   it('gives an uncrowned kingdom a workable default', () => {
     expect(governableVillages(null)).toBeGreaterThan(1);
+  });
+});
+
+const opinionBase = (over: Partial<OpinionInput> = {}): OpinionInput => ({
+  ourKing: null,
+  theirKing: null,
+  borderTiles: 0,
+  ourLand: 100,
+  theirLand: 100,
+  sameRace: true,
+  sameCulture: null,
+  sameLanguage: null,
+  sameReligion: null,
+  atWar: false,
+  allied: false,
+  foughtBefore: false,
+  ...over,
+});
+
+describe('opinion between kingdoms', () => {
+  it('explains itself, ordered by what is driving it', () => {
+    const result = opinionBetween(opinionBase({
+      borderTiles: 60, sameRace: false, sameReligion: false,
+    }));
+    expect(result.factors.length).toBeGreaterThanOrEqual(3);
+    for (let index = 1; index < result.factors.length; index += 1) {
+      expect(Math.abs(result.factors[index].value))
+        .toBeLessThanOrEqual(Math.abs(result.factors[index - 1].value));
+    }
+  });
+
+  it('sums its own breakdown and stays in range', () => {
+    const result = opinionBetween(opinionBase({ borderTiles: 40, sameRace: false }));
+    const total = result.factors.reduce((sum, factor) => sum + factor.value, 0);
+    expect(result.score).toBe(Math.max(OPINION_MIN, Math.min(OPINION_MAX, total)));
+
+    const awful = opinionBetween(opinionBase({
+      borderTiles: 400, sameRace: false, sameCulture: false, sameLanguage: false,
+      sameReligion: false, atWar: true, foughtBefore: true, theirLand: 5000,
+      ourKing: { diplomacy: 1, warfare: 10, stewardship: 1, intrigue: 1 },
+      theirKing: { diplomacy: 1, warfare: 10, stewardship: 1, intrigue: 1 },
+    }));
+    expect(awful.score).toBe(OPINION_MIN);
+  });
+
+  it('makes a long shared border a reason to dislike somebody', () => {
+    const distant = opinionBetween(opinionBase({ borderTiles: 2 })).score;
+    const pressed = opinionBetween(opinionBase({ borderTiles: 90 })).score;
+    expect(pressed).toBeLessThan(distant);
+  });
+
+  it('lets shared identity outweigh a modest border', () => {
+    // Two realms that share a culture, a language and a faith should not march
+    // on each other as readily as two that share nothing. Before this existed,
+    // they did — tension grew at a flat rate that ignored everything.
+    const kin = opinionBetween(opinionBase({
+      borderTiles: 30, sameCulture: true, sameLanguage: true, sameReligion: true,
+    })).score;
+    const strangers = opinionBetween(opinionBase({
+      borderTiles: 30, sameCulture: false, sameLanguage: false, sameReligion: false,
+    })).score;
+    expect(kin).toBeGreaterThan(strangers + 60);
+  });
+
+  it('lets the smaller realm resent the larger, not the other way round', () => {
+    const dwarfed = opinionBetween(opinionBase({ ourLand: 100, theirLand: 900 })).score;
+    const towering = opinionBetween(opinionBase({ ourLand: 900, theirLand: 100 })).score;
+    expect(dwarfed).toBeLessThan(towering);
+  });
+
+  it('lets two diplomats get on and two warlords not', () => {
+    const diplomats = opinionBetween(opinionBase({
+      ourKing: { diplomacy: 9, warfare: 2, stewardship: 5, intrigue: 5 },
+      theirKing: { diplomacy: 9, warfare: 2, stewardship: 5, intrigue: 5 },
+    })).score;
+    const warlords = opinionBetween(opinionBase({
+      ourKing: { diplomacy: 2, warfare: 9, stewardship: 5, intrigue: 5 },
+      theirKing: { diplomacy: 2, warfare: 9, stewardship: 5, intrigue: 5 },
+    })).score;
+    expect(diplomats).toBeGreaterThan(warlords + 30);
+  });
+
+  it('skips an identity factor rather than reading a missing one as a mismatch', () => {
+    const unknown = opinionBetween(opinionBase({ sameCulture: null })).score;
+    const shared = opinionBetween(opinionBase({ sameCulture: true })).score;
+    const split = opinionBetween(opinionBase({ sameCulture: false })).score;
+    expect(unknown).toBeGreaterThan(split);
+    expect(unknown).toBeLessThan(shared);
+  });
+});
+
+describe('tension drift', () => {
+  it('heats up cold neighbours and cools warm ones', () => {
+    expect(tensionDrift(-80)).toBeGreaterThan(0);
+    expect(tensionDrift(80)).toBeLessThan(0);
+  });
+
+  it('makes falling out faster than making up', () => {
+    // Symmetric drift would mean every pair oscillates around neutral for ever
+    // and nobody ever actually goes to war.
+    expect(Math.abs(tensionDrift(-100))).toBeGreaterThan(Math.abs(tensionDrift(100)));
+  });
+
+  it('reaches war from sustained hostility in a plausible number of rounds', () => {
+    // If it never gets there the system is decoration; if it gets there in two
+    // rounds the player cannot react.
+    let tension = 0;
+    let rounds = 0;
+    while (tension < 1 && rounds < 200) {
+      tension += tensionDrift(-100);
+      rounds += 1;
+    }
+    expect(rounds).toBeGreaterThan(4);
+    expect(rounds).toBeLessThan(30);
+  });
+
+  it('sits still at neutral', () => {
+    // toBeCloseTo rather than toBe: negating zero gives -0, which is a
+    // perfectly good "no drift" and not worth contorting the formula for.
+    expect(tensionDrift(0)).toBeCloseTo(0);
   });
 });

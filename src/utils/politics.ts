@@ -273,3 +273,102 @@ export const governableVillages = (king: CivilStats | null): number =>
 
 /** Loyalty below this, sustained, and the province goes. */
 export const REBELLION_THRESHOLD = 0;
+
+// -- opinion between kingdoms ----------------------------------------------
+
+export const OPINION_MIN = -100;
+export const OPINION_MAX = 100;
+
+/** Everything the opinion formula needs, gathered by the caller. */
+export interface OpinionInput {
+  /** Civil stats of each ruler, where a real unit wears the crown. */
+  ourKing: CivilStats | null;
+  theirKing: CivilStats | null;
+  /** Tiles where the two realms' claims touch. Friction, not friendship. */
+  borderTiles: number;
+  /** Claimed land each holds, for judging who is the threat. */
+  ourLand: number;
+  theirLand: number;
+  sameRace: boolean;
+  sameCulture: boolean | null;
+  sameLanguage: boolean | null;
+  sameReligion: boolean | null;
+  atWar: boolean;
+  allied: boolean;
+  /** True if these two have made peace before. */
+  foughtBefore: boolean;
+}
+
+export interface OpinionResult {
+  score: number;
+  factors: LoyaltyFactor[];
+}
+
+/**
+ * What one kingdom thinks of another, with its reasons.
+ *
+ * The same shape as `loyaltyFor` and for the same reason: WorldBox itemises
+ * both loyalty *and* diplomacy as named signed factors with a running total, so
+ * a war is auditable rather than mysterious
+ * (09-WORLDBOX-VISUAL-RESEARCH.md §10, item 9).
+ *
+ * This replaces a pair of magic constants. Tension used to grow at 0.055 a
+ * round, or 0.11 if either side was an orc, and nothing else entered into it —
+ * which meant two realms that shared a culture, a language and a faith marched
+ * on each other exactly as fast as two that shared nothing.
+ */
+export const opinionBetween = (input: OpinionInput): OpinionResult => {
+  const factors: LoyaltyFactor[] = [];
+  const add = (label: string, value: number) => {
+    if (Math.abs(value) < 0.5) return;
+    factors.push({ label, value: Math.round(value) });
+  };
+
+  if (input.allied) add('Sworn allies', 60);
+  if (input.atWar) add('At war', -70);
+
+  // A long shared border is the oldest reason in history to dislike someone.
+  add('Shared border', -Math.min(35, input.borderTiles / 3));
+
+  // Being much the smaller party is frightening; being much the larger is not
+  // reassuring either, but it is the smaller one that resents it.
+  const ratio = input.theirLand / Math.max(1, input.ourLand);
+  if (ratio > 1.4) add('They tower over us', -Math.min(25, (ratio - 1) * 18));
+  else if (ratio < 0.7) add('We tower over them', 8);
+
+  add('Kin', input.sameRace ? 18 : -14);
+  if (input.sameCulture !== null) add('Shared culture', input.sameCulture ? 20 : -12);
+  if (input.sameLanguage !== null) add('Shared language', input.sameLanguage ? 15 : -10);
+  if (input.sameReligion !== null) add('Shared faith', input.sameReligion ? 20 : -18);
+
+  // Two diplomats find a way. Two warlords do not.
+  if (input.ourKing && input.theirKing) {
+    const diplomacy = input.ourKing.diplomacy + input.theirKing.diplomacy;
+    const warfare = input.ourKing.warfare + input.theirKing.warfare;
+    add('The rulers', (diplomacy - warfare) * 1.4);
+  }
+
+  if (input.foughtBefore) add('Old grievances', -12);
+
+  factors.sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
+  const total = factors.reduce((sum, factor) => sum + factor.value, 0);
+
+  return {
+    score: Math.max(OPINION_MIN, Math.min(OPINION_MAX, Math.round(total))),
+    factors,
+  };
+};
+
+/**
+ * How fast tension rises per diplomacy round, given an opinion.
+ *
+ * Warm neighbours cool off; cold ones heat up. Returning a signed number rather
+ * than a growth rate means peace is the same mechanism as war rather than a
+ * special case bolted on.
+ */
+export const tensionDrift = (opinion: number): number => {
+  // -100 opinion climbs to war in roughly nine rounds; +100 walks it back at
+  // about half that speed, because falling out is easier than making up.
+  const normalised = -opinion / 100;
+  return normalised > 0 ? normalised * 0.11 : normalised * 0.055;
+};

@@ -16,7 +16,7 @@ import {
   type Tile,
 } from '../types/world';
 import type {
-  IdentityRow, KingdomSummary, PlotSummary, VillageSummary, WorldLaws,
+  IdentityRow, KingdomSummary, OpinionRow, PlotSummary, VillageSummary, WorldLaws,
 } from '../store/gameStore';
 import type { EntityManager } from './entityManagerMinimal';
 import { getBuildingAtlas } from './pixelAtlas';
@@ -53,10 +53,13 @@ import {
   civilStats,
   governableVillages,
   leadership,
+  opinionBetween,
+  tensionDrift,
   loyaltyFor,
   REBELLION_THRESHOLD,
   type CivilStats,
   type LoyaltyResult,
+  type OpinionResult,
 } from './politics';
 import { speak } from './dialogue';
 import {
@@ -299,6 +302,7 @@ export interface SettlementEvents {
   onVillagesChanged?: (summaries: VillageSummary[]) => void;
   onPlotsChanged?: (summaries: PlotSummary[]) => void;
   onIdentitiesChanged?: (rows: IdentityRow[]) => void;
+  onOpinionsChanged?: (rows: OpinionRow[]) => void;
 }
 
 export class SettlementSystem {
@@ -326,6 +330,8 @@ export class SettlementSystem {
   /** Live schemes, keyed by id. */
   private plots = new Map<string, Plot>();
   private plotterIds = new Set<string>();
+  /** Latest opinion per neighbouring pair, keyed by pairKey. */
+  private opinions = new Map<string, OpinionResult>();
   private laws: WorldLaws = simulation.laws;
   /** Diplomacy rounds each active war has lasted, keyed by kingdom pair. */
   private warTimers = new Map<string, number>();
@@ -1784,6 +1790,65 @@ export class SettlementSystem {
     }
   }
 
+  /**
+   * Gather everything the opinion formula needs about a pair.
+   *
+   * Symmetric on purpose: a single score per pair rather than one each way.
+   * Two directed opinions would be more faithful to real diplomacy and would
+   * double the state for no gain here, because nothing in the simulation acts
+   * on the asymmetry — war and peace are both mutual.
+   */
+  private opinionFor(a: Kingdom, b: Kingdom, borderTiles: number): OpinionResult {
+    const mine = groupMetas(a.id);
+    const theirs = groupMetas(b.id);
+    const compare = (
+      pick: (set: ReturnType<typeof groupMetas>) => string | null | undefined,
+    ): boolean | null => {
+      const left = pick(mine);
+      const right = pick(theirs);
+      if (!left || !right) return null;
+      return left === right;
+    };
+
+    return opinionBetween({
+      ourKing: this.kingCivilStats(a),
+      theirKing: this.kingCivilStats(b),
+      borderTiles,
+      ourLand: this.landOf(a),
+      theirLand: this.landOf(b),
+      sameRace: a.race === b.race,
+      sameCulture: compare(set => set?.culture),
+      sameLanguage: compare(set => set?.language),
+      sameReligion: compare(set => set?.religion),
+      atWar: a.atWar.has(b.id),
+      allied: a.allies.has(b.id),
+      foughtBefore: this.warTimers.has(pairKey(a.id, b.id)),
+    });
+  }
+
+  /** What every pair of neighbouring realms thinks of each other. */
+  opinionRows(): Array<{
+    a: string; b: string; colorA: string; colorB: string;
+    score: number; factors: Array<{ label: string; value: number }>;
+    atWar: boolean; allied: boolean;
+  }> {
+    const rows = [];
+    for (const [key, opinion] of this.opinions) {
+      const [aId, bId] = key.split('|');
+      const a = this.kingdoms.get(aId);
+      const b = this.kingdoms.get(bId);
+      if (!a || !b) continue;
+      rows.push({
+        a: a.name, b: b.name,
+        colorA: a.colorHex, colorB: b.colorHex,
+        score: opinion.score, factors: opinion.factors,
+        atWar: a.atWar.has(bId), allied: a.allies.has(bId),
+      });
+    }
+    // Worst first: the pair about to go to war is the interesting row.
+    return rows.sort((x, y) => x.score - y.score);
+  }
+
   private mostTenseNeighbour(kingdom: Kingdom): Kingdom | null {
     let best: Kingdom | null = null;
     let bestTension = 0.25;
@@ -2064,11 +2129,18 @@ export class SettlementSystem {
       const a = this.kingdoms.get(aId);
       const b = this.kingdoms.get(bId);
       if (!a || !b || a.atWar.has(bId)) continue;
+      if (a.allies.has(bId)) continue;
 
-      // Orcs pick fights sooner; a long shared border makes it worse.
-      const aggression = a.race === 'orc' || b.race === 'orc' ? 0.11 : 0.055;
-      const growth = aggression * Math.min(3, borderTiles / 10);
-      const tension = Math.min(1.2, (a.tension.get(bId) ?? 0) + growth);
+      // Tension now follows opinion rather than a pair of magic constants.
+      // It used to grow at 0.055 a round, or 0.11 if either side was an orc,
+      // and nothing else entered into it — so two realms sharing a culture, a
+      // language and a faith marched on each other exactly as fast as two
+      // that shared nothing.
+      const opinion = this.opinionFor(a, b, borderTiles);
+      this.opinions.set(key, opinion);
+
+      const drift = tensionDrift(opinion.score) * Math.min(3, borderTiles / 10);
+      const tension = Math.max(0, Math.min(1.2, (a.tension.get(bId) ?? 0) + drift));
       a.tension.set(bId, tension);
       b.tension.set(aId, tension);
 
@@ -2519,6 +2591,7 @@ export class SettlementSystem {
     // row in the list, and burying it under the biggest towns hides the story.
     this.events.onPlotsChanged?.(this.plotSummaries());
     this.events.onIdentitiesChanged?.(this.identityRows());
+    this.events.onOpinionsChanged?.(this.opinionRows());
 
     villageRows.sort((a, b) => {
       if ((a.secedesIn === null) !== (b.secedesIn === null)) return a.secedesIn === null ? 1 : -1;

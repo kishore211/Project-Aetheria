@@ -287,6 +287,59 @@ export const deathTopic = (cause: string): ChronicleTopic => {
 };
 
 /**
+ * Phrasings for the count a disaster or blessing leaves behind.
+ *
+ * The templates above cannot carry these, because a count only sometimes
+ * exists — "A meteor devastates the region — 0 perished" is worse than saying
+ * nothing. So the suffix is appended by the caller, which until now meant every
+ * meteor in the world's history ended with the same four words however many
+ * different ways the meteor itself was described.
+ */
+const TOLLS: Record<'dead' | 'slain' | 'claimed' | 'healed', string[]> = {
+  dead: [
+    ' — {n} perished',
+    ', and {n} did not get up',
+    '. {n} dead.',
+  ],
+  slain: [
+    ' — {n} slain',
+    ', taking {n} with it',
+    '. {n} did not see it coming.',
+  ],
+  claimed: [
+    ' — {n} souls claimed',
+    ', and {n} were taken',
+    '. {n} belong to it now.',
+  ],
+  healed: [
+    ', healing {n} creatures',
+    '. {n} felt it, and were mended.',
+    ' — {n} made whole',
+  ],
+};
+
+const lastToll = new Map<string, number>();
+
+/**
+ * The tail of a disaster line. Returns an empty string for a count of zero, so
+ * a caller can append it unconditionally.
+ */
+export const toll = (
+  kind: keyof typeof TOLLS,
+  count: number,
+  seed = Math.random(),
+): string => {
+  if (count <= 0) return '';
+  const options = TOLLS[kind];
+  let index = Math.floor(Math.abs(seed) * options.length) % options.length;
+  if (options.length > 1 && lastToll.get(kind) === index) {
+    index = (index + 1) % options.length;
+  }
+  lastToll.set(kind, index);
+  return options[index].replace('{n}', String(count));
+};
+
+/**
  * Does a line read as one of `topic`'s phrasings?
  *
  * Exists for tests. Asserting `message.includes('is founded')` was fine while

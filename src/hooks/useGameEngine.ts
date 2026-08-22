@@ -27,7 +27,7 @@ import { buildSave } from '../utils/saveSystem';
 import { publishSimulationContext, simulation } from '../utils/simulation';
 import { advanceFloaters, clearFloaters, floatBridge } from '../utils/floatBridge';
 import { clearImpacts, isShaking, requestFlash, requestShake, sampleShake } from '../utils/impactBridge';
-import { chronicle } from '../utils/chronicle';
+import { chronicle, toll } from '../utils/chronicle';
 import { applyScenario, type Scenario } from '../utils/scenarios';
 import { nudgeMood } from '../utils/mood';
 import { AGES, AGE_LENGTH, nextAge, type AgeAction } from '../utils/ages';
@@ -387,6 +387,9 @@ export const useGameEngine = () => {
       onIdentitiesChanged: (rows) => {
         useGameStore.getState().setIdentities(rows);
       },
+      onOpinionsChanged: (rows) => {
+        useGameStore.getState().setOpinions(rows);
+      },
     });
     settlementRef.current = settlements;
     settlements.setWorldLaws(storeState.worldLaws);
@@ -725,7 +728,7 @@ export const useGameEngine = () => {
         effectsManagerRef.current?.spawnShockwave(tileWorldPosition(tile), 0xaa8855, 6);
         soundManager.earthquake();
         store.addEvent(
-          chronicle('quake') + (kills > 0 ? `, claiming ${kills} lives` : ''),
+          chronicle('quake') + toll('dead', kills),
           'disaster',
           { x: tile.x, y: tile.y },
         );
@@ -748,7 +751,7 @@ export const useGameEngine = () => {
           requestShake(26 + store.brushRadius * 10, 0.7);
           requestFlash('impact', 0.9);
           store.addEvent(
-            chronicle('meteor') + (kills > 0 ? ` — ${kills} perished` : ''),
+            chronicle('meteor') + toll('dead', kills),
             'disaster',
             { x: tile.x, y: tile.y },
           );
@@ -764,7 +767,7 @@ export const useGameEngine = () => {
         const kills = entityManagerRef.current?.damageArea(tile.x, tile.y, 1.2, 60) ?? 0;
         if (FLAMMABLE_BIOMES.includes(tile.type) && Math.random() < 0.6) igniteTile(tile);
         store.addEvent(
-          chronicle('lightning') + (kills > 0 ? ` — ${kills} slain` : ''),
+          chronicle('lightning') + toll('slain', kills),
           'disaster',
           { x: tile.x, y: tile.y },
         );
@@ -800,7 +803,7 @@ export const useGameEngine = () => {
         }
         requestFlash('divine', 0.5);
         store.addEvent(
-          chronicle('blessing') + (healed > 0 ? `, healing ${healed} creatures` : ''),
+          chronicle('blessing') + toll('healed', healed),
           'divine',
           { x: tile.x, y: tile.y },
         );
@@ -905,7 +908,7 @@ export const useGameEngine = () => {
         reactNearby(tile, curseRadius, 'cursed');
         requestFlash('plague', 0.7);
         store.addEvent(
-          chronicle('curse') + (kills > 0 ? ` — ${kills} souls claimed` : ''),
+          chronicle('curse') + toll('claimed', kills),
           'disaster',
           { x: tile.x, y: tile.y },
         );

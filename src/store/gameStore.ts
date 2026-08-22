@@ -83,6 +83,19 @@ export interface VillageSummary {
   y: number;
 }
 
+/** What two neighbouring realms think of each other, with the reasons. */
+export interface OpinionRow {
+  a: string;
+  b: string;
+  colorA: string;
+  colorB: string;
+  /** -100..+100. */
+  score: number;
+  factors: Array<{ label: string; value: number }>;
+  atWar: boolean;
+  allied: boolean;
+}
+
 /** One identity in the world, for the map-layer key. */
 export interface IdentityRow {
   id: string;
@@ -242,6 +255,7 @@ interface GameState {
   villages: VillageSummary[];
   plots: PlotSummary[];
   identities: IdentityRow[];
+  opinions: OpinionRow[];
   /** Entity the camera is following (spectate mode). */
   followEntityId: string | null;
   /** Set by the minimap and chronicle to fly the camera somewhere. */
@@ -295,6 +309,7 @@ interface GameState {
   setVillages: (villages: VillageSummary[]) => void;
   setPlots: (plots: PlotSummary[]) => void;
   setIdentities: (identities: IdentityRow[]) => void;
+  setOpinions: (opinions: OpinionRow[]) => void;
   setFollowEntity: (id: string | null) => void;
   focusTile: (x: number, y: number) => void;
   setHoverTarget: (target: HoverTarget | null) => void;
@@ -374,6 +389,7 @@ export const useGameStore = create<GameState>((set) => ({
   villages: [],
   plots: [],
   identities: [],
+  opinions: [],
   followEntityId: null,
   cameraTarget: null,
   hoverTarget: null,
@@ -462,6 +478,7 @@ export const useGameStore = create<GameState>((set) => ({
   setVillages: (villages: VillageSummary[]) => set({ villages }),
   setPlots: (plots: PlotSummary[]) => set({ plots }),
   setIdentities: (identities: IdentityRow[]) => set({ identities }),
+  setOpinions: (opinions: OpinionRow[]) => set({ opinions }),
 
   setFollowEntity: (followEntityId: string | null) => set({ followEntityId }),
 
@@ -494,6 +511,7 @@ export const useGameStore = create<GameState>((set) => ({
     villages: [],
     plots: [],
     identities: [],
+    opinions: [],
   })),
 
   clearPendingSave: () => set({ pendingSave: null }),
@@ -542,6 +560,7 @@ export const useGameStore = create<GameState>((set) => ({
     villages: [],
     plots: [],
     identities: [],
+    opinions: [],
     timeOfDay: 'day',
     age: 'hope',
     ageProgress: 0,
@@ -557,5 +576,6 @@ export const useGameStore = create<GameState>((set) => ({
     villages: [],
     plots: [],
     identities: [],
+    opinions: [],
   }),
 }));

@@ -20,7 +20,7 @@ type ListTab = 'realms' | 'villages' | 'wars' | 'plots';
 const TABS: Array<{ id: ListTab; label: string; icon: typeof Crown }> = [
   { id: 'realms', label: 'Realms', icon: Crown },
   { id: 'villages', label: 'Towns', icon: Home },
-  { id: 'wars', label: 'Wars', icon: Swords },
+  { id: 'wars', label: 'Standing', icon: Swords },
   { id: 'plots', label: 'Plots', icon: ScrollText },
 ];
 
@@ -28,6 +28,7 @@ const ListWindow = ({ open, onClose }: { open: boolean; onClose: () => void }) =
   const kingdoms = useGameStore((state) => state.kingdoms);
   const villages = useGameStore((state) => state.villages);
   const plots = useGameStore((state) => state.plots);
+  const opinions = useGameStore((state) => state.opinions);
   const focusTile = useGameStore((state) => state.focusTile);
   const [tab, setTab] = useState<ListTab>('realms');
 
@@ -62,7 +63,7 @@ const ListWindow = ({ open, onClose }: { open: boolean; onClose: () => void }) =
   const counts: Record<ListTab, number> = {
     realms: kingdoms.length,
     villages: villages.length,
-    wars: wars.length,
+    wars: opinions.length || wars.length,
     plots: plots.length,
   };
 
@@ -196,17 +197,57 @@ const ListWindow = ({ open, onClose }: { open: boolean; onClose: () => void }) =
               </ul>
             ))}
 
-          {tab === 'wars' && (wars.length === 0
-            ? <p className="list-empty">Nobody is fighting anybody. Give it time.</p>
+          {tab === 'wars' && (opinions.length === 0
+            ? (
+              <p className="list-empty">
+                {wars.length === 0
+                  ? 'Nobody has a neighbour to have an opinion about yet.'
+                  : 'Two realms are fighting, but their borders have not been surveyed yet.'}
+              </p>
+            )
             : (
-              <ul className="space-y-1">
-                {wars.map((war) => (
-                  <li key={war.key} className="list-row list-row-static">
-                    <i className="list-swatch" style={{ background: war.colorA }} />
-                    <span className="list-name">{war.a}</span>
-                    <Swords size={12} className="shrink-0 text-rose-400" />
-                    <span className="list-name">{war.b}</span>
-                    <i className="list-swatch" style={{ background: war.colorB }} />
+              <ul className="space-y-1.5">
+                {opinions.map((pair) => (
+                  <li key={`${pair.a}|${pair.b}`} className="plot-row">
+                    <span className="min-w-0 flex-1">
+                      <span className="plot-head flex items-center gap-1.5">
+                        <i className="list-swatch" style={{ background: pair.colorA }} />
+                        {pair.a}
+                        {pair.atWar
+                          ? <Swords size={11} className="text-rose-400" />
+                          : pair.allied
+                            ? <span className="text-emerald-300 text-[0.62rem]">allied</span>
+                            : <span className="text-muted-foreground">·</span>}
+                        {pair.b}
+                        <i className="list-swatch" style={{ background: pair.colorB }} />
+                        <b className={`ml-auto tabular-nums ${
+                          pair.score >= 20 ? 'text-emerald-300'
+                            : pair.score >= -20 ? 'text-amber-300' : 'text-rose-400'
+                        }`}>
+                          {pair.score > 0 ? '+' : ''}{pair.score}
+                        </b>
+                      </span>
+                      {/* The reasons, not just the number. Same discipline as
+                          the loyalty breakdown: a war nobody can account for
+                          is indistinguishable from a bug. */}
+                      <ul className="mt-1 space-y-0.5">
+                        {pair.factors.slice(0, 4).map((factor) => (
+                          <li
+                            key={factor.label}
+                            className="flex items-baseline gap-2 text-[0.66rem]"
+                          >
+                            <span className="flex-1 min-w-0 truncate text-muted-foreground">
+                              {factor.label}
+                            </span>
+                            <span className={`font-semibold tabular-nums ${
+                              factor.value > 0 ? 'text-emerald-300' : 'text-rose-400'
+                            }`}>
+                              {factor.value > 0 ? '+' : ''}{factor.value}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </span>
                   </li>
                 ))}
               </ul>

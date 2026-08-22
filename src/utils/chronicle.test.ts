@@ -5,6 +5,7 @@ import {
   chronicle,
   deathTopic,
   matchesTopic,
+  toll,
 } from './chronicle';
 
 describe('chronicle', () => {
@@ -91,5 +92,49 @@ describe('matchesTopic', () => {
   it('still matches when the caller appended a suffix', () => {
     // Disaster lines get "— 3 perished" glued on by the caller.
     expect(matchesTopic(`${chronicle('meteor', {}, 0)} — 3 perished`, 'meteor')).toBe(true);
+  });
+});
+
+describe('the toll on a disaster line', () => {
+  it('says nothing when nothing happened', () => {
+    // A caller appends this unconditionally, so "A meteor devastates the
+    // region — 0 perished" has to be impossible by construction.
+    expect(toll('dead', 0)).toBe('');
+    expect(toll('healed', -1)).toBe('');
+  });
+
+  it('carries the count', () => {
+    expect(toll('dead', 7, 0)).toContain('7');
+  });
+
+  it('varies, so every meteor in history does not end the same four words', () => {
+    const seen = new Set<string>();
+    for (let step = 0; step < 12; step += 1) {
+      seen.add(toll('dead', 3, (step % 3) / 3).replace('3', 'N'));
+    }
+    expect(seen.size).toBeGreaterThan(1);
+  });
+
+  it('never repeats a phrasing back to back', () => {
+    let previous = '';
+    for (let step = 0; step < 20; step += 1) {
+      const line = toll('slain', 2, (step % 2) / 2);
+      expect(line).not.toBe(previous);
+      previous = line;
+    }
+  });
+
+  it('rotates independently per kind', () => {
+    const first = toll('healed', 5, 0);
+    toll('dead', 5, 0);
+    expect(toll('healed', 5, 0)).not.toBe(first);
+  });
+
+  it('leaves no placeholder behind for any kind or seed', () => {
+    for (const kind of ['dead', 'slain', 'claimed', 'healed'] as const) {
+      for (const seed of [0, 0.4, 0.9, 1]) {
+        expect(toll(kind, 4, seed)).not.toMatch(/[{}]/);
+      }
+    }
   });
 });
