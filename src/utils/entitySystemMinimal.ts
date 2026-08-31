@@ -15,6 +15,7 @@ import {
 } from '../types/world';
 import { getPixelSpriteTexture, getPixelSpriteFrames, WALK_FRAMES } from './pixelSprites';
 import { groundSpeed, stepOnGround } from './biomeEffects';
+import { canPreyOn, rollSize, sizeOf } from './size';
 import {
   canSwim,
   findNearestStandable,
@@ -207,6 +208,8 @@ export function createEntity(
   // Start part-grown so a fresh world is not entirely newborns
   entity.age = profile.maxAge * (0.2 + Math.random() * 0.25);
   applyTraits(entity);
+  // After the traits, because a strong wolf is a bigger wolf.
+  entity.size = rollSize(type, entity.traits);
   return entity;
 }
 
@@ -214,7 +217,7 @@ export function createEntity(
  * Create a 3D mesh for an entity based on its type
  */
 export function createEntityMesh(entity: Entity): THREE.Object3D {
-  const size = getEntitySize(entity.type);
+  const size = getEntitySize(entity);
   const container = new THREE.Object3D();
   container.name = `entity-${entity.id}`;
 
@@ -239,16 +242,14 @@ export function createEntityMesh(entity: Entity): THREE.Object3D {
 /**
  * Get a size based on entity type
  */
-function getEntitySize(type: EntityType): number {
-  const sizeMap: Partial<Record<EntityType, number>> = {
-    human: 0.15, elf: 0.17, dwarf: 0.12, orc: 0.18,
-    wolf: 0.12, bear: 0.2, deer: 0.15, rabbit: 0.08,
-    bird: 0.07, fish: 0.09, sheep: 0.12, chicken: 0.08,
-    fox: 0.11, snake: 0.11,
-    dragon: 0.35, demon: 0.25, zombie: 0.16, skeleton: 0.16,
-    elemental: 0.2, bandit: 0.15,
-  };
-  return sizeMap[type] ?? 0.15;
+/**
+ * How big to draw this one.
+ *
+ * Reads the creature's own size rather than a table of kinds, which is what
+ * makes a crowd of wolves look like a crowd instead of a row of stamps.
+ */
+function getEntitySize(entity: Pick<Entity, 'type' | 'size'>): number {
+  return sizeOf(entity);
 }
 
 /**
@@ -331,7 +332,7 @@ export function updateEntityMesh(entity: Entity, deltaTime = 1 / 60, detailLevel
   // recomputed from the creature's size every frame rather than mutated in
   // place. Mutating it meant a multiplicative effect could never be undone —
   // the pop would compound and the creature would grow without limit.
-  const spriteBase = getEntitySize(entity.type) * 3;
+  const spriteBase = getEntitySize(entity) * 3;
   if (entity.lastPosition) {
     const dx = entity.position.x - entity.lastPosition.x;
     if (Math.abs(dx) > 1e-4) entity.facing = dx > 0 ? 1 : -1;
@@ -344,7 +345,7 @@ export function updateEntityMesh(entity: Entity, deltaTime = 1 / 60, detailLevel
     ? 1 + Math.min(1, entity.flashFor / FLASH_SECONDS) * 0.16
     : 1;
 
-  const baseY = getEntitySize(entity.type) * 1.5;
+  const baseY = getEntitySize(entity) * 1.5;
   // Squash and stretch, filled in by whichever locomotion branch runs and
   // folded into the scale once, at the end.
   let squashX = 1;
@@ -377,7 +378,7 @@ export function updateEntityMesh(entity: Entity, deltaTime = 1 / 60, detailLevel
     // creature never actually at rest, which is a hover. Half a sine clipped at
     // zero gives one arc and then a beat of contact with the ground, and the
     // beat is the part the eye reads as weight.
-    const size = getEntitySize(entity.type);
+    const size = getEntitySize(entity);
     const air = Math.max(0, Math.sin(entity.walkPhase * Math.PI * 2));
     // The grounded half of the cycle, peaking mid-contact — where the legs are
     // most compressed, just after landing and just before the next push.
@@ -399,7 +400,7 @@ export function updateEntityMesh(entity: Entity, deltaTime = 1 / 60, detailLevel
     // Idle breathing: slow, small, and always on. A creature that is perfectly
     // still reads as a placed object; one that breathes reads as alive even
     // when it is doing nothing.
-    const size = getEntitySize(entity.type);
+    const size = getEntitySize(entity);
     const breath = Math.sin(entity.walkPhase * Math.PI * 2);
     sprite.position.y = baseY + breath * size * 0.035;
 
@@ -1701,6 +1702,10 @@ export class EntityAI {
     for (const candidate of this.index.query(this.entity.position.x, this.entity.position.y, perception)) {
       if (candidate.id === this.entity.id) continue;
       if (!preyTypes.includes(candidate.type)) continue;
+      // The food chain says what *kind* is prey; size says whether this animal
+      // is big enough to try it. A runt fox leaves the chickens alone and a
+      // monstrous one takes a deer, out of one comparison.
+      if (!canPreyOn(this.entity, candidate)) continue;
       const distance = (candidate.position.x - this.entity.position.x) ** 2
         + (candidate.position.y - this.entity.position.y) ** 2;
       if (distance < bestDistance) {

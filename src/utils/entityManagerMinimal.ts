@@ -211,6 +211,7 @@ export class EntityManager implements EntityIndex {
       // plain palette rather than being re-rolled — a world you come back to
       // should have the same wolves in it.
       subspecies: saved.subspecies ?? null,
+      size: saved.size,
       carrying: null,
       job: saved.job,
     };

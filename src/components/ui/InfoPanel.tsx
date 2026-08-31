@@ -6,6 +6,7 @@ import { MOOD_MAX, MOOD_MIN, moodFace } from '../../utils/mood';
 import { statusDef } from '../../utils/statusEffects';
 import { BIOME_STEPS, groundSpeed } from '../../utils/biomeEffects';
 import { describeCreature } from '../../utils/subspecies';
+import { describeSize, sizeOf } from '../../utils/size';
 import { CULTURE_TRAITS, type CultureTraitId } from '../../utils/identity';
 import { worldAccess } from '../../utils/worldAccess';
 
@@ -85,7 +86,10 @@ const InfoPanel = () => {
           <p className="text-xs text-muted-foreground capitalize mb-3">
             {/* "snow wolf" rather than "wolf": the colouring is the subspecies,
                 and a name that does not say so wastes the whole system. */}
-            {describeCreature(selectedEntity.type, selectedEntity.subspecies)}
+            {/* "a huge snow wolf": the colouring is the subspecies and the
+                band is what it can hunt, so both belong in the name rather
+                than in a stat nobody scrolls to. */}
+            {describeSize(sizeOf(selectedEntity))} {describeCreature(selectedEntity.type, selectedEntity.subspecies)}
             {selectedEntity.job ? ` · ${selectedEntity.job}` : ''}
           </p>
 

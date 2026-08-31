@@ -278,6 +278,12 @@ export interface Entity {
   /** -1 or 1: which way the sprite is mirrored. */
   facing?: number;
   /**
+   * How big this individual is, in world units. Rolled at birth from its kind
+   * and its traits and then carried — see `size.ts`. A creature that changes
+   * size between frames is a rendering fault.
+   */
+  size?: number;
+  /**
    * Which colour ramp this creature was born with. See `subspecies.ts`.
    *
    * A plain id rather than the ramp itself, so a save carries four bytes and
