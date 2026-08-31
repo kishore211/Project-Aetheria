@@ -1826,13 +1826,22 @@ export const useGameEngine = () => {
   useFrame((_, deltaTime) => {
     if (!isInitialized) return;
     // Point sprites are sized in pixels, so convert world units to pixels for
-    // the current viewport and field of view.
-    const perspective = camera as THREE.PerspectiveCamera;
-    const halfFov = THREE.MathUtils.degToRad(perspective.fov ?? 55) / 2;
-    const pixelScale = (gl.domElement.height * 0.5) / Math.tan(halfFov);
-    terrainRef.current?.setViewportScale(pixelScale);
-    settlementRef.current?.setViewportScale(pixelScale);
-    unitIconsRef.current?.setViewportScale(pixelScale);
+    // the current camera.
+    //
+    // The two projections need different numbers. A perspective camera wants a
+    // constant the shader divides by depth; an orthographic one has no such
+    // relationship — pixels per world unit is simply its zoom — and dividing by
+    // depth under a top-down camera, where depth is the same everywhere, sized
+    // every sprite identically and enormously.
+    const ortho = camera as THREE.OrthographicCamera;
+    const orthographic = Boolean(ortho.isOrthographicCamera);
+    const pixelScale = orthographic
+      ? ortho.zoom
+      : (gl.domElement.height * 0.5)
+        / Math.tan(THREE.MathUtils.degToRad((camera as THREE.PerspectiveCamera).fov ?? 55) / 2);
+    terrainRef.current?.setViewportScale(pixelScale, orthographic);
+    settlementRef.current?.setViewportScale(pixelScale, orthographic);
+    unitIconsRef.current?.setViewportScale(pixelScale, orthographic);
     updateSelectionIndicator();
 
     // Hover is sampled ~15x a second: often enough to feel instant, rarely
@@ -1900,15 +1909,37 @@ export const useGameEngine = () => {
       /** Snapshot the world, for save/load round-trip checks. */
       captureSave: (label = 'debug') => worldAccess.current?.captureSave(label) ?? null,
       /** Move the camera to a tile at a given height, for tests and debugging. */
-      lookAt: (x: number, y: number, height = 6) => {
+      /**
+       * Centre the view on a tile. `tilesAcross` says how much world to show.
+       *
+       * Written for the orthographic map camera: framing is `zoom`, and the
+       * camera stays directly above its target. The old version offset the
+       * camera in Z to fake a tilt, which under a top-down camera simply
+       * shifted the centre of the screen away from the tile it claimed to be
+       * looking at.
+       */
+      lookAt: (x: number, y: number, tilesAcross = 24) => {
         if (!inBounds(x, y)) return;
-        const orbit = controls as unknown as { target?: THREE.Vector3; update?: () => void } | null;
+        const orbit = controls as unknown as {
+          target?: THREE.Vector3; update?: () => void;
+          minZoom?: number; maxZoom?: number;
+        } | null;
         const position = tileWorldPosition(tilesRef.current[x][y]);
-        camera.position.set(position.x, position.y + height, position.z + height * 0.7);
-        if (orbit?.target) {
-          orbit.target.copy(position);
-          orbit.update?.();
+        const ortho = camera as THREE.OrthographicCamera;
+
+        if (orbit?.target) orbit.target.set(position.x, 0, position.z);
+        camera.position.set(position.x, camera.position.y, position.z);
+
+        if (ortho.isOrthographicCamera) {
+          const viewport = Math.min(gl.domElement.clientWidth, gl.domElement.clientHeight);
+          ortho.zoom = THREE.MathUtils.clamp(
+            viewport / (tilesAcross * TILE_SIZE),
+            orbit?.minZoom ?? 0.01,
+            orbit?.maxZoom ?? Infinity,
+          );
+          ortho.updateProjectionMatrix();
         }
+        orbit?.update?.();
       },
       store: useGameStore,
     };

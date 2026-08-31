@@ -91,8 +91,8 @@ export class UnitIconLayer {
     scene.add(this.cloud.points);
   }
 
-  setViewportScale(scale: number): void {
-    this.cloud.setViewportScale(scale);
+  setViewportScale(scale: number, orthographic = false): void {
+    this.cloud.setViewportScale(scale, orthographic);
   }
 
   setVisible(visible: boolean): void {

@@ -496,8 +496,8 @@ export class SettlementSystem {
     this.laws = laws;
   }
 
-  setViewportScale(scale: number): void {
-    this.buildingCloud.setViewportScale(scale);
+  setViewportScale(scale: number, orthographic = false): void {
+    this.buildingCloud.setViewportScale(scale, orthographic);
   }
 
   /**

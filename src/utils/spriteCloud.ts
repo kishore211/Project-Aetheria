@@ -16,6 +16,8 @@ const VERTEX_SHADER = /* glsl */ `
   attribute float aSway;
   uniform float uScale;
   uniform float uWind;
+  /** 1 for an orthographic camera, 0 for a perspective one. */
+  uniform float uOrtho;
   varying float vSlot;
   varying vec3 vTint;
 
@@ -53,7 +55,12 @@ const VERTEX_SHADER = /* glsl */ `
     }
 
     vec4 mvPosition = modelViewMatrix * vec4(world, 1.0);
-    gl_PointSize = aSize * pulse * (uScale / max(0.001, -mvPosition.z));
+    // Perspective shrinks a sprite with distance; orthographic does not — its
+    // scale is a constant number of pixels per world unit, and depth is the
+    // same for everything under a top-down camera. Dividing by depth there
+    // gave every sprite one fixed enormous size.
+    float pixelsPerUnit = mix(uScale / max(0.001, -mvPosition.z), uScale, uOrtho);
+    gl_PointSize = aSize * pulse * pixelsPerUnit;
     gl_Position = projectionMatrix * mvPosition;
   }
 `;
@@ -141,6 +148,7 @@ export class SpriteCloud {
         uAtlas: { value: atlas.texture },
         uCells: { value: new THREE.Vector2(atlas.cols, atlas.rows) },
         uScale: { value: 400 },
+        uOrtho: { value: 0 },
         uWind: { value: 0 },
       },
       vertexShader: VERTEX_SHADER,
@@ -163,8 +171,15 @@ export class SpriteCloud {
   }
 
   /** Keep point sizes stable across window sizes (half the drawing height). */
-  setViewportScale(scale: number): void {
+  /**
+   * How many screen pixels one world unit covers, and which projection we are
+   * under. The two have to travel together: the shader needs the flag to know
+   * whether the number it has been given is already final or still has to be
+   * divided by depth.
+   */
+  setViewportScale(scale: number, orthographic = false): void {
     this.material.uniforms.uScale.value = scale;
+    this.material.uniforms.uOrtho.value = orthographic ? 1 : 0;
   }
 
   /** Place or replace the sprite in a slot. */

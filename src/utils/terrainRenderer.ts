@@ -748,8 +748,8 @@ export class TerrainRenderer {
     }
   }
 
-  setViewportScale(scale: number): void {
-    this.details.setViewportScale(scale);
+  setViewportScale(scale: number, orthographic = false): void {
+    this.details.setViewportScale(scale, orthographic);
   }
 
   dispose(): void {
