@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { SettlementSystem } from './settlementSystem';
+import { SettlementSystem, footprintOf, tierOf } from './settlementSystem';
 import { matchesTopic } from './chronicle';
 import { TerrainRenderer } from './terrainRenderer';
 import { EntityManager } from './entityManagerMinimal';
@@ -500,5 +500,64 @@ describe('village life', () => {
     const captains = residents.filter(e => e.status.includes('captain'));
     expect(captains.length).toBe(1);
     expect(captains[0].job).toBe('warrior');
+  });
+});
+
+describe('building tiers', () => {
+  /** Grow a village until it can afford the one thing that outgrows its tile. */
+  const raiseAHall = (harness: Harness) => {
+    for (let i = 0; i < 10; i++) {
+      harness.entities.spawnEntity('human', 20 + (i % 4), 20 + Math.floor(i / 4));
+    }
+    run(harness, 30);
+    for (let round = 0; round < 12; round += 1) {
+      const village = Array.from(harness.settlements.villages.values())[0];
+      if (!village) break;
+      // Hand them the timber rather than waiting out a forestry economy: what
+      // is under test is where a hall stands, not how long it takes to pay for.
+      village.store.wood = 200;
+      village.store.stone = 200;
+      run(harness, 40, 1);
+      if (village.buildings.some(b => footprintOf(b.kind) > 1)) break;
+    }
+    const village = Array.from(harness.settlements.villages.values())[0];
+    return village.buildings.find(b => footprintOf(b.kind) > 1);
+  };
+
+  it('gives every recipe a tier, and only tier three outgrows its tile', () => {
+    for (const kind of ['tent', 'house', 'farm', 'mine', 'tower', 'statue', 'temple', 'hall']) {
+      expect(tierOf(kind)).toBeGreaterThanOrEqual(1);
+      expect(footprintOf(kind)).toBe(tierOf(kind) === 3 ? 2 : 1);
+    }
+  });
+
+  it('stands a tier-three building on all four of its tiles', () => {
+    const harness = makeHarness();
+    const big = raiseAHall(harness);
+    expect(big).toBeDefined();
+    if (!big) return;
+
+    const village = Array.from(harness.settlements.villages.values())[0];
+    for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) {
+      const tile = harness.tiles[big.x + dx][big.y + dy];
+      expect(tile.villageId).toBe(village.id);
+    }
+  });
+
+  it('comes down when its far corner is demolished, not just its anchor', () => {
+    const harness = makeHarness();
+    const big = raiseAHall(harness);
+    expect(big).toBeDefined();
+    if (!big) return;
+
+    const village = Array.from(harness.settlements.villages.values())[0];
+    const before = village.buildings.length;
+    // The opposite corner from the anchor: a footprint search that only ever
+    // matched the anchor tile would silently miss this and leave the village
+    // believing in a building that is no longer drawn.
+    expect(harness.settlements.demolishAt(big.x + 1, big.y + 1)).toBe(true);
+    expect(village.buildings.length).toBe(before - 1);
+    expect(harness.tiles[big.x][big.y].villageId).toBeNull();
+    expect(harness.tiles[big.x + 1][big.y + 1].villageId).toBeNull();
   });
 });

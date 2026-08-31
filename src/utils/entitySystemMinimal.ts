@@ -342,9 +342,12 @@ export function updateEntityMesh(entity: Entity, deltaTime = 1 / 60, detailLevel
   const pop = entity.flashFor !== undefined && entity.flashFor > 0
     ? 1 + Math.min(1, entity.flashFor / FLASH_SECONDS) * 0.16
     : 1;
-  sprite.scale.set(spriteBase * pop * (entity.facing ?? 1), spriteBase * pop, 1);
 
   const baseY = getEntitySize(entity.type) * 1.5;
+  // Squash and stretch, filled in by whichever locomotion branch runs and
+  // folded into the scale once, at the end.
+  let squashX = 1;
+  let squashY = 1;
   const isMoving = entity.status.includes('moving');
   const material = sprite.material as THREE.SpriteMaterial;
 
@@ -366,14 +369,25 @@ export function updateEntityMesh(entity: Entity, deltaTime = 1 / 60, detailLevel
       material.needsUpdate = true;
     }
 
-    // One bounce per stride, in step with the frames rather than at its own
-    // frequency. The old bob ran at 25 Hz off Date.now() and read as vibration.
+    // A hop, not a walk.
+    //
+    // WorldBox creatures hop, and it is a surprising amount of why their crowds
+    // read as alive: `abs(sin)` gives two soft bounces per stride with the
+    // creature never actually at rest, which is a hover. Half a sine clipped at
+    // zero gives one arc and then a beat of contact with the ground, and the
+    // beat is the part the eye reads as weight.
     const size = getEntitySize(entity.type);
-    const bounce = Math.abs(Math.sin(entity.walkPhase * Math.PI * 2));
-    sprite.position.y = baseY + bounce * size * 0.22;
+    const air = Math.max(0, Math.sin(entity.walkPhase * Math.PI * 2));
+    // The grounded half of the cycle, peaking mid-contact — where the legs are
+    // most compressed, just after landing and just before the next push.
+    const contact = Math.max(0, -Math.sin(entity.walkPhase * Math.PI * 2));
+    sprite.position.y = baseY + air * size * 0.26;
+    squashY = 1 + air * 0.10 - contact * 0.10;
+    squashX = 1 - air * 0.07 + contact * 0.08;
+    sprite.position.x = 0;
     // A little lean into the direction of travel. Cheap, and it is most of what
-    // makes a walk look like effort rather than sliding.
-    sprite.material.rotation = (sprite.scale.x < 0 ? 1 : -1) * bounce * 0.06;
+    // makes a hop look like effort rather than sliding.
+    sprite.material.rotation = -(entity.facing ?? 1) * air * 0.07;
   } else {
     entity.walkPhase = ((entity.walkPhase ?? 0) + deltaTime * 0.35) % 1;
     const frames = getPixelSpriteFrames(entity.type);
@@ -387,8 +401,29 @@ export function updateEntityMesh(entity: Entity, deltaTime = 1 / 60, detailLevel
     const size = getEntitySize(entity.type);
     const breath = Math.sin(entity.walkPhase * Math.PI * 2);
     sprite.position.y = baseY + breath * size * 0.035;
-    sprite.material.rotation = 0;
+
+    // A twitch, on top of the breath.
+    //
+    // WorldBox ships a "units random shake animation" and it is the difference
+    // between a queue of people and a rank of statues. It has to be a twitch
+    // rather than a constant tremor — brief, damped, and rare — or a crowd
+    // looks like it is shivering. The phase comes from `walkPhase`, which each
+    // creature starts at a different random value, so no two twitch together.
+    const TWITCH_START = 0.88;
+    const inTwitch = entity.walkPhase > TWITCH_START;
+    const twitch = inTwitch
+      ? Math.sin((entity.walkPhase - TWITCH_START) * Math.PI * 26)
+        * (1 - (entity.walkPhase - TWITCH_START) / (1 - TWITCH_START))
+      : 0;
+    sprite.position.x = twitch * size * 0.09;
+    sprite.material.rotation = twitch * 0.05;
   }
+
+  sprite.scale.set(
+    spriteBase * pop * squashX * (entity.facing ?? 1),
+    spriteBase * pop * squashY,
+    1,
+  );
 
   applyStatusVisuals(entity, sprite, deltaTime);
 }
@@ -411,9 +446,10 @@ function applyStatusVisuals(entity: Entity, sprite: THREE.Sprite, deltaTime: num
     // A shake, not a re-roll. Reading a fresh random number every frame is
     // white noise at frame rate, which the eye reads as a rendering fault
     // rather than as panic; a fast sine off the walk phase reads as trembling.
+    // Overrides the locomotion offset rather than adding to it: panic is the
+    // only thing that matters about a fleeing creature, and two shakes summed
+    // read as neither.
     sprite.position.x = Math.sin((entity.walkPhase ?? 0) * Math.PI * 24) * 0.03;
-  } else {
-    sprite.position.x = 0;
   }
 
   if (entity.status.includes('attacking')) {

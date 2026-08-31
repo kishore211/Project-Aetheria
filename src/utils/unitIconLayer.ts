@@ -70,11 +70,14 @@ const ACTIVITY_TINTS: Record<string, THREE.Color> = {
   sleeping: new THREE.Color('#c9c2e8'),
 };
 
+/** Reused, so colouring a plotter does not allocate a colour every frame. */
+const PLOT_PROGRESS_TINT = new THREE.Color();
+
 export class UnitIconLayer {
   private cloud: SpriteCloud;
   private slots = new Map<string, number>();
-  /** Ids currently running a plot, refreshed by the caller. */
-  private plotters: ReadonlySet<string> | null = null;
+  /** Ids currently running a plot, mapped to progress, refreshed by the caller. */
+  private plotters: ReadonlyMap<string, number> | null = null;
   private freeSlots: number[] = [];
   private nextSlot = 0;
   private capacityUnits: number;
@@ -106,7 +109,7 @@ export class UnitIconLayer {
    * frame: icons change on the scale of seconds, and the positions are lerped
    * from the unit meshes anyway.
    */
-  update(entities: Entity[], detailLevel: number, plotters?: ReadonlySet<string>): void {
+  update(entities: Entity[], detailLevel: number, plotters?: ReadonlyMap<string, number>): void {
     this.plotters = plotters ?? null;
     if (!this.visible) return;
 
@@ -149,7 +152,7 @@ export class UnitIconLayer {
 
       stack(ROW_MOOD, mood);
       stack(ROW_ACTIVITY, activity, activity ? ACTIVITY_TINTS[activity] : undefined);
-      stack(ROW_PROFESSION, profession);
+      stack(ROW_PROFESSION, profession, this.professionTint(entity, profession));
     }
 
     this.releaseMissing();
@@ -164,6 +167,25 @@ export class UnitIconLayer {
   ): void {
     this.scratch.set(base.x, base.y + BASE_LIFT + tier * ROW_SPACING, base.z);
     this.cloud.set(row, { position: this.scratch, sprite, size: ICON_SIZE, tint });
+  }
+
+  /**
+   * How far along a scheme is, said in saturation.
+   *
+   * A dagger over a head tells you someone is plotting; it does not tell you
+   * whether they started thinking about it this morning or are one decision
+   * from acting, and those are the two things you would actually want to know
+   * apart. Saturation carries it without a second glyph, a number or a panel:
+   * a fresh plot is nearly grey and reads as background, a ripe one is blood
+   * red and pulls the eye across the map. Progress is the icon.
+   */
+  private professionTint(entity: Entity, profession: string | null): THREE.Color | undefined {
+    if (profession !== 'plotting') return undefined;
+    const share = this.plotters?.get(entity.id);
+    if (share === undefined) return undefined;
+    // Lightness drops as well as saturation rising, because a pale wash on a
+    // bright map is invisible however saturated it is.
+    return PLOT_PROGRESS_TINT.setHSL(0.015, 0.12 + share * 0.78, 0.78 - share * 0.20);
   }
 
   private professionIcon(entity: Entity): string | null {

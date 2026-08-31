@@ -560,6 +560,19 @@ export class TerrainRenderer {
    */
   setTilePixels(pixels: number): void {
     this.tilePixels.value = pixels;
+
+    // Territory fades from a fill to an outline as the camera comes down.
+    //
+    // One map is being asked to be two things. Zoomed out it is a strategy
+    // view, and there a kingdom is an *area*: you want the wash, and the ground
+    // under it is detail you cannot resolve anyway. Zoomed in it is a diorama,
+    // and there the wash is a colour cast over the one thing you came down to
+    // look at — so it thins out and leaves the border to say where the realm
+    // ends. The border does the opposite and firms up, because a line one tile
+    // wide gets harder to see, not easier, as you approach it.
+    const close = Math.max(0, Math.min(1, (pixels - 9) / 13));
+    (this.overlayFill.material as THREE.MeshBasicMaterial).opacity = 0.28 - close * 0.21;
+    (this.overlayBorder.material as THREE.MeshBasicMaterial).opacity = 0.82 + close * 0.16;
   }
 
   /**

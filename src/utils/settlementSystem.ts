@@ -9,6 +9,7 @@
 // no separate "civ AI" acting at a distance.
 import * as THREE from 'three';
 import {
+  TILE_SIZE,
   isWaterBiome,
   type Entity,
   type Race,
@@ -45,6 +46,7 @@ import {
   createPlot,
   plotRate,
   plotReady,
+  plotShare,
   type Plot,
   type PlotKind,
 } from './plots';
@@ -273,6 +275,41 @@ const adjacentZonesFilled = (
  */
 type Siting = 'cluster' | 'solitary' | 'border' | 'anchor';
 
+/**
+ * What a building *is*, in one number, and how much ground that takes.
+ *
+ * Tier 1 is shelter, tier 2 is work, tier 3 is the things a town builds once it
+ * has stopped merely surviving — and a tier-3 building stands on four tiles
+ * rather than one. That is the whole of it, and it does a surprising amount:
+ * a hall is now visibly the largest thing in a settlement without a label, a
+ * skyline has a hierarchy in it, and the ground a civic building costs is a
+ * real decision rather than a rounding error. It also gives towns their first
+ * genuine sense of scale, because the footprint pushes the houses outward.
+ */
+interface BuildingTier {
+  tier: 1 | 2 | 3;
+  /** Tiles on a side. Tier 3 is the only thing that outgrows its tile. */
+  footprint: number;
+}
+
+const TIERS: Record<string, BuildingTier> = {
+  tent: { tier: 1, footprint: 1 },
+  bonfire: { tier: 1, footprint: 1 },
+  house: { tier: 1, footprint: 1 },
+  farm: { tier: 2, footprint: 1 },
+  mine: { tier: 2, footprint: 1 },
+  tower: { tier: 2, footprint: 1 },
+  statue: { tier: 3, footprint: 2 },
+  temple: { tier: 3, footprint: 2 },
+  hall: { tier: 3, footprint: 2 },
+};
+
+/** Tiles on a side. Derived from the kind, so no save has to carry it. */
+export const footprintOf = (kind: string): number => TIERS[kind]?.footprint ?? 1;
+
+/** 1-3. Drives the tool a builder carries, and how much ground the thing takes. */
+export const tierOf = (kind: string): number => TIERS[kind]?.tier ?? 1;
+
 const SITING: Record<string, Siting> = {
   bonfire: 'anchor',
   hall: 'anchor',
@@ -455,7 +492,7 @@ export class SettlementSystem {
   private plotTimer = 0;
   /** Live schemes, keyed by id. */
   private plots = new Map<string, Plot>();
-  private plotterIds = new Set<string>();
+  private plotterIds = new Map<string, number>();
   /** Latest opinion per neighbouring pair, keyed by pairKey. */
   private opinions = new Map<string, OpinionResult>();
   private laws: WorldLaws = simulation.laws;
@@ -1309,7 +1346,7 @@ export class SettlementSystem {
    */
   private findBuildSpot(village: Village, kind: BuildingKind): { x: number; y: number } | null {
     const reach = kind === 'farm' ? 7 : 6;
-    const occupied = new Set(village.buildings.map(b => `${b.x},${b.y}`));
+    const occupied = this.occupiedTiles(village);
     const siting = SITING[kind] ?? 'cluster';
     const layout = groupLayout(village.id);
 
@@ -1326,14 +1363,7 @@ export class SettlementSystem {
       for (let dy = -reach; dy <= reach; dy += 1) {
         const x = village.centerX + dx;
         const y = village.centerY + dy;
-        if (occupied.has(`${x},${y}`)) continue;
-
-        const tile = this.tileAt(x, y);
-        if (!tile || tile.villageId) continue;
-        if (isWaterBiome(tile.type) || tile.height < 0.28) continue;
-        if (tile.type === 'mountains' && kind !== 'mine') continue;
-        if (kind === 'farm' && tile.fertility < 0.3) continue;
-        if (kind === 'mine' && tile.type !== 'mountains' && tile.type !== 'hills') continue;
+        if (!this.footprintFits(x, y, kind, occupied)) continue;
 
         // Stage two: does this tile suit the culture's street pattern?
         if (!fitsLayout(layout, x, y, village)) continue;
@@ -1379,19 +1409,66 @@ export class SettlementSystem {
           if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue;
           const x = village.centerX + dx;
           const y = village.centerY + dy;
-          if (occupied.has(`${x},${y}`)) continue;
-          const tile = this.tileAt(x, y);
-          if (!tile || tile.villageId) continue;
-          if (isWaterBiome(tile.type) || tile.height < 0.28) continue;
-          if (tile.type === 'mountains' && kind !== 'mine') continue;
-          if (kind === 'farm' && tile.fertility < 0.3) continue;
-          if (kind === 'mine' && tile.type !== 'mountains' && tile.type !== 'hills') continue;
+          if (!this.footprintFits(x, y, kind, occupied)) continue;
           ring.push({ x, y });
         }
       }
       if (ring.length > 0) return ring[Math.floor(Math.random() * ring.length)];
     }
     return null;
+  }
+
+  /** Every tile a village's buildings already stand on, footprints included. */
+  private occupiedTiles(village: Village): Set<string> {
+    const taken = new Set<string>();
+    for (const building of village.buildings) {
+      const span = footprintOf(building.kind);
+      for (let dx = 0; dx < span; dx += 1) {
+        for (let dy = 0; dy < span; dy += 1) {
+          taken.add(`${building.x + dx},${building.y + dy}`);
+        }
+      }
+    }
+    return taken;
+  }
+
+  /**
+   * Could this kind of building stand with its corner here?
+   *
+   * Every tile of the footprint has to pass, not just the anchor — a hall whose
+   * corner is on good ground and whose far side is in a lake is a hall in a
+   * lake. The terrain rules were duplicated between the strict and the relaxed
+   * search before this, which is exactly the sort of pair that drifts apart.
+   */
+  private footprintFits(
+    x: number, y: number, kind: BuildingKind, occupied: ReadonlySet<string>,
+  ): boolean {
+    const span = footprintOf(kind);
+    for (let dx = 0; dx < span; dx += 1) {
+      for (let dy = 0; dy < span; dy += 1) {
+        const tx = x + dx;
+        const ty = y + dy;
+        if (occupied.has(`${tx},${ty}`)) return false;
+        const tile = this.tileAt(tx, ty);
+        if (!tile || tile.villageId) return false;
+        if (isWaterBiome(tile.type) || tile.height < 0.28) return false;
+        if (tile.type === 'mountains' && kind !== 'mine') return false;
+        if (kind === 'farm' && tile.fertility < 0.3) return false;
+        if (kind === 'mine' && tile.type !== 'mountains' && tile.type !== 'hills') return false;
+      }
+    }
+    return true;
+  }
+
+  /** Run a callback over every tile a building stands on. */
+  private forEachFootprintTile(building: Building, fn: (tile: Tile) => void): void {
+    const span = footprintOf(building.kind);
+    for (let dx = 0; dx < span; dx += 1) {
+      for (let dy = 0; dy < span; dy += 1) {
+        const tile = this.tileAt(building.x + dx, building.y + dy);
+        if (tile) fn(tile);
+      }
+    }
   }
 
   /**
@@ -1424,7 +1501,11 @@ export class SettlementSystem {
 
     const kingdom = this.kingdoms.get(village.kingdomId);
     const recipe = RECIPES.find(r => r.kind === kind);
-    const size = kind === 'bonfire' ? 0.55 : recipe?.size ?? 0.5;
+    const span = footprintOf(kind);
+    // A building that stands on four tiles has to be drawn across four tiles.
+    // Scaled a little under the full span so the neighbouring streets do not
+    // disappear under the eaves.
+    const size = (kind === 'bonfire' ? 0.55 : recipe?.size ?? 0.5) * (span > 1 ? span * 0.92 : 1);
 
     const building: Building = {
       id: mintId('building'),
@@ -1438,12 +1519,20 @@ export class SettlementSystem {
     };
     village.buildings.push(building);
 
-    // Buildings clear the land they stand on and replace natural decoration
-    tile.villageId = village.id;
-    tile.structure = null;
-    this.terrain.clearDetail(tile);
+    // Buildings clear all the land they stand on and replace natural decoration
+    this.forEachFootprintTile(building, (footprintTile) => {
+      footprintTile.villageId = village.id;
+      footprintTile.structure = null;
+      this.terrain.clearDetail(footprintTile);
+    });
 
     const position = this.terrain.worldPosition(tile).clone();
+    // Anchored at its corner tile, so the sprite has to shift to the middle of
+    // the block it covers or a hall sits a tile up and to the left of its own
+    // foundations.
+    const offset = (span - 1) * 0.5 * TILE_SIZE;
+    position.x += offset;
+    position.z += offset;
     position.y += size * 0.5 + 0.02;
     this.buildingCloud.set(slot, {
       position,
@@ -1506,11 +1595,11 @@ export class SettlementSystem {
     const index = village.buildings.indexOf(building);
     if (index !== -1) village.buildings.splice(index, 1);
 
-    const tile = this.tileAt(building.x, building.y);
-    if (tile && tile.villageId === village.id) {
+    this.forEachFootprintTile(building, (tile) => {
+      if (tile.villageId !== village.id) return;
       tile.villageId = null;
       this.terrain.syncTile(tile, simulation.timeOfDay, simulation.season);
-    }
+    });
   }
 
   /**
@@ -1523,7 +1612,13 @@ export class SettlementSystem {
    */
   demolishAt(x: number, y: number): boolean {
     for (const village of this.villages.values()) {
-      const building = village.buildings.find(candidate => candidate.x === x && candidate.y === y);
+      // Matched against the whole footprint: knocking down the far corner of a
+      // hall has to knock down the hall, not miss it.
+      const building = village.buildings.find((candidate) => {
+        const span = footprintOf(candidate.kind);
+        return x >= candidate.x && x < candidate.x + span
+          && y >= candidate.y && y < candidate.y + span;
+      });
       if (!building) continue;
       this.removeBuilding(village, building);
       // Claims radiate from buildings, so the border has to be recomputed or
@@ -1803,13 +1898,17 @@ export class SettlementSystem {
   }
 
   /**
-   * Ids of everyone currently scheming, refreshed once per plot round.
+   * Everyone currently scheming, mapped to how far along they are, refreshed
+   * once per plot round.
    *
    * The icon rail asks this every frame for every visible unit, so it must not
-   * walk the plot map each time — a Set built when plots change is the whole
-   * difference between "free" and "quadratic in the population".
+   * walk the plot map each time — a map built when plots change is the whole
+   * difference between "free" and "quadratic in the population". It carries
+   * the progress share as well as the id so the rail can colour the icon by
+   * it: "someone is plotting" and "someone is about to move" are very
+   * different pieces of news, and only one of them is worth interrupting for.
    */
-  plottingIds(): ReadonlySet<string> {
+  plottingIds(): ReadonlyMap<string, number> {
     return this.plotterIds;
   }
 
@@ -1941,7 +2040,13 @@ export class SettlementSystem {
     this.considerNewPlots();
 
     this.plotterIds.clear();
-    for (const plot of this.plots.values()) this.plotterIds.add(plot.plotterId);
+    for (const plot of this.plots.values()) {
+      // The furthest-along scheme wins when someone is running more than one:
+      // the icon is a warning, and a warning should show the nearest threat.
+      const share = plotShare(plot);
+      const known = this.plotterIds.get(plot.plotterId);
+      if (known === undefined || share > known) this.plotterIds.set(plot.plotterId, share);
+    }
   }
 
   /** Who has a reason to be scheming, and about what. */
