@@ -1089,6 +1089,8 @@ export class SettlementSystem {
       village.store.wood -= recipe.wood;
       village.store.stone -= recipe.stone;
       this.placeBuilding(village, recipe.kind, spot.x, spot.y);
+      const raised = village.buildings[village.buildings.length - 1];
+      if (raised) this.layRoads(village, raised);
       this.claimTerritory(village);
 
       if (recipe.kind === 'hall') {
@@ -1307,6 +1309,48 @@ export class SettlementSystem {
       // because a building that wobbles looks broken.
       sway: -(PULSE_BY_BUILDING[kind] ?? 0.5),
     });
+  }
+
+  /**
+   * Lay a path from a new building to the two nearest ones already standing.
+   *
+   * Their trick, and it is almost free: connect each new building to its two
+   * nearest neighbours as it is planned, at no resource cost. Two rather than
+   * one, because one gives you a tree with no loops and a real village has
+   * junctions. The result is a plausible organic street mesh that nobody
+   * designed (09-WORLDBOX-VISUAL-RESEARCH.md §6).
+   *
+   * Roads are drawn as an L — along x, then along y. A* would be prettier and
+   * would also make roads bend around ponds and pick their way uphill, which
+   * costs a pathfind per building for a difference nobody would notice at this
+   * tile size.
+   */
+  private layRoads(village: Village, from: Building): void {
+    const others = village.buildings.filter(b => b.id !== from.id);
+    if (others.length === 0) return;
+
+    const nearest = others
+      .map(b => ({ b, d: Math.abs(b.x - from.x) + Math.abs(b.y - from.y) }))
+      .sort((p, q) => p.d - q.d)
+      .slice(0, 2);
+
+    for (const { b } of nearest) {
+      const stepX = Math.sign(b.x - from.x);
+      for (let x = from.x; x !== b.x; x += stepX) this.pave(x, from.y);
+      const stepY = Math.sign(b.y - from.y);
+      for (let y = from.y; y !== b.y; y += stepY) this.pave(b.x, y);
+    }
+  }
+
+  /** Mark one tile as road, if it is somewhere a road could go. */
+  private pave(x: number, y: number): void {
+    const tile = this.tileAt(x, y);
+    if (!tile || tile.road) return;
+    // No roads across water or through a building's own tile — a bridge is a
+    // different feature and a path under a house is invisible anyway.
+    if (isWaterBiome(tile.type) || tile.villageId) return;
+    tile.road = true;
+    this.terrain.syncTile(tile, simulation.timeOfDay, simulation.season);
   }
 
   private removeBuilding(village: Village, building: Building): void {

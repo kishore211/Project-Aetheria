@@ -27,6 +27,9 @@ const NEIGHBOUR_OFFSETS: ReadonlyArray<readonly [number, number]> = [
   [0, 1], [0, -1], [-1, 0], [1, 0],
 ];
 
+/** Packed earth, for village paths. */
+const ROAD_COLOR = new THREE.Color('#9a8260');
+
 /** Muted sea on data layers, so the coastline still reads. */
 const DATA_WATER = new THREE.Color('#182b45');
 const WHITE = new THREE.Color(0xffffff);
@@ -471,6 +474,13 @@ export class TerrainRenderer {
         grey * 0.84 + 0.05,
         grey * 0.9 + 0.06,
       );
+    }
+
+    // A path worn across the tile. Blended over whatever the biome painted
+    // rather than replacing it, so a road through a forest still reads as
+    // forest and comes back on its own when the village that laid it is gone.
+    if (tile.road && !isDataLayer(this.layer)) {
+      color.lerp(ROAD_COLOR, 0.5);
     }
 
     if (tile.isOnFire) {

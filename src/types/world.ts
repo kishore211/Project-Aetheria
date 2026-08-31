@@ -346,6 +346,12 @@ export interface Tile {
   ownerId?: string | null;
   /** Id of the village whose buildings occupy this tile, if any. */
   villageId?: string | null;
+  /**
+   * A village has laid a path across this tile. Purely visual and purely
+   * additive — it does not change the biome, so a road through a forest is
+   * still forest underneath and comes back if the village goes.
+   */
+  road?: boolean;
   
   // For pathfinding. `searchStamp` marks which A* run last touched these
   // scratch fields, so a search never has to clear the whole grid first.
