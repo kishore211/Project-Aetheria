@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { computeScaledHeight, type Tile } from '../types/world';
 import { describe, expect, it } from 'vitest';
 import {
   WORLD_TEMPLATES,
@@ -6,6 +7,7 @@ import {
   generateWorld,
   getBiomeColor,
   type WorldTemplate,
+  shapeCoastlines,
 } from './worldGenerator';
 import { isWaterBiome, type BiomeType } from '../types/world';
 
@@ -214,5 +216,125 @@ describe('tile material variants', () => {
     // unaffected.
     const bare = getBiomeColor('grassland', 'day', 'summer');
     expect(bare.getHex()).toBe(getBiomeColor('grassland', 'day', 'summer').getHex());
+  });
+});
+
+describe('coastlines', () => {
+  /** A small world with a hill running into a sea, built by hand. */
+  const makeCoast = (size = 24): Tile[][] => {
+    const tiles: Tile[][] = [];
+    for (let x = 0; x < size; x += 1) {
+      tiles.push([]);
+      for (let y = 0; y < size; y += 1) {
+        // A steep ramp: deep water on the left, rising sharply to highland.
+        const height = Math.max(0, Math.min(1, x / size * 1.6 - 0.15));
+        tiles[x].push({
+          x, y,
+          height,
+          scaledHeight: computeScaledHeight(height, 'grassland'),
+          moisture: 0.5,
+          temperature: 0.4,
+          fertility: 0.5,
+          type: determineBiome(height, 0.5, 0.4),
+          population: 0,
+          resources: [],
+          structure: null,
+          entities: [],
+          isOnFire: false,
+          walkable: true,
+          variant: 0.5,
+          ownerId: null,
+          villageId: null,
+        });
+      }
+    }
+    return tiles;
+  };
+
+  const neighbours = (tiles: Tile[][], x: number, y: number): Tile[] => {
+    const size = tiles.length;
+    const out: Tile[] = [];
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx >= 0 && ny >= 0 && nx < size && ny < size) out.push(tiles[nx][ny]);
+    }
+    return out;
+  };
+
+  it('never lets deep water touch land or shallows', () => {
+    // Their coast is a monotonic ramp: measured 28 deep/shallow contacts
+    // against 355 close/shallow. Height-banded water put deep ocean straight
+    // against a cliff wherever the gradient was steep.
+    const tiles = makeCoast();
+    shapeCoastlines(tiles, tiles.length);
+
+    for (let x = 0; x < tiles.length; x += 1) {
+      for (let y = 0; y < tiles.length; y += 1) {
+        if (tiles[x][y].type !== 'deep_ocean') continue;
+        for (const neighbour of neighbours(tiles, x, y)) {
+          expect(neighbour.type, `deep ocean touching ${neighbour.type}`)
+            .not.toBe('shallow_water');
+          expect(isWaterBiome(neighbour.type), 'deep ocean touching land').toBe(true);
+        }
+      }
+    }
+  });
+
+  it('puts sand at a gentle waterline', () => {
+    const tiles = makeCoast();
+    shapeCoastlines(tiles, tiles.length);
+    let beaches = 0;
+    for (let x = 0; x < tiles.length; x += 1) {
+      for (let y = 0; y < tiles.length; y += 1) {
+        if (tiles[x][y].type === 'beach') beaches += 1;
+      }
+    }
+    expect(beaches).toBeGreaterThan(0);
+  });
+
+  it('leaves a steep coast as rock rather than ringing every island in sand', () => {
+    const tiles = makeCoast();
+    // Force the whole shore to be high ground.
+    for (const column of tiles) for (const tile of column) {
+      if (!isWaterBiome(tile.type)) tile.height = 0.8;
+    }
+    shapeCoastlines(tiles, tiles.length);
+    const beaches = tiles.flat().filter(tile => tile.type === 'beach').length;
+    expect(beaches).toBe(0);
+  });
+
+  it('recomputes everything that depends on tile type', () => {
+    // The pass rewrites types, so scaledHeight and walkable have to follow or
+    // a tile that became sea would still be walkable at its old height.
+    const tiles = makeCoast();
+    shapeCoastlines(tiles, tiles.length);
+    for (const column of tiles) {
+      for (const tile of column) {
+        expect(tile.scaledHeight).toBeCloseTo(computeScaledHeight(tile.height, tile.type));
+        if (tile.type === 'deep_ocean' || tile.type === 'ocean') {
+          expect(tile.walkable).toBe(false);
+        }
+        if (isWaterBiome(tile.type)) expect(tile.structure).toBeNull();
+      }
+    }
+  });
+
+  it('is idempotent — running it twice changes nothing', () => {
+    const tiles = makeCoast();
+    shapeCoastlines(tiles, tiles.length);
+    const before = tiles.flat().map(tile => tile.type).join(',');
+    shapeCoastlines(tiles, tiles.length);
+    expect(tiles.flat().map(tile => tile.type).join(',')).toBe(before);
+  });
+
+  it('leaves an all-land world alone', () => {
+    const tiles = makeCoast();
+    for (const column of tiles) for (const tile of column) {
+      tile.height = 0.6;
+      tile.type = 'grassland';
+    }
+    shapeCoastlines(tiles, tiles.length);
+    expect(tiles.flat().every(tile => tile.type === 'grassland')).toBe(true);
   });
 });

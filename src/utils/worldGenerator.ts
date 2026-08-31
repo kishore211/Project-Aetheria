@@ -670,5 +670,114 @@ export const generateWorld = ({
     }
   }
 
+  // --- Coastlines -------------------------------------------------------
+  // Run after biomes, because it rewrites the types they assigned.
+  shapeCoastlines(tilesData, mapSize);
+
   return { tilesData };
 };
+
+/**
+ * Turn a height-banded shoreline into a graded one.
+ *
+ * Water used to be assigned purely from height, so a steep gradient could drop
+ * deep ocean straight against a cliff, and a beach only appeared where the
+ * coast happened to be warm. Decoding a WorldBox map showed the opposite:
+ * sand is 45% of all land/water contacts, and deep water touches shallow only
+ * 28 times against 355 close/shallow contacts — their coast is a monotonic
+ * ramp, land -> sand -> shallow -> ocean -> deep
+ * (09-WORLDBOX-VISUAL-RESEARCH.md; measured from 256 decoded tiles).
+ *
+ * Three passes, each reading the *previous* pass's result, because a tile
+ * cannot decide what it is until its neighbour has.
+ */
+export const shapeCoastlines = (tiles: Tile[][], size: number): void => {
+  const at = (x: number, y: number): Tile | null =>
+    (x < 0 || y < 0 || x >= size || y >= size) ? null : tiles[x][y];
+
+  const touches = (x: number, y: number, kinds: ReadonlySet<string>): boolean => {
+    for (const [dx, dy] of ORTHOGONAL) {
+      const neighbour = at(x + dx, y + dy);
+      if (neighbour && kinds.has(neighbour.type)) return true;
+    }
+    return false;
+  };
+
+  const SEA = new Set(['deep_ocean', 'ocean', 'shallow_water']);
+  const SHORE_OR_LAND = new Set<string>();
+
+  // Pass 1 — sand at the waterline, but only on ground gentle enough to hold
+  // it. A cliff meeting the sea should stay rock; that is what keeps the
+  // coastline from becoming a uniform sandy ring around every island.
+  for (let x = 0; x < size; x++) {
+    for (let y = 0; y < size; y++) {
+      const tile = tiles[x][y];
+      if (isWaterBiome(tile.type)) continue;
+      if (tile.height > COAST_SAND_MAX_HEIGHT) continue;
+      if (!touches(x, y, SEA)) continue;
+      // Broken up by the tile's own variant, not laid down everywhere.
+      //
+      // Height alone put sand on 87% of the waterline, which rings every island
+      // in a uniform band — the exact look their 45% figure argues against, and
+      // worse than no beaches at all. A coast that is partly sand and partly
+      // grass reads as a coast; one that is entirely sand reads as a border.
+      if ((tile.variant ?? 0.5) < COAST_SAND_SPARSITY) continue;
+      tile.type = 'beach';
+    }
+  }
+
+  for (let x = 0; x < size; x++) {
+    for (let y = 0; y < size; y++) {
+      if (!isWaterBiome(tiles[x][y].type)) SHORE_OR_LAND.add(`${x},${y}`);
+    }
+  }
+
+  // Pass 2 — any sea tile touching land becomes shallow.
+  for (let x = 0; x < size; x++) {
+    for (let y = 0; y < size; y++) {
+      const tile = tiles[x][y];
+      if (tile.type !== 'deep_ocean' && tile.type !== 'ocean') continue;
+      let coastal = false;
+      for (const [dx, dy] of ORTHOGONAL) {
+        if (SHORE_OR_LAND.has(`${x + dx},${y + dy}`)) { coastal = true; break; }
+      }
+      if (coastal) tile.type = 'shallow_water';
+    }
+  }
+
+  // Pass 3 — deep water may not touch shallow. Repeated until it holds, so a
+  // narrow channel grades properly instead of only its first rank.
+  const SHALLOW = new Set(['shallow_water']);
+  for (let sweep = 0; sweep < 2; sweep += 1) {
+    for (let x = 0; x < size; x++) {
+      for (let y = 0; y < size; y++) {
+        const tile = tiles[x][y];
+        if (tile.type !== 'deep_ocean') continue;
+        if (touches(x, y, SHALLOW)) tile.type = 'ocean';
+      }
+    }
+  }
+
+  // Types changed, so anything derived from them has to be recomputed.
+  for (let x = 0; x < size; x++) {
+    for (let y = 0; y < size; y++) {
+      const tile = tiles[x][y];
+      tile.scaledHeight = computeScaledHeight(tile.height, tile.type);
+      tile.walkable = !['deep_ocean', 'ocean'].includes(tile.type) && tile.height >= 0.25;
+      if (isWaterBiome(tile.type)) tile.structure = null;
+    }
+  }
+};
+
+/** Ground above this is too steep to hold sand, and stays rock at the shore. */
+const COAST_SAND_MAX_HEIGHT = 0.40;
+/**
+ * Fraction of eligible coast that stays un-sanded. Tuned by measuring the
+ * finished map: sand should be about half the waterline, matching the 45% they
+ * measure, not the 87% a height rule alone produces.
+ */
+const COAST_SAND_SPARSITY = 0.34;
+
+const ORTHOGONAL: ReadonlyArray<readonly [number, number]> = [
+  [1, 0], [-1, 0], [0, 1], [0, -1],
+];

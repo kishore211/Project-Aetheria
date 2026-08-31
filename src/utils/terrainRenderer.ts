@@ -131,6 +131,8 @@ export class TerrainRenderer {
   private waterFlags!: THREE.InstancedBufferAttribute;
   /** Which sides of each land tile meet water, packed S=1 N=2 W=4 E=8. */
   private shoreFlags!: THREE.InstancedBufferAttribute;
+  /** How much pixel grain a tile carries, 0-1. Deep water carries none. */
+  private grainStrength!: THREE.InstancedBufferAttribute;
   /** Shared clock uniform, so every water tile moves together. */
   private waveTime = { value: 0 };
   /** Which question the map is currently answering. */
@@ -155,6 +157,8 @@ export class TerrainRenderer {
     boxGeometry.setAttribute('aWater', this.waterFlags);
     this.shoreFlags = new THREE.InstancedBufferAttribute(new Float32Array(count), 1);
     boxGeometry.setAttribute('aShore', this.shoreFlags);
+    this.grainStrength = new THREE.InstancedBufferAttribute(new Float32Array(count), 1);
+    boxGeometry.setAttribute('aGrain', this.grainStrength);
     this.terrain.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.terrain.castShadow = false;
     this.terrain.receiveShadow = false;
@@ -247,6 +251,7 @@ export class TerrainRenderer {
         .replace('#include <common>', `#include <common>
           attribute float aWater;
           attribute float aShore;
+          attribute float aGrain;
           uniform float uWaveTime;
           varying float vWater;
           varying float vWave;
@@ -254,6 +259,7 @@ export class TerrainRenderer {
           varying vec3 vTileOrigin;
           varying vec3 vLocalNormal;
           varying float vShore;
+          varying float vGrain;
         `)
         .replace('#include <begin_vertex>', `#include <begin_vertex>
           vWater = aWater;
@@ -262,6 +268,7 @@ export class TerrainRenderer {
           vTileOrigin = instanceMatrix[3].xyz;
           vLocalNormal = normal;
           vShore = aShore;
+          vGrain = aGrain;
           if (aWater > 0.5) {
             // World-space position of this instance, so neighbouring tiles are
             // offset from each other and the swell travels across the sea
@@ -287,6 +294,10 @@ export class TerrainRenderer {
           varying vec3 vTileOrigin;
           varying vec3 vLocalNormal;
           varying float vShore;
+          varying float vGrain;
+
+          /** The off-hue pixels stamped on a decorated ground tile. */
+          const vec3 FLOWER_TINT = vec3(0.92, 0.86, 0.42);
 
           // Stable hash from a 2D cell. One multiply-and-fract; good enough to
           // look like hand-scattered pixels and cheap enough for every fragment.
@@ -320,16 +331,35 @@ export class TerrainRenderer {
             // Three shades, chosen not blended: a smooth gradient reads as
             // lighting, discrete steps read as pixel art.
             // Three shades about 3% apart, matching what their art measures at
-            // (three greens within 4% of each other). Wider than this and the
-            // grain stops reading as one material.
-            float shade = pick < 0.34 ? 0.968 : (pick < 0.67 ? 1.0 : 1.032);
-            gl_FragColor.rgb *= shade;
+            // (interior spread a median 6.9%, never past ~12% or the tile stops
+            // reading as one material).
+            //
+            // Distributed 39/39/22 rather than evenly. Their most common
+            // measured layout is 11/11/6 of 28 interior pixels, and an even
+            // third each is the one distribution that reads as noise rather
+            // than as a material with a dominant tone and a highlight.
+            float shade = pick < 0.39 ? 0.968 : (pick < 0.78 ? 1.0 : 1.032);
+            // Depth flattens detail. Shallow water is mottled across 22 of 28
+            // interior pixels; close ocean 2 of 28; deep ocean is a single flat
+            // colour with no edge at all. Land keeps its full grain.
+            gl_FragColor.rgb = mix(gl_FragColor.rgb, gl_FragColor.rgb * shade, vGrain);
 
             // Corners left darker rather than transparent. Theirs cuts them out
             // over a solid base layer; we have no layer underneath, so a hole
             // would show sky. Darkening reads as the same rounded silhouette.
             vec2 fromEdge = min(cell, 7.0 - cell);
             if (fromEdge.x + fromEdge.y < 1.0) gl_FragColor.rgb *= 0.90;
+
+            // Roughly one land tile in four carries two to four off-hue pixels
+            // — their flower tiles, which are the plain ground tile with a few
+            // pixels stamped over it. It is the cheapest charm in the whole
+            // palette: a field stops being a colour and becomes a field.
+            if (vGrain > 0.9) {
+              float tuft = cellHash(cell * 3.7 + vec2(tileNoise * 211.0, 17.0));
+              if (tileNoise > 0.77 && tuft > 0.88) {
+                gl_FragColor.rgb = mix(gl_FragColor.rgb, FLOWER_TINT, 0.5);
+              }
+            }
 
             // The shoreline outline.
             //
@@ -464,6 +494,7 @@ export class TerrainRenderer {
       this.waterFlags.setX(id, wanted);
       this.waterFlags.needsUpdate = true;
     }
+    this.syncGrain(tile, id);
     this.syncShoreFlags(tile, id);
     // A tile becoming land or sea changes its neighbours' outlines too. Without
     // this, carving a river leaves the banks un-outlined until something else
@@ -501,6 +532,25 @@ export class TerrainRenderer {
     if (this.shoreFlags.array[id] === flags) return;
     this.shoreFlags.setX(id, flags);
     this.shoreFlags.needsUpdate = true;
+  }
+
+  /**
+   * How much grain a tile shows.
+   *
+   * Land keeps all of it; water loses it with depth. Measured on their art:
+   * shallow water is mottled across 22 of its 28 interior pixels, close ocean
+   * across 2, and deep ocean is a single flat colour with no bottom edge at
+   * all. Detail falling away with depth is what stops a big sea reading as
+   * static.
+   */
+  private syncGrain(tile: Tile, id: number): void {
+    const wanted = tile.type === 'deep_ocean' ? 0
+      : tile.type === 'ocean' ? 0.25
+        : tile.type === 'shallow_water' ? 0.8
+          : 1;
+    if (this.grainStrength.array[id] === wanted) return;
+    this.grainStrength.setX(id, wanted);
+    this.grainStrength.needsUpdate = true;
   }
 
   private isWaterAt(x: number, y: number): boolean {
