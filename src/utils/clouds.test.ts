@@ -98,6 +98,22 @@ describe('what falls out of a cloud', () => {
     expect(world.tiles[12][13].type).toBe('ocean');
   });
 
+  it('leaves a bloom where it has blessed the same ground long enough', () => {
+    const { sky } = makeSky(1);
+    const world = makeWorld();
+    world.tiles[12][12].fertility = 0.84;
+    // A forest must not be erased in order to improve it, and a bloom that can
+    // appear anywhere means nothing.
+    world.tiles[11][12].type = 'deciduous_forest';
+    world.tiles[11][12].fertility = 0.99;
+
+    sky.summon('blessing', 12, 12, SIZE);
+    for (let i = 0; i < 4; i += 1) sky.update(2, world);
+
+    expect(world.tiles[12][12].type).toBe('bloom');
+    expect(world.tiles[11][12].type).toBe('deciduous_forest');
+  });
+
   it('sickens whoever is standing under a plague, and leaves the fields alone', () => {
     const victim = makeCreature();
     const { sky } = makeSky(1);

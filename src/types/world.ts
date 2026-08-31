@@ -85,6 +85,14 @@ export type BiomeType =
   | 'marsh' 
   | 'rainforest' 
   | 'tropical_forest'
+  // Biomes the world makes rather than generates. Every one of these exists
+  // because a system produces it: fire strips ground to ash, enough heat boils
+  // a lake to salt, a blessing-cloud leaves a bloom behind. A biome with no
+  // provenance is a colour on a palette; a biome you can point at and say what
+  // happened is a story the map is telling.
+  | 'ashland'
+  | 'salt_flat'
+  | 'bloom'
   // Special biomes
   | 'volcanic' 
   | 'corrupted' 

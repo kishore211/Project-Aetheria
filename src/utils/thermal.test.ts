@@ -79,6 +79,27 @@ describe('the cascade', () => {
     expect(field.type).toBe('volcanic');
   });
 
+  it('leaves ash where a forest burned, not badlands', () => {
+    // The two look the same on a chart and are completely different things:
+    // badlands is land that was always poor, ash is land that was rich this
+    // morning. The map should be able to tell you which you are looking at.
+    const wood = makeTile('deciduous_forest');
+    wood.heat = STRIP;
+    expect(cascade(wood)!.became).toBe('ashland');
+  });
+
+  it('boils a lake to salt and leaves the ocean alone', () => {
+    const lake = makeTile('lake');
+    lake.heat = STRIP + 10;
+    expect(cascade(lake)!.became).toBe('salt_flat');
+
+    // There is too much ocean, and a sea that evaporates because one meteor
+    // landed in it is a sea nobody believes in.
+    const sea = makeTile('deep_ocean');
+    sea.heat = MELT * 2;
+    expect(cascade(sea)).toBeNull();
+  });
+
   it('runs the same ladder downward into ice', () => {
     const field = makeTile('grassland');
     field.heat = FREEZE;

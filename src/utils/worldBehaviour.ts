@@ -202,9 +202,14 @@ export const WORLD_PROCESSES: WorldProcess[] = [
     action: (ctx) => {
       for (let i = 0; i < samplesFor(ctx, 500); i += 1) {
         const { tile } = sampleTile(ctx);
-        if (tile.type !== 'badlands' || tile.moisture <= 0.4) continue;
-        if (ctx.random() >= 0.18) continue;
-        tile.fertility = Math.min(1, tile.fertility + 0.15);
+        // Ash recovers faster than badlands, because ash is land that was
+        // rich this morning and badlands is land that never was. A burnt
+        // forest coming back is the reward for putting the fire out.
+        const ash = tile.type === 'ashland';
+        if (!ash && tile.type !== 'badlands') continue;
+        if (tile.moisture <= 0.4) continue;
+        if (ctx.random() >= (ash ? 0.4 : 0.18)) continue;
+        tile.fertility = Math.min(1, tile.fertility + (ash ? 0.22 : 0.15));
         if (tile.fertility > 0.5) {
           tile.type = determineBiome(tile.height, tile.moisture, tile.temperature);
           ctx.syncTile(tile);

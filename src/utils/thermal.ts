@@ -115,13 +115,17 @@ export interface Cascade {
 const FROZEN: BiomeType[] = ['snow', 'ice', 'glacier'];
 const BURNABLE: BiomeType[] = [
   'grassland', 'savanna', 'deciduous_forest', 'coniferous_forest',
-  'rainforest', 'tropical_forest', 'taiga', 'enchanted_forest', 'swamp', 'marsh',
+  'rainforest', 'tropical_forest', 'taiga', 'enchanted_forest',
+  'swamp', 'marsh', 'bloom',
 ];
 const SOIL: BiomeType[] = [
   'grassland', 'savanna', 'hills', 'deciduous_forest', 'coniferous_forest',
-  'rainforest', 'tropical_forest', 'taiga', 'badlands', 'tundra', 'marsh', 'swamp',
+  'rainforest', 'tropical_forest', 'taiga', 'badlands', 'tundra', 'marsh',
+  'swamp', 'ashland', 'bloom',
 ];
-const SAND: BiomeType[] = ['desert', 'beach', 'mesa'];
+const SAND: BiomeType[] = ['desert', 'beach', 'mesa', 'salt_flat'];
+/** Water shallow enough to boil off entirely. */
+const SHALLOW: BiomeType[] = ['shallow_water', 'river', 'lake'];
 
 /**
  * Run the ladder on a tile and report what it did.
@@ -142,7 +146,16 @@ export const cascade = (tile: Tile): Cascade | null => {
     return { step: 'scorch', became: 'desert', note: null };
   }
   if (heat >= STRIP && (BURNABLE.includes(tile.type) || tile.type === 'hills')) {
-    return { step: 'strip', became: 'badlands', note: null };
+    // Ash, not badlands. Badlands is land that was always poor; ash is land
+    // that was rich this morning, and the map should be able to tell you which
+    // of those you are looking at.
+    return { step: 'strip', became: 'ashland', note: null };
+  }
+  // Shallow water boiled off. Deep ocean is exempt: there is too much of it,
+  // and a sea that evaporates because one meteor landed in it is a sea nobody
+  // believes in.
+  if (heat >= STRIP && SHALLOW.includes(tile.type)) {
+    return { step: 'strip', became: 'salt_flat', note: 'A lake boils away and leaves its salt' };
   }
   if (heat >= IGNITE && BURNABLE.includes(tile.type) && !tile.isOnFire) {
     return { step: 'ignite', ignites: true, note: null };

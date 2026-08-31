@@ -52,6 +52,10 @@ export const BIOME_STEPS: Partial<Record<BiomeType, BiomeStep>> = {
   coniferous_forest: step(0.9, 0, 'Needles, silence, and poor footing.'),
   taiga: step(0.85, 0, 'Cold ground that never fully thaws.'),
   beach: step(0.95, 0, 'Sand takes a little of every step.'),
+  // The one row on the table that is *good* to walk through, which is the
+  // point of it: a map where every named ground is a penalty teaches the
+  // player to avoid every named ground.
+  bloom: step(1, 0, 'Easy going, and it smells extraordinary.'),
   rocky_shore: step(0.8, 0, 'Loose stone, all of it moving.'),
   shallow_water: step(0.5, 0, 'Wading, with the bottom still under you.'),
   river: step(0.5, 0, 'The current does not care where you were going.'),
@@ -66,6 +70,8 @@ export const BIOME_STEPS: Partial<Record<BiomeType, BiomeStep>> = {
   glacier: step(0.65, 0.05, 'Nothing has ever lived here.', 'exhausted'),
   tundra: step(0.9, 0.015, 'Wind with nothing to stop it.', 'exhausted'),
   corrupted: step(0.9, 0.045, 'Something is wrong with the ground itself.', 'cursed'),
+  ashland: step(0.9, 0.02, 'Soft underfoot, and it gets everywhere.', 'exhausted'),
+  salt_flat: step(0.95, 0.045, 'Flat, bright, and there is nothing to drink.', 'exhausted'),
   volcanic: step(0.8, 0.06, 'The rock is still warm, and in places it is not rock.', undefined, 4),
 };
 

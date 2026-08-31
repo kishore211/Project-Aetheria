@@ -176,6 +176,9 @@ export const BIOME_BASE_COLORS: Record<BiomeType, number> = {
   marsh: 0x638049,
   rainforest: 0x3c7340,
   tropical_forest: 0x4a8c4a,
+  ashland: 0x555056,
+  salt_flat: 0xe4e1d6,
+  bloom: 0x9fc25a,
   volcanic: 0x5c4a4a,
   corrupted: 0x51356b,
   enchanted_forest: 0x3f8a8a,
@@ -200,6 +203,8 @@ const WINTER_BLEND: Partial<Record<BiomeType, number>> = {
   mountains: 0.35,
   mesa: 0.12,
   badlands: 0.12,
+  ashland: 0.18,
+  bloom: 0.4,
 };
 
 const AUTUMN_BLEND: Partial<Record<BiomeType, number>> = {
@@ -209,6 +214,7 @@ const AUTUMN_BLEND: Partial<Record<BiomeType, number>> = {
   taiga: 0.12,
   marsh: 0.2,
   savanna: 0.2,
+  bloom: 0.3,
 };
 
 const SPRING_BOOST: Partial<Record<BiomeType, number>> = {

@@ -103,6 +103,37 @@ export const DISASTERS: DisasterDef[] = [
     },
   },
   {
+    id: 'statue_topples',
+    needs: 'statue',
+    weight: 2,
+    headline: (target) => `The statue at ${target.villageName} comes down, and nobody will say who pushed`,
+    act: (world, target) => {
+      world.damageArea(target.x, target.y, 1.2, 30);
+    },
+  },
+  {
+    id: 'camp_fever',
+    needs: 'tent',
+    weight: 3,
+    headline: (target) => `Fever runs through the tents at ${target.villageName}`,
+    act: (world, target) => {
+      // Wide, weak, and it takes the shelter with it. A fever in a camp is a
+      // reason to burn the camp, which is the sort of decision worth watching
+      // a village make on its own.
+      world.damageArea(target.x, target.y, 4, 18);
+    },
+  },
+  {
+    id: 'bonfire_spreads',
+    needs: 'bonfire',
+    weight: 2,
+    headline: (target) => `The fire at ${target.villageName} gets out of its ring`,
+    act: (world, target) => {
+      burnAround(world, target.x, target.y, 2);
+      world.damageArea(target.x, target.y, 2, 15);
+    },
+  },
+  {
     id: 'hall_burns',
     needs: 'hall',
     weight: 1,

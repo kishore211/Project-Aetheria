@@ -87,6 +87,13 @@ export const DROPS: Record<DropKind, DropDef> = {
     herald: 'Light gathers overhead',
     onTile: (tile) => {
       tile.fertility = Math.min(1, tile.fertility + 0.03);
+      // Ground that has been blessed past the point of ordinary richness
+      // shows it. Only open grass: a blessing should not erase a forest to
+      // improve it, and a bloom that can appear anywhere means nothing.
+      if (tile.type === 'grassland' && tile.fertility > 0.85 && !tile.villageId) {
+        tile.type = 'bloom';
+        return true;
+      }
       return false;
     },
     onCreature: (entity) => {
