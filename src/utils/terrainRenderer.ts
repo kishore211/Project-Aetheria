@@ -182,6 +182,15 @@ export class TerrainRenderer {
    * level of detail — see `setTilePixels`.
    */
   private tilePixels = { value: 32 };
+  /**
+   * 1 on a map of a place, 0 on a map of a number.
+   *
+   * `syncDetail` already strips trees and rocks from a data layer, because
+   * decoration scattered over a topographic reading obscures the very thing
+   * the layer was opened to show. The flower pixels are decoration too, and
+   * were still being stamped over the heat maps.
+   */
+  private decorated = { value: 1 };
   /** Which question the map is currently answering. */
   private layer: MapLayer = 'natural';
   private scratchColor = new THREE.Color();
@@ -293,6 +302,7 @@ export class TerrainRenderer {
     material.onBeforeCompile = (shader) => {
       shader.uniforms.uWaveTime = this.waveTime;
       shader.uniforms.uTilePixels = this.tilePixels;
+      shader.uniforms.uDecorated = this.decorated;
       shader.uniforms.uField = { value: this.field };
       shader.uniforms.uMapSize = { value: this.mapSize };
 
@@ -313,6 +323,7 @@ export class TerrainRenderer {
           varying vec2 vWorldXZ;
           varying vec3 vLocalNormal;
           uniform float uTilePixels;
+          uniform float uDecorated;
           uniform float uWaveTime;
           uniform sampler2D uField;
           uniform float uMapSize;
@@ -447,7 +458,7 @@ export class TerrainRenderer {
             // — their flower tiles, which are the plain ground tile with a few
             // pixels stamped over it. It is the cheapest charm in the whole
             // palette: a field stops being a colour and becomes a field.
-            if (!isWet(ground.a) && detail > 0.5) {
+            if (uDecorated > 0.5 && !isWet(ground.a) && detail > 0.5) {
               float tuft = cellHash(pixel * 3.7 + vec2(tileNoise * 211.0, 17.0));
               // Rarer than the first pass, which put a few off-hue pixels on
               // roughly a quarter of all land and left the whole map fizzing.
@@ -666,6 +677,7 @@ export class TerrainRenderer {
     if (layer === this.layer) return false;
     const wasClean = isDataLayer(this.layer);
     this.layer = layer;
+    this.decorated.value = isDataLayer(layer) ? 0 : 1;
     this.refreshColors(timeOfDay, season);
     // Decoration only needs rebuilding when crossing between a data layer and
     // a normal one; switching between two data layers leaves it hidden either
