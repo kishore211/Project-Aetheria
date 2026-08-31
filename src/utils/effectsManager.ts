@@ -136,6 +136,17 @@ export class EffectsManager {
     this.scene.add(this.stars);
   }
 
+  /**
+   * The cloud sprites, for whoever is deciding what falls out of them.
+   *
+   * Handed over rather than driven from here: this class knows how to *draw* a
+   * cloud and nothing about weather, plagues or seeding a continent, and the
+   * split is what lets the drop table be tested without a renderer.
+   */
+  cloudSprites(): { sprites: THREE.Sprite[]; area: number } {
+    return { sprites: this.clouds, area: this.cloudArea };
+  }
+
   setStarVisibility(visible: boolean): void {
     this.starTargetOpacity = visible ? 0.9 : 0;
   }
@@ -153,14 +164,8 @@ export class EffectsManager {
       }
     }
 
-    // Drift clouds and wrap them around the world
-    const half = this.cloudArea / 2;
-    for (const cloud of this.clouds) {
-      cloud.position.x += delta * 0.4;
-      cloud.position.z += delta * 0.15;
-      if (cloud.position.x > half) cloud.position.x = -half;
-      if (cloud.position.z > half) cloud.position.z = -half;
-    }
+    // Drifting belongs to the cloud system now, along with what each cloud is
+    // carrying — see `clouds.ts`. This still owns making and disposing them.
 
     // Fade stars toward their target opacity
     if (this.stars) {

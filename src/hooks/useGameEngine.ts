@@ -6,6 +6,7 @@ import { useGameStore } from '../store/gameStore';
 import { generateWorld, determineBiome } from '../utils/worldGenerator';
 import { WorldBehaviour, type WorldContext } from '../utils/worldBehaviour';
 import { MELT, addHeat } from '../utils/thermal';
+import { CloudSystem, DROPS, type DropKind } from '../utils/clouds';
 import {
   Tile,
   MAP_SIZES,
@@ -145,6 +146,8 @@ export const useGameEngine = () => {
    * a scheduler recreated on every render is a scheduler that never fires.
    */
   const worldBehaviourRef = useRef<WorldBehaviour>(new WorldBehaviour());
+  /** Drifting clouds and whatever they are carrying. See `clouds.ts`. */
+  const cloudsRef = useRef<CloudSystem>(new CloudSystem());
   const autosaveTimerRef = useRef<number>(0);
   const lastCameraNonceRef = useRef<number>(0);
   const lastZoomNonceRef = useRef<number>(0);
@@ -348,6 +351,9 @@ export const useGameEngine = () => {
     // Visual effects first, so entity spawn callbacks can use it
     effectsManagerRef.current = new EffectsManager(scene);
     effectsManagerRef.current.initAtmosphere(worldUnits);
+    // The sprites are the effects manager's; what falls out of them is not.
+    const sky = effectsManagerRef.current.cloudSprites();
+    cloudsRef.current.adopt(sky.sprites, sky.area);
 
     // Entities
     const manager = new EntityManager(tilesData, scene, camera);
@@ -581,6 +587,23 @@ export const useGameEngine = () => {
   }, []);
 
   /**
+   * Put something in the sky over a place.
+   *
+   * Reports when it cannot rather than swallowing it: every cloud already
+   * being busy is a real answer, and a power that silently does nothing is
+   * worse than one that says so.
+   */
+  const summonCloud = useCallback((kind: DropKind, x: number, y: number): void => {
+    const sent = cloudsRef.current.summon(kind, x, y, tilesRef.current.length);
+    if (!sent) {
+      useGameStore.getState().addEvent('The sky is already full', 'info');
+      return;
+    }
+    const herald = DROPS[kind].herald;
+    if (herald) useGameStore.getState().addEvent(herald, 'divine', { x, y });
+  }, []);
+
+  /**
    * Let the people standing in a divine act feel it.
    *
    * This used to only make a couple of them say something. Now it goes through
@@ -807,6 +830,11 @@ export const useGameEngine = () => {
           syncTile(target);
         });
         effectsManagerRef.current?.spawnAura(tileWorldPosition(tile), 0xffee88);
+        // ...and a cloud that stays behind afterwards. The flash is the act;
+        // the cloud is the consequence, and it is the part that is worth
+        // watching — it drifts, it keeps working, and the people under it can
+        // walk out from under it.
+        summonCloud('blessing', tile.x, tile.y);
         soundManager.bless();
         reactNearby(tile, blessRadius, 'blessed');
         // Divine light is the non-violent way to stop a scheme. Without a way
@@ -922,6 +950,7 @@ export const useGameEngine = () => {
         });
         const kills = entityManagerRef.current?.damageArea(tile.x, tile.y, curseRadius, 25) ?? 0;
         effectsManagerRef.current?.spawnAura(tileWorldPosition(tile), 0x9922cc);
+        summonCloud('plague', tile.x, tile.y);
         soundManager.curse();
         reactNearby(tile, curseRadius, 'cursed');
         requestFlash('plague', 0.7);
@@ -939,7 +968,7 @@ export const useGameEngine = () => {
       soundManager.refused();
     }
     return acted;
-  }, [forEachBrushTile, reshapeTile, igniteTile, extinguishTile, syncTile, tileWorldPosition, spawnRace, spawnableAnimalsFor, reactNearby]);
+  }, [forEachBrushTile, reshapeTile, igniteTile, extinguishTile, syncTile, tileWorldPosition, spawnRace, spawnableAnimalsFor, reactNearby, summonCloud]);
 
   /**
    * Handles mouse click on the game world
@@ -1316,6 +1345,26 @@ export const useGameEngine = () => {
    * the world laws, all of which change under it, and a stale context is a
    * world that keeps growing through a winter nobody is having.
    */
+  /**
+   * What a cloud is allowed to reach on its way over.
+   *
+   * Separate from the ambient-process context because a cloud needs one thing
+   * that nothing else does — the creatures standing under it — and widening
+   * `WorldContext` to carry it would put a spatial query on every row of a
+   * table where six of the seven rows do not want one.
+   */
+  const cloudWorld = useCallback(() => {
+    const store = useGameStore.getState();
+    return {
+      tiles: tilesRef.current,
+      creaturesNear: (x: number, y: number, radius: number) =>
+        entityManagerRef.current?.query(x, y, radius) ?? [],
+      syncTile,
+      announce: (message: string) => store.addEvent(message, 'info'),
+      random: Math.random,
+    };
+  }, [syncTile]);
+
   const worldContext = useCallback((): WorldContext => {
     const store = useGameStore.getState();
     const tiles = tilesRef.current;
@@ -1569,6 +1618,9 @@ export const useGameEngine = () => {
   const gameTick = useCallback((deltaTime: number) => {
     // Effects and camera keep running while paused so the world still breathes
     effectsManagerRef.current?.update(deltaTime);
+    // Clouds drift on the wall clock like the sea does — the sky should not
+    // freeze when the world is paused — but their *drops* run on simulated
+    // time, which is why they are advanced from inside the game tick instead.
     updateCamera(deltaTime);
 
     const currentPhase = useGameStore.getState().timeOfDay;
@@ -1672,6 +1724,7 @@ export const useGameEngine = () => {
     // own countdown, so nothing has to be scheduled from here.
     if (tilesRef.current.length > 0) {
       worldBehaviourRef.current.advance(scaledDelta, worldContext());
+      cloudsRef.current.update(scaledDelta, cloudWorld());
     }
 
     // Publish stats and drive weather visuals
@@ -1688,6 +1741,14 @@ export const useGameEngine = () => {
         effectsManagerRef.current?.stopRain();
         soundManager.stopRain();
       }
+      // Rain is now a thing that falls out of the clouds rather than a
+      // particle effect over an unchanged map: it wets the ground, puts out
+      // fires and is the only counterweight the world has to the thermal
+      // ladder. Snow in a winter that is cold enough to mean it.
+      cloudsRef.current.setWeather(
+        store.weather === 'clear' ? 'clear'
+          : store.season === 'winter' ? 'snow' : 'rain',
+      );
 
       // Autosave on a wall-clock timer so a long session is never lost.
       autosaveTimerRef.current += 1;
@@ -1699,7 +1760,7 @@ export const useGameEngine = () => {
         }
       }
     }
-  }, [isGamePaused, gameSpeed, scene, refreshWorldColors, simulateFire, worldContext, updateCamera, advanceAge]);
+  }, [isGamePaused, gameSpeed, scene, refreshWorldColors, simulateFire, worldContext, cloudWorld, updateCamera, advanceAge]);
 
   // Initialize the world when the seed, size, template or revision changes
   useEffect(() => {
