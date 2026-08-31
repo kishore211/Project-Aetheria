@@ -1,17 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { WORLD_PROCESSES, WorldBehaviour, type WorldContext, type WorldProcess } from './worldBehaviour';
 import { generateWorld } from './worldGenerator';
+import { IGNITE, MELT, addHeat } from './thermal';
 import type { BiomeType, EntityType, Tile } from '../types/world';
 
 const makeContext = (overrides: Partial<WorldContext> = {}): WorldContext & {
   synced: Tile[];
   spawned: Array<{ type: EntityType; x: number; y: number }>;
   events: string[];
+  ignited: Tile[];
 } => {
   const { tilesData } = generateWorld({ seed: 4242, mapSize: 40 });
   const synced: Tile[] = [];
   const spawned: Array<{ type: EntityType; x: number; y: number }> = [];
   const events: string[] = [];
+  const ignited: Tile[] = [];
   return {
     tiles: tilesData,
     size: tilesData.length,
@@ -20,6 +23,7 @@ const makeContext = (overrides: Partial<WorldContext> = {}): WorldContext & {
     laws: { biomeGrowth: true, disasters: true },
     inBounds: (x, y) => x >= 0 && y >= 0 && x < tilesData.length && y < tilesData.length,
     syncTile: (tile) => { synced.push(tile); },
+    ignite: (tile) => { ignited.push(tile); },
     spawn: (type, x, y) => { spawned.push({ type, x, y }); return true; },
     population: () => 0,
     announce: (message) => { events.push(message); },
@@ -27,6 +31,7 @@ const makeContext = (overrides: Partial<WorldContext> = {}): WorldContext & {
     synced,
     spawned,
     events,
+    ignited,
     ...overrides,
   };
 };
@@ -142,6 +147,49 @@ describe('the world-behaviour table', () => {
     const empty = makeContext({ population: () => 0 });
     for (let i = 0; i < 60; i += 1) wildlife.action(empty);
     expect(empty.spawned.length).toBeGreaterThan(0);
+  });
+
+  it('carries a cascade across the map and then lets it heal', () => {
+    const ctx = makeContext();
+    // A block of woodland, hit hard enough in one place to melt the ground.
+    for (let x = 15; x < 25; x += 1) {
+      for (let y = 15; y < 25; y += 1) {
+        const tile = ctx.tiles[x][y];
+        tile.type = 'deciduous_forest';
+        tile.temperature = 0.5;
+        tile.height = 0.5;
+        tile.isOnFire = false;
+        tile.heat = undefined;
+        tile.villageId = null;
+      }
+    }
+    addHeat(ctx.tiles[20][20], MELT * 3);
+
+    const thermal = WORLD_PROCESSES.find(p => p.name === 'thermal')!;
+    for (let i = 0; i < 300; i += 1) thermal.action(ctx);
+
+    // The rung the strike itself lands on...
+    expect(ctx.tiles[20][20].type).not.toBe('deciduous_forest');
+    // ...and heat conducted outward, so something near it changed too rather
+    // than the damage stopping dead at one tile.
+    let scarred = 0;
+    for (let x = 15; x < 25; x += 1) {
+      for (let y = 15; y < 25; y += 1) {
+        if (ctx.tiles[x][y].type !== 'deciduous_forest') scarred += 1;
+      }
+    }
+    expect(scarred).toBeGreaterThan(1);
+
+    // And it is over: nothing is left holding heat once the source is spent,
+    // so the ground can be replanted rather than being ruined for ever.
+    for (let i = 0; i < 600; i += 1) thermal.action(ctx);
+    let stillHot = 0;
+    for (let x = 15; x < 25; x += 1) {
+      for (let y = 15; y < 25; y += 1) {
+        if ((ctx.tiles[x][y].heat ?? 0) > IGNITE) stillHot += 1;
+      }
+    }
+    expect(stillHot).toBe(0);
   });
 
   it('only eats roads nobody owns any more', () => {

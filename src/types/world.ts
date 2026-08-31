@@ -365,6 +365,15 @@ export interface Tile {
    */
   road?: boolean;
   /**
+   * Absolute temperature on the thermal scale, where 0 is temperate.
+   *
+   * Left undefined whenever the tile sits at whatever its climate says, which
+   * is almost always — see `thermal.ts`. Deliberately not saved: heat is a
+   * transient the world regenerates, and a save that restored it would restore
+   * a fire's aftermath without the fire.
+   */
+  heat?: number;
+  /**
    * Which material shade this tile wears, 0-1. A *smooth* field, unlike
    * `variant` — see the note where it is generated.
    */

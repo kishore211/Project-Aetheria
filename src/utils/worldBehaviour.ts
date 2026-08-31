@@ -25,6 +25,7 @@ import {
   type Tile,
 } from '../types/world';
 import { determineBiome } from './worldGenerator';
+import { FIRE_HEAT_PER_SECOND, addHeat, cascade, conduct, relax } from './thermal';
 
 /** What a process is allowed to touch. Deliberately small and injectable. */
 export interface WorldContext {
@@ -38,6 +39,8 @@ export interface WorldContext {
   inBounds(x: number, y: number): boolean;
   /** Push a changed tile to the renderer. */
   syncTile(tile: Tile): void;
+  /** Set a tile alight. Owned by the fire system, which tracks its own front. */
+  ignite(tile: Tile): void;
   /** Put a creature into the world. Returns false if it could not be placed. */
   spawn(type: EntityType, x: number, y: number): boolean;
   /** How many creatures are already alive, so wildlife does not run away. */
@@ -200,6 +203,51 @@ export const WORLD_PROCESSES: WorldProcess[] = [
           tile.type = determineBiome(tile.height, tile.moisture, tile.temperature);
           ctx.syncTile(tile);
         }
+      }
+    },
+  },
+  {
+    // Heat, and the ladder hanging off it.
+    //
+    // Frequent, because this is the row that carries a fire front, a lava
+    // flow and an ice age across the map, and all three want to be watchable.
+    // Every sampled tile relaxes toward its climate, shares with a neighbour,
+    // and then runs the ladder — so a continent goes over in a visible wave
+    // rather than all at once, and stops on its own when the source is gone.
+    name: 'thermal',
+    minInterval: 1.2,
+    maxInterval: 2.2,
+    action: (ctx) => {
+      const samples = samplesFor(ctx, 90);
+      // The elapsed time this row stands in for. Using a fixed figure rather
+      // than the real gap keeps a slow frame from flash-freezing a coastline.
+      const step = 1.7;
+      for (let i = 0; i < samples; i += 1) {
+        const { tile, x, y } = sampleTile(ctx);
+
+        if (tile.isOnFire) addHeat(tile, FIRE_HEAT_PER_SECOND * step);
+        relax(tile, step);
+
+        const neighbour = neighbourOf(ctx, x, y);
+        if (neighbour && neighbour !== tile) conduct(tile, neighbour, step);
+
+        const change = cascade(tile);
+        if (!change) continue;
+        if (change.became) {
+          tile.type = change.became;
+          tile.structure = null;
+          if (change.step === 'scorch' || change.step === 'strip' || change.step === 'melt') {
+            tile.fertility = Math.max(0, tile.fertility - 0.4);
+            tile.resources = tile.resources.filter(r => r.type !== 'food' && r.type !== 'wood');
+          }
+          tile.walkable = !isWaterBiome(tile.type) && tile.height >= 0.25;
+          ctx.syncTile(tile);
+        }
+        if (change.ignites) ctx.ignite(tile);
+        // Only the two ends of the ladder are worth a chronicle line. The
+        // rungs in between fire hundreds of times during one eruption, and a
+        // chronicle nobody can read is a chronicle nobody reads.
+        if (change.note) ctx.announce(change.note, { x, y });
       }
     },
   },

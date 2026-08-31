@@ -5,6 +5,7 @@ import { useThree, useFrame } from '@react-three/fiber';
 import { useGameStore } from '../store/gameStore';
 import { generateWorld, determineBiome } from '../utils/worldGenerator';
 import { WorldBehaviour, type WorldContext } from '../utils/worldBehaviour';
+import { MELT, addHeat } from '../utils/thermal';
 import {
   Tile,
   MAP_SIZES,
@@ -752,6 +753,15 @@ export const useGameEngine = () => {
             const drop = 0.3 * (1 - distance / craterRadius);
             reshapeTile(target, target.height - drop, distance < 1.5 ? 'volcanic' : undefined);
             if (distance < 2.2 && FLAMMABLE_BIOMES.includes(target.type)) igniteTile(target);
+            // Heat, dumped in rather than applied: the thermal ladder then
+            // decides what that means for each tile, so the crater cooks its
+            // way outward over the following seconds and cools back over the
+            // following minutes without any of that being written here.
+            //
+            // This is the only source in the game that arrives all at once and
+            // can therefore reach the top rung. A fire settles below it by
+            // design; a meteor is supposed to leave lava behind.
+            addHeat(target, MELT * 1.4 * (1 - distance / (craterRadius + 1)));
           });
           const kills = entityManagerRef.current?.damageArea(tile.x, tile.y, craterRadius + 1, 80) ?? 0;
           soundManager.meteor();
@@ -1320,6 +1330,7 @@ export const useGameEngine = () => {
       },
       inBounds,
       syncTile,
+      ignite: (tile) => { fireRef.current?.ignite(tile); },
       spawn: (type, x, y) => Boolean(entityManagerRef.current?.spawnEntity(type, x, y)),
       population: () => entityManagerRef.current?.getAllEntities().length ?? 0,
       announce: (message, at) => store.addEvent(message, 'info', at),
