@@ -26,3 +26,7 @@ Last updated: 2026-08-21
   research pass, asking only *how does WorldBox look and move*. The first pass
   (06) catalogued systems and was aimed at the wrong question. This one found
   that our creature animation had never worked at all.
+
+- **[10-TILE-ART-SPEC.md](10-TILE-ART-SPEC.md)** — what WorldBox actually draws,
+  measured from 256 decoded tile sprites. Written to answer "when you zoom in it
+  looks like square boxes", and it turned out they never draw a square at all.
