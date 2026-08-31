@@ -1384,6 +1384,13 @@ export const useGameEngine = () => {
       population: () => entityManagerRef.current?.getAllEntities().length ?? 0,
       announce: (message, at) => store.addEvent(message, 'info', at),
       random: Math.random,
+      // The disaster surface. A disaster needs a building to eat, so this is
+      // the one place the ambient world is allowed to reach into settlements.
+      buildings: () => settlementRef.current?.standingBuildings() ?? [],
+      destroyBuilding: (id) => settlementRef.current?.destroyBuilding(id) ?? false,
+      damageArea: (x, y, radius, damage) =>
+        entityManagerRef.current?.damageArea(x, y, radius, damage) ?? 0,
+      tileAt: (x, y) => (inBounds(x, y) ? tiles[x][y] : null),
     };
   }, [inBounds, syncTile]);
 

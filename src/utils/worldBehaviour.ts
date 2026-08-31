@@ -25,10 +25,16 @@ import {
   type Tile,
 } from '../types/world';
 import { determineBiome } from './worldGenerator';
+import { strikeDisaster, type DisasterWorld } from './disasters';
 import { FIRE_HEAT_PER_SECOND, addHeat, cascade, conduct, relax } from './thermal';
 
-/** What a process is allowed to touch. Deliberately small and injectable. */
-export interface WorldContext {
+/**
+ * What a process is allowed to touch. Deliberately small and injectable.
+ *
+ * Extends the disaster surface rather than nesting it, so the disaster row
+ * reads like every other row instead of reaching through a sub-object.
+ */
+export interface WorldContext extends DisasterWorld {
   tiles: Tile[][];
   size: number;
   season: Season;
@@ -289,6 +295,20 @@ export const WORLD_PROCESSES: WorldProcess[] = [
         const type = natives[Math.floor(ctx.random() * natives.length)];
         if (ctx.spawn(type, x, y)) return;
       }
+    },
+  },
+  {
+    // Something goes wrong somewhere, and it goes wrong to something the
+    // player built. Rare, and rarer still early on — an unbuilt world has
+    // nothing that can host a disaster, which is the design rather than a gap
+    // in it, and it means the danger arrives at the same pace as the thing
+    // worth losing.
+    name: 'disasters',
+    minInterval: 150,
+    maxInterval: 320,
+    action: (ctx) => {
+      if (!ctx.laws.disasters) return;
+      strikeDisaster(ctx);
     },
   },
   {

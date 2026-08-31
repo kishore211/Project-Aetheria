@@ -28,6 +28,11 @@ const makeContext = (overrides: Partial<WorldContext> = {}): WorldContext & {
     population: () => 0,
     announce: (message) => { events.push(message); },
     random: Math.random,
+    buildings: () => [],
+    destroyBuilding: () => false,
+    damageArea: () => 0,
+    tileAt: (x, y) => (x >= 0 && y >= 0 && x < tilesData.length && y < tilesData.length
+      ? tilesData[x][y] : null),
     synced,
     spawned,
     events,

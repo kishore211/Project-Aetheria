@@ -1898,6 +1898,54 @@ export class SettlementSystem {
   }
 
   /**
+   * Every standing building, flattened, for whatever wants to pick one.
+   *
+   * The disaster table is the caller: a disaster that needs a mine to collapse
+   * has to be able to find out whether anyone has built one. That is the whole
+   * mechanism — the player's own works become the attack surface, and a world
+   * with nothing in it is a world with nothing to lose.
+   */
+  standingBuildings(): Array<{
+    id: string; kind: string; x: number; y: number; villageId: string; villageName: string;
+  }> {
+    const all: Array<{
+      id: string; kind: string; x: number; y: number; villageId: string; villageName: string;
+    }> = [];
+    for (const village of this.villages.values()) {
+      for (const building of village.buildings) {
+        all.push({
+          id: building.id,
+          kind: building.kind,
+          x: building.x,
+          y: building.y,
+          villageId: village.id,
+          villageName: village.name,
+        });
+      }
+    }
+    return all;
+  }
+
+  /**
+   * Take one building down from outside, by id.
+   *
+   * Public because the engine must not clear a village tile behind this
+   * system's back — the same reason `demolishAt` is. Returns whether anything
+   * was there, so a caller that raced a collapse can tell.
+   */
+  destroyBuilding(id: string): boolean {
+    for (const village of this.villages.values()) {
+      const building = village.buildings.find(candidate => candidate.id === id);
+      if (!building) continue;
+      this.removeBuilding(village, building);
+      this.claimTerritory(village);
+      this.publishSummaries();
+      return true;
+    }
+    return false;
+  }
+
+  /**
    * How advanced each village's craft is, 1-4, for the tool its people carry.
    *
    * Read off what it has actually built rather than tracked as a research
