@@ -58,7 +58,8 @@ const ROWS = [
  */
 const KEYS: Array<[string, string]> = [
   ['Space', 'Pause or resume time'],
-  ['1 – 9', 'Pick a power from the open tab'],
+  ['1 – 0', 'Your bound power, or the nth in the open tab'],
+  ['Ctrl + digit', 'Bind what you are holding to that slot'],
   ['Tab', 'Next tab of powers (Shift+Tab back)'],
   ['Z / X', 'Cycle how the map is painted'],
   ['F', 'Follow whatever is under the cursor'],

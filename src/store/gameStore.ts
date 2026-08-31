@@ -8,6 +8,7 @@ import type { PowerTabId } from '../utils/powers';
 import type { MapLayer } from '../utils/mapLayers';
 import type { AgeId } from '../utils/ages';
 import { loadUnlocked, persistUnlocked } from '../utils/achievements';
+import { loadHotkeys, persistHotkeys } from '../utils/hotkeyBindings';
 
 export type Weather = 'clear' | 'rain' | 'storm';
 
@@ -240,6 +241,11 @@ interface GameState {
   showMinimap: boolean;
   /** Icons above creatures showing profession and current activity. */
   showUnitIcons: boolean;
+  /**
+   * Ten user-bound power slots, keyed 0-9. Null means the digit falls back to
+   * picking the nth power of the open tab, which is what it did before.
+   */
+  hotkeySlots: (Tool | null)[];
   /** Kingdom and village names drawn on the map itself. */
   showMapLabels: boolean;
   /** Which group of powers the bottom bar is showing. */
@@ -297,6 +303,8 @@ interface GameState {
   setShowLaws: (show: boolean) => void;
   toggleMinimap: () => void;
   toggleUnitIcons: () => void;
+  /** Bind the current tool to a slot, or clear it if it is already there. */
+  bindHotkey: (slot: number, tool: Tool | null) => void;
   toggleMapLabels: () => void;
   setActivePowerTab: (tab: PowerTabId) => void;
   setMapLayer: (layer: MapLayer) => void;
@@ -382,6 +390,7 @@ export const useGameStore = create<GameState>((set) => ({
   showLaws: false,
   showMinimap: wantsMinimap,
   showUnitIcons: true,
+  hotkeySlots: loadHotkeys(),
   showMapLabels: true,
   activePowerTab: 'shape',
   mapLayer: 'natural',
@@ -460,6 +469,15 @@ export const useGameStore = create<GameState>((set) => ({
   setShowLaws: (show: boolean) => set({ showLaws: show }),
   toggleMinimap: () => set((state) => ({ showMinimap: !state.showMinimap })),
   toggleUnitIcons: () => set((state) => ({ showUnitIcons: !state.showUnitIcons })),
+  bindHotkey: (slot, tool) => set((state) => {
+    if (slot < 0 || slot >= state.hotkeySlots.length) return {};
+    const slots = [...state.hotkeySlots];
+    // Binding the tool that is already there clears it, so one gesture both
+    // sets and unsets and there is no second key to learn.
+    slots[slot] = slots[slot] === tool ? null : tool;
+    persistHotkeys(slots);
+    return { hotkeySlots: slots };
+  }),
   toggleMapLabels: () => set((state) => ({ showMapLabels: !state.showMapLabels })),
   setActivePowerTab: (activePowerTab: PowerTabId) => set({ activePowerTab }),
   setMapLayer: (mapLayer: MapLayer) => set({ mapLayer }),

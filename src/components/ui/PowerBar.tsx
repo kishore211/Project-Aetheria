@@ -18,6 +18,7 @@ import {
   type PowerTabId,
 } from '../../utils/powers';
 import { MAP_LAYERS } from '../../utils/mapLayers';
+import { HOTKEY_SLOTS } from '../../utils/hotkeyBindings';
 import SavePanel from './SavePanel';
 import StatsPanel from './StatsPanel';
 import ListWindow from './ListWindow';
@@ -97,6 +98,7 @@ const PowerBar = () => {
     gameSpeed, setGameSpeed,
     selectedEntity, setSelectedEntity,
     followEntityId, setFollowEntity,
+    hotkeySlots,
   } = useGameStore();
 
   const [hover, setHover] = useState<HoverInfo | null>(null);
@@ -305,24 +307,33 @@ const PowerBar = () => {
 
           {/* The powers of the active tab */}
           <div className="powerbar-powers no-scrollbar">
-            {powers.map((power, index) => (
-              <button
-                key={power.id}
-                type="button"
-                className={`powerbtn ${selectedTool === power.id ? 'is-active' : ''}`}
-                onClick={() => pickPower(power)}
-                onMouseEnter={() => setHover({
-                  label: power.label,
-                  hint: power.hint,
-                  quip: power.quip,
-                  hotkey: index < 9 ? String(index + 1) : undefined,
-                })}
-              >
-                <Icon name={power.icon} />
-                <span className="powerbtn-label">{power.label}</span>
-                {index < 9 && <span className="powerbtn-key">{index + 1}</span>}
-              </button>
-            ))}
+            {powers.map((power, index) => {
+              // A binding the player made outranks the tab position, and the
+              // button has to say so — a key that has been reassigned and
+              // still shows its old number is worse than showing nothing.
+              const bound = hotkeySlots.indexOf(power.id);
+              const key = bound >= 0
+                ? String(bound === HOTKEY_SLOTS - 1 ? 0 : bound + 1)
+                : (index < 9 && !hotkeySlots[index] ? String(index + 1) : undefined);
+              return (
+                <button
+                  key={power.id}
+                  type="button"
+                  className={`powerbtn ${selectedTool === power.id ? 'is-active' : ''}`}
+                  onClick={() => pickPower(power)}
+                  onMouseEnter={() => setHover({
+                    label: power.label,
+                    hint: power.hint,
+                    quip: power.quip,
+                    hotkey: key,
+                  })}
+                >
+                  <Icon name={power.icon} />
+                  <span className="powerbtn-label">{power.label}</span>
+                  {key && <span className="powerbtn-key">{key}</span>}
+                </button>
+              );
+            })}
 
             {actions.map((action) => (
               <button

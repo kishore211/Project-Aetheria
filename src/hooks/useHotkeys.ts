@@ -3,6 +3,7 @@ import { useGameStore } from '../store/gameStore';
 import { POWERS_BY_TAB, POWER_TABS, type PowerTabId } from '../utils/powers';
 import { nextLayer } from '../utils/mapLayers';
 import { soundManager } from '../utils/soundManager';
+import { slotForKey } from '../utils/hotkeyBindings';
 
 /**
  * Keyboard control.
@@ -14,7 +15,8 @@ import { soundManager } from '../utils/soundManager';
  * muscle memory carries over:
  *
  *   Space         pause / resume
- *   1-9           pick the nth power in the current tab
+ *   1-9, 0        your bound power, or the nth power in the current tab
+ *   Ctrl+digit    bind what you are holding to that slot (again to clear)
  *   Tab / S-Tab   cycle power tabs
  *   Z / X         cycle map layers
  *   H             hide the interface
@@ -32,10 +34,22 @@ export const useHotkeys = (): void => {
       const target = event.target as HTMLElement | null;
       if (target && (target.isContentEditable
         || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return;
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
-
       const store = useGameStore.getState();
       const tab: PowerTabId = store.activePowerTab;
+
+      // Ctrl/Cmd + digit binds whatever you are holding to that slot. Checked
+      // before the modifier bail-out below, because it is the one binding that
+      // *wants* a modifier.
+      if ((event.metaKey || event.ctrlKey) && !event.altKey) {
+        const slot = slotForKey(event.key);
+        if (slot >= 0 && store.selectedTool) {
+          event.preventDefault();
+          store.bindHotkey(slot, store.selectedTool);
+          soundManager.uiClick();
+        }
+        return;
+      }
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
 
       switch (event.key) {
         case ' ': {
@@ -76,10 +90,19 @@ export const useHotkeys = (): void => {
         default: break;
       }
 
-      // Powers by number, within the tab you are looking at.
-      if (event.key >= '1' && event.key <= '9') {
-        const powers = POWERS_BY_TAB(tab);
-        const power = powers[Number(event.key) - 1];
+      // Powers by number: your own binding if you have made one, otherwise
+      // the nth power of the tab you are looking at, which is what the digits
+      // did before slots existed. Nothing anyone has already learned breaks.
+      const slot = slotForKey(event.key);
+      if (slot >= 0) {
+        const bound = store.hotkeySlots[slot];
+        if (bound) {
+          soundManager.uiClick();
+          store.setSelectedTool(bound);
+          return;
+        }
+        if (event.key === '0') return;
+        const power = POWERS_BY_TAB(tab)[Number(event.key) - 1];
         if (power) {
           soundManager.uiClick();
           store.setSelectedTool(power.id);
