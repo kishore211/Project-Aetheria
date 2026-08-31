@@ -205,17 +205,18 @@ WorldBox towns looking *designed*.
 | 17.1 | **A zone grid, and two-stage placement** | ✅ done. 3×3 zones rather than their 8×8, because a whole town here is six tiles across |
 | 17.2 | **Three siting classes: cluster / solitary / border** | ✅ done. Verified live: towers on the outer ring, temple five tiles out, houses packed in the middle. Has a relaxed fallback, because a solitary building that can find nowhere fails *silently* |
 | 17.3 | **A layout per culture** — ordered, concentric, honeycomb, diagonal, scattered | ✅ done. The test compares rendered ASCII shapes, which caught `honeycomb` reducing algebraically to `diagonal` |
-| 17.4 | **Footprints grow with tier** (1×1 → 2×2 → 3×2) rather than only swapping art | Silhouette change is how a town's wealth reads from a zoomed-out camera |
-| 17.5 | **Roads for free** — when a building is planned, connect one random existing building to its two nearest neighbours | Zero resource cost, plausible organic street mesh |
-| 17.6 | **Loot → tax → money as three fields on the unit** | Every wage visibly passes through a lord's hands |
-| 17.7 | **Buildings yield per tick, scaled by tier and modified by biome** | The architecture *is* the income graph |
-| 17.8 | **Eating is a purchase** — 5 coins, with exemptions, and hungry thieves rob the treasury | One rule turns food from a bar into a class system |
-| 17.9 | **The city ledger as four one-line terms** | `+1 per 2 citizens, −1 per homeless, −1 per 2 warriors, −1 per 2 buildings`, clamped at zero |
+| 17.4 | **Footprints grow with tier** | todo. Needs building tiers, which do not exist yet |
+| 17.5 | **Roads for free** | ✅ done. Two neighbours rather than one, because one gives a tree with no loops and a real village has junctions. Additive over the biome, so an abandoned site loses its roads |
+| 17.6 | **Loot → tax → money as three fields** | ✅ done |
+| 17.7 | **Buildings yield, modified by ground** | ✅ done. Fertile 1.4×, badlands 0.6×, corrupted 0.4× — siting becomes a decision |
+| 17.8 | **Eating is a purchase** | ✅ done |
+| 17.9 | **The city ledger as four one-line terms** | ✅ done. Tested including that a new three-founder village is not already in deficit |
 | 17.10 | **The tool-in-hand rule** | The labour economy readable from silhouettes. Depends on 16.14 |
 
-**Gate:** met for shape — a grid culture builds visible streets. Still open:
-17.4 (footprints grow with tier), 17.5 (roads), 17.6–17.9 (the coin economy),
-17.10 (tool-in-hand).
+**Gate:** met. Towns have streets, roads and a treasury; two cultures build
+visibly different shapes. Still open: 17.4 (footprints per tier) and 17.10
+(tool-in-hand), both of which need a building-tier and an item system that do
+not exist yet.
 
 ### A note on the map itself
 
