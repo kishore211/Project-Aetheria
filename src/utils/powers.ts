@@ -108,6 +108,11 @@ export const POWERS: PowerEntry[] = [
     quip: 'They keep a grudge the way others keep livestock.',
   },
   {
+    kind: 'tool', id: 'uplift', tab: 'life', label: 'Uplift', icon: 'Sparkles',
+    hint: 'Wake an animal into a person, or let a person go back.',
+    quip: 'It works both ways, which is the interesting part.',
+  },
+  {
     kind: 'tool', id: 'spawn-animal', tab: 'life', label: 'Wildlife', icon: 'PawPrint',
     hint: 'Whatever suits the ground you clicked.',
     quip: 'Herds form on their own. So do the wolves that follow them.',

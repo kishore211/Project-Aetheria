@@ -278,6 +278,14 @@ export interface Entity {
   /** -1 or 1: which way the sprite is mirrored. */
   facing?: number;
   /**
+   * Woken into a person, or born one.
+   *
+   * The uplifted keep their own body and gain everyone else's inner life —
+   * they talk, make friends, fall in love and grieve. One flag, and the whole
+   * bestiary doubles. See the `uplift` power.
+   */
+  uplifted?: boolean;
+  /**
    * How big this individual is, in world units. Rolled at birth from its kind
    * and its traits and then carried — see `size.ts`. A creature that changes
    * size between frames is a rendering fault.

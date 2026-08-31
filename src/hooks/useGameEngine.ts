@@ -7,6 +7,8 @@ import { generateWorld, determineBiome } from '../utils/worldGenerator';
 import { WorldBehaviour, type WorldContext } from '../utils/worldBehaviour';
 import { MELT, addHeat } from '../utils/thermal';
 import { CloudSystem, DROPS, type DropKind } from '../utils/clouds';
+import { FLASH_SECONDS } from '../utils/statusEffects';
+import { BORN_SAPIENT } from '../utils/entitySystemMinimal';
 import {
   Tile,
   MAP_SIZES,
@@ -690,6 +692,37 @@ export const useGameEngine = () => {
       case 'spawn-elf': acted = spawnRace(tile, 'elf'); break;
       case 'spawn-dwarf': acted = spawnRace(tile, 'dwarf'); break;
       case 'spawn-orc': acted = spawnRace(tile, 'orc'); break;
+
+      case 'uplift': {
+        // One power, both directions. Making waking and un-waking two separate
+        // buttons would be two entries on a bar that is already long, and it
+        // would hide the thing that makes this interesting — that it is
+        // reversible, and that you can take it back.
+        const radius = 1 + store.brushRadius;
+        const near = entityManagerRef.current?.query(tile.x, tile.y, radius) ?? [];
+        const animals = near.filter(creature => !BORN_SAPIENT.has(creature.type));
+        if (animals.length === 0) { acted = false; break; }
+
+        // Whichever way the majority needs to go, so a second click on the
+        // same spot undoes the first rather than flickering half of them.
+        const woken = animals.filter(creature => creature.uplifted).length;
+        const waking = woken * 2 < animals.length;
+        for (const creature of animals) {
+          creature.uplifted = waking;
+          if (waking && !creature.happiness) creature.happiness = 0;
+          creature.flashFor = FLASH_SECONDS;
+        }
+        effectsManagerRef.current?.spawnAura(tileWorldPosition(tile), waking ? 0x9fe8ff : 0x8f7a5a);
+        soundManager.bless();
+        store.addEvent(
+          waking
+            ? `${animals.length === 1 ? 'A creature wakes' : `${animals.length} creatures wake`} into something that can wonder about it`
+            : `${animals.length === 1 ? 'A mind is' : `${animals.length} minds are`} laid gently back down`,
+          'divine',
+          { x: tile.x, y: tile.y },
+        );
+        break;
+      }
 
       case 'spawn-animal': {
         const candidates = spawnableAnimalsFor(tile);

@@ -35,7 +35,21 @@ import { STATUSES, type StatusDef } from './statusEffects';
 import { speak, type Occasion } from './dialogue';
 
 /** Who gets speech bubbles. Monsters brood; animals do not have a position. */
-const SPEAKING_TYPES = new Set<string>(['human', 'elf', 'dwarf', 'orc']);
+/** The four that come with an inner life. Everything else can be given one. */
+export const BORN_SAPIENT = new Set<string>(['human', 'elf', 'dwarf', 'orc']);
+const SPEAKING_TYPES = BORN_SAPIENT;
+
+/**
+ * Does this creature have an inner life?
+ *
+ * Born with one, or given one. The four sentient races are the default and
+ * `uplifted` is the door — which is the whole of phase 19.2: one flag, and
+ * every animal in the bestiary has a second entry that talks, makes friends,
+ * falls in love and grieves. Everything downstream already keys off this
+ * single question, so nothing else had to change to let a wolf do any of it.
+ */
+export const isSapient = (entity: Pick<Entity, 'type' | 'uplifted'>): boolean =>
+  SPEAKING_TYPES.has(entity.type) || entity.uplifted === true;
 import type { EntityIndex } from './entityManagerMinimal';
 
 /**
@@ -1192,7 +1206,7 @@ export class EntityAI {
 
     const partners = this.index
       .query(this.entity.position.x, this.entity.position.y, 2.5)
-      .filter(other => other.id !== this.entity.id && SPEAKING_TYPES.has(other.type));
+      .filter(other => other.id !== this.entity.id && isSapient(other));
     if (partners.length === 0) return;
 
     const other = partners[Math.floor(Math.random() * partners.length)];
@@ -1743,9 +1757,9 @@ export class EntityAI {
     return (PREDATORS_OF[this.entity.type] ?? []).length > 0;
   }
 
-  /** Only the four sentient races talk. */
+  /** The four sentient races, and anything that has been woken into one. */
   private isPerson(): boolean {
-    return SPEAKING_TYPES.has(this.entity.type);
+    return isSapient(this.entity);
   }
 
   /** Send this unit to fight a specific enemy (used by raids). */

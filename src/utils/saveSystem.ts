@@ -59,6 +59,8 @@ export interface SavedEntity {
   subspecies?: string | null;
   /** Individual size. Optional so older saves fall back to the kind's. */
   size?: number;
+  /** Woken into a person. Optional; absent means the kind decides. */
+  uplifted?: boolean;
 }
 
 export interface SavedBuilding {
@@ -196,6 +198,7 @@ export const buildSave = (options: {
       job: entity.job ?? null,
       subspecies: entity.subspecies ?? null,
       size: entity.size,
+      uplifted: entity.uplifted,
     })),
     villages: options.villages.map(village => ({
       id: village.id,

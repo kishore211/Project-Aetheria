@@ -212,6 +212,7 @@ export class EntityManager implements EntityIndex {
       // should have the same wolves in it.
       subspecies: saved.subspecies ?? null,
       size: saved.size,
+      uplifted: saved.uplifted,
       carrying: null,
       job: saved.job,
     };

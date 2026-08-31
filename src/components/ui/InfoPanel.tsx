@@ -91,6 +91,7 @@ const InfoPanel = () => {
                 band is what it can hunt, so both belong in the name rather
                 than in a stat nobody scrolls to. */}
             {describeSize(sizeOf(selectedEntity))} {describeCreature(selectedEntity.type, selectedEntity.subspecies)}
+            {selectedEntity.uplifted ? ' · uplifted' : ''}
             {selectedEntity.job ? ` · ${selectedEntity.job}` : ''}
           </p>
           {/* What it would say for itself. Keyed on its id, so the same

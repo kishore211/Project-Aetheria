@@ -242,6 +242,9 @@ export class UnitIconLayer {
     // Scheming outranks office: a plotting king is a more urgent thing to know
     // about than a king.
     if (this.plotters?.has(entity.id)) return 'plotting';
+    // Above office, below scheming. An uplifted animal is the rarest thing on
+    // the map and the one you most want to be able to find again.
+    if (entity.uplifted) return 'uplifted';
     if (entity.status.includes('king')) return 'king';
     if (entity.status.includes('leader')) return 'leader';
     if (entity.status.includes('captain')) return 'captain';

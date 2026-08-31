@@ -178,6 +178,7 @@ export type Tool =
   | 'spawn-elf'
   | 'spawn-dwarf'
   | 'spawn-orc'
+  | 'uplift'
   | 'spawn-animal'
   | 'spawn-monster'
   // Environment tools

@@ -435,6 +435,24 @@ const ICON_INK: Palette = {
 };
 
 const ICON_ART: Record<string, AtlasEntry> = {
+  // A spark over the head: something in there is awake that was not before.
+  uplifted: {
+    palette: ICON_INK,
+    grid: [
+      '.....oo.....',
+      '....oyyo....',
+      '....oyyo....',
+      '..o.oyyo.o..',
+      '.oyooyyooyo.',
+      '..oyyyyyyo..',
+      '.oyooyyooyo.',
+      '..o.oyyo.o..',
+      '....oyyo....',
+      '....oyyo....',
+      '.....oo.....',
+      '............',
+    ],
+  },
   // -- tools in hand --
   //
   // Drawn head-light and haft-brown, because the material tint is
