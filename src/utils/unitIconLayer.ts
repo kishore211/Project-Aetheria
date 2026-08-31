@@ -13,14 +13,26 @@ import type { Entity } from '../types/world';
 import { getIconAtlas } from './pixelAtlas';
 import { moodFace } from './mood';
 import { SpriteCloud } from './spriteCloud';
+import { MATERIAL_TINT, TOOL_SPRITE, materialForTier, toolFor } from './tools';
 
-/** Rows per unit: profession on top, then activity, then mood. */
-const ROWS = 3;
+/**
+ * Rows per unit: profession on top, then activity, then mood — and the tool,
+ * which is not a row at all but a sprite beside the hand. It shares the slot
+ * machinery because everything else about it is the same problem.
+ */
+const ROWS = 4;
 const ROW_PROFESSION = 0;
 const ROW_ACTIVITY = 1;
 const ROW_MOOD = 2;
+const ROW_TOOL = 3;
 
 const ICON_SIZE = 0.22;
+/** Tools are smaller than icons: they are part of the creature, not a label. */
+const TOOL_SIZE = 0.17;
+/** Sideways from the unit's centre, in the direction it is facing. */
+const TOOL_REACH = 0.15;
+/** Roughly hand height, well below the icon stack over the head. */
+const TOOL_LIFT = 0.2;
 /** Height above the unit's feet for the first row. */
 const BASE_LIFT = 0.5;
 const ROW_SPACING = 0.2;
@@ -78,6 +90,8 @@ export class UnitIconLayer {
   private slots = new Map<string, number>();
   /** Ids currently running a plot, mapped to progress, refreshed by the caller. */
   private plotters: ReadonlyMap<string, number> | null = null;
+  /** Village id to craft tier 1-4, for what the tools are made of. */
+  private craftTiers: ReadonlyMap<string, number> | null = null;
   private freeSlots: number[] = [];
   private nextSlot = 0;
   private capacityUnits: number;
@@ -109,8 +123,14 @@ export class UnitIconLayer {
    * frame: icons change on the scale of seconds, and the positions are lerped
    * from the unit meshes anyway.
    */
-  update(entities: Entity[], detailLevel: number, plotters?: ReadonlyMap<string, number>): void {
+  update(
+    entities: Entity[],
+    detailLevel: number,
+    plotters?: ReadonlyMap<string, number>,
+    craftTiers?: ReadonlyMap<string, number>,
+  ): void {
     this.plotters = plotters ?? null;
+    this.craftTiers = craftTiers ?? null;
     if (!this.visible) return;
 
     // Icons are unreadable when the map is zoomed right out, and drawing a
@@ -153,9 +173,39 @@ export class UnitIconLayer {
       stack(ROW_MOOD, mood);
       stack(ROW_ACTIVITY, activity, activity ? ACTIVITY_TINTS[activity] : undefined);
       stack(ROW_PROFESSION, profession, this.professionTint(entity, profession));
+      this.placeTool(slot, entity, base);
     }
 
     this.releaseMissing();
+  }
+
+  /**
+   * The thing in the creature's hand.
+   *
+   * Beside the unit rather than above it, because a tool is part of the
+   * silhouette and the space over a head is already carrying three rows of
+   * label. It flips with facing for the same reason a walk cycle does: a
+   * woodcutter holding an axe behind itself is holding it wrong.
+   */
+  private placeTool(slot: number, entity: Entity, base: THREE.Vector3): void {
+    const index = slot * ROWS + ROW_TOOL;
+    const shape = toolFor(entity.activity, entity.carrying);
+    if (!shape) {
+      this.cloud.clear(index);
+      return;
+    }
+    const tier = (entity.villageId && this.craftTiers?.get(entity.villageId)) || 1;
+    this.scratch.set(
+      base.x + TOOL_REACH * (entity.facing ?? 1),
+      base.y + TOOL_LIFT,
+      base.z,
+    );
+    this.cloud.set(index, {
+      position: this.scratch,
+      sprite: TOOL_SPRITE[shape],
+      size: TOOL_SIZE,
+      tint: MATERIAL_TINT[materialForTier(tier)],
+    });
   }
 
   private place(

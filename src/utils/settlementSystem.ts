@@ -1898,6 +1898,34 @@ export class SettlementSystem {
   }
 
   /**
+   * How advanced each village's craft is, 1-4, for the tool its people carry.
+   *
+   * Read off what it has actually built rather than tracked as a research
+   * score, so the tech ladder is a *consequence* of the town and not a second
+   * system running beside it: raise a hall and the axes go from stone to iron,
+   * lose the hall to a raid and they go back. A mine is worth a rung on its own
+   * because metalwork is the thing a mine is for.
+   *
+   * Rebuilt on each call rather than cached: a handful of villages holding a
+   * dozen buildings each is a few hundred operations a few times a second, and
+   * a cache here would need invalidating from six places that destroy
+   * buildings.
+   */
+  craftTiers(): ReadonlyMap<string, number> {
+    const tiers = new Map<string, number>();
+    for (const village of this.villages.values()) {
+      let best = 1;
+      let mines = false;
+      for (const building of village.buildings) {
+        best = Math.max(best, tierOf(building.kind));
+        if (building.kind === 'mine') mines = true;
+      }
+      tiers.set(village.id, Math.min(4, best + (mines ? 1 : 0)));
+    }
+    return tiers;
+  }
+
+  /**
    * Everyone currently scheming, mapped to how far along they are, refreshed
    * once per plot round.
    *

@@ -50,10 +50,15 @@ const GameContainer = () => {
     const viewport = Math.min(size.width, size.height);
     // Whole map in frame at the far end, a few tiles across at the near end.
     controls.minZoom = viewport / worldUnits * 0.75;
-    // At most about 34 tiles across the short edge. Closer than that and a
-    // single tile fills a large part of the screen, which makes an 8x8 grain
-    // read as eight enormous blocks rather than as texture.
-    controls.maxZoom = viewport / (TILE_SIZE * 34);
+    // At most about 16 tiles across the short edge.
+    //
+    // This was 34, set when a tile's top face was one flat colour and getting
+    // closer only made the flatness bigger. The ground has art in it now — an
+    // 8x8 grain, dithered edges, a per-pixel coastline, tools in hands — and
+    // none of that is legible from far enough away to see thirty-four tiles at
+    // once. Half the distance is where the pixels start reading as pixels,
+    // which is the whole point of drawing them.
+    controls.maxZoom = viewport / (TILE_SIZE * 16);
 
     // Straight down, and staying there. Rotation is what put the sides of the
     // tiles on screen in the first place.

@@ -1705,6 +1705,7 @@ export const useGameEngine = () => {
           manager.getAllEntities(),
           manager.detail,
           settlementRef.current?.plottingIds(),
+          settlementRef.current?.craftTiers(),
         );
       }
     }
@@ -1931,8 +1932,13 @@ export const useGameEngine = () => {
         camera.position.set(position.x, camera.position.y, position.z);
 
         if (ortho.isOrthographicCamera) {
-          const canvas = gl.domElement;
-          const viewport = Math.min(canvas.clientWidth, canvas.clientHeight);
+          // The frustum is the viewport. `updateProjectionMatrix` derives
+          // left/right/top/bottom straight from the canvas, so the camera
+          // already knows how many pixels it is looking through — and reading
+          // it here rather than from `gl.domElement` keeps the renderer out of
+          // this effect's dependencies, which is what the linter was asking
+          // for and what changed the array's length under React.
+          const viewport = Math.min(ortho.right - ortho.left, ortho.top - ortho.bottom);
           ortho.zoom = THREE.MathUtils.clamp(
             viewport / (tilesAcross * TILE_SIZE),
             orbit?.minZoom ?? 0.01,
@@ -1945,7 +1951,7 @@ export const useGameEngine = () => {
       store: useGameStore,
     };
     (window as unknown as { __aetheria?: typeof bridge }).__aetheria = bridge;
-  }, [isInitialized, camera, controls, gl, inBounds, applyToolEffect, tileWorldPosition]);
+  }, [isInitialized, camera, controls, inBounds, applyToolEffect, tileWorldPosition]);
 
   return {
     tilesRef,

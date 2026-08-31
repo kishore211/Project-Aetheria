@@ -435,6 +435,81 @@ const ICON_INK: Palette = {
 };
 
 const ICON_ART: Record<string, AtlasEntry> = {
+  // -- tools in hand --
+  //
+  // Drawn head-light and haft-brown, because the material tint is
+  // multiplicative: a near-white head takes the colour cleanly and the haft
+  // stays wood whatever the head is made of, which is also true of the object.
+  // Shape carries the job and colour carries the tier, so the two never have to
+  // compete for the same pixels.
+  tool_axe: {
+    palette: ICON_INK,
+    grid: [
+      '............',
+      '..oooo......',
+      '.owwwwo.....',
+      '.owwwwwo....',
+      '.owwwwo.....',
+      '..oono......',
+      '...onno.....',
+      '....onno....',
+      '.....onno...',
+      '......oo....',
+      '............',
+      '............',
+    ],
+  },
+  tool_pick: {
+    palette: ICON_INK,
+    grid: [
+      '............',
+      '.oo......oo.',
+      '.owo....owo.',
+      '..owoooowo..',
+      '...owwwwo...',
+      '....onno....',
+      '....onno....',
+      '....onno....',
+      '....onno....',
+      '.....oo.....',
+      '............',
+      '............',
+    ],
+  },
+  tool_hammer: {
+    palette: ICON_INK,
+    grid: [
+      '............',
+      '..oooooo....',
+      '.owwwwwwo...',
+      '.owwwwwwo...',
+      '.owwwwwwo...',
+      '..ooonoo....',
+      '....onno....',
+      '....onno....',
+      '....onno....',
+      '.....oo.....',
+      '............',
+      '............',
+    ],
+  },
+  tool_blade: {
+    palette: ICON_INK,
+    grid: [
+      '.....oo.....',
+      '....owwo....',
+      '....owwo....',
+      '....owwo....',
+      '....owwo....',
+      '....owwo....',
+      '..oooooooo..',
+      '..onnnnnno..',
+      '....onno....',
+      '....onno....',
+      '.....oo.....',
+      '............',
+    ],
+  },
   // -- mood --
   //
   // Only the four strong moods get a pixel face. The two middle bands (content
