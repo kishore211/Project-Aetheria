@@ -5,6 +5,7 @@ import { TRAITS } from '../../utils/traits';
 import { MOOD_MAX, MOOD_MIN, moodFace } from '../../utils/mood';
 import { statusDef } from '../../utils/statusEffects';
 import { BIOME_STEPS, groundSpeed } from '../../utils/biomeEffects';
+import { describeCreature } from '../../utils/subspecies';
 import { CULTURE_TRAITS, type CultureTraitId } from '../../utils/identity';
 import { worldAccess } from '../../utils/worldAccess';
 
@@ -82,7 +83,9 @@ const InfoPanel = () => {
         <div>
           <h3 className="text-foreground font-medium text-lg mb-0.5 pr-6">{selectedEntity.name}</h3>
           <p className="text-xs text-muted-foreground capitalize mb-3">
-            {selectedEntity.type.replace('_', ' ')}
+            {/* "snow wolf" rather than "wolf": the colouring is the subspecies,
+                and a name that does not say so wastes the whole system. */}
+            {describeCreature(selectedEntity.type, selectedEntity.subspecies)}
             {selectedEntity.job ? ` · ${selectedEntity.job}` : ''}
           </p>
 

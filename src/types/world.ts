@@ -277,6 +277,13 @@ export interface Entity {
   flashFor?: number;
   /** -1 or 1: which way the sprite is mirrored. */
   facing?: number;
+  /**
+   * Which colour ramp this creature was born with. See `subspecies.ts`.
+   *
+   * A plain id rather than the ramp itself, so a save carries four bytes and
+   * the palette stays the one place that decides what those colours are.
+   */
+  subspecies?: string | null;
   /** Closest companion, if it has found one. */
   friendId?: string | null;
   /** Partner. Reproduction goes through this when the world has pairs in it. */

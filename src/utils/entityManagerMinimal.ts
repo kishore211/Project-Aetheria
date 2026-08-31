@@ -1,5 +1,6 @@
 // src/utils/entityManagerMinimal.ts
 import * as THREE from 'three';
+import { pickRamp } from './subspecies';
 import { TILE_SIZE, type Tile, type Entity, type EntityType } from '../types/world';
 import { createEntity, createEntityMesh, updateEntityMesh, EntityAI, type AIOrder } from './entitySystemMinimal';
 import { inheritTraits } from './traits';
@@ -139,7 +140,12 @@ export class EntityManager implements EntityIndex {
   /**
    * Spawn a new entity in the world
    */
-  spawnEntity(type: EntityType, x: number, y: number, options: { traits?: Entity['traits'] } = {}): Entity | null {
+  spawnEntity(
+    type: EntityType,
+    x: number,
+    y: number,
+    options: { traits?: Entity['traits']; subspecies?: string | null } = {},
+  ): Entity | null {
     const ix = Math.floor(x);
     const iy = Math.floor(y);
     if (!this.isInBounds(ix, iy)) return null;
@@ -148,6 +154,12 @@ export class EntityManager implements EntityIndex {
     if (!this.isSuitableTileForEntity(type, tile)) return null;
 
     const entity = createEntity(type, ix + 0.5, iy + 0.5, options.traits);
+    // Colouring comes from where it is born, not from what it is: a white coat
+    // is a cold choice. Passed in when a parent has one, so a litter looks like
+    // its mother rather than like the field it happened to be dropped in.
+    entity.subspecies = options.subspecies !== undefined
+      ? options.subspecies
+      : pickRamp(type, tile);
 
     const mesh = createEntityMesh(entity);
     mesh.position.set(
@@ -195,6 +207,10 @@ export class EntityManager implements EntityIndex {
       kills: saved.kills,
       kingdomId: saved.kingdomId,
       villageId: saved.villageId,
+      // Absent in saves written before colour ramps existed, which load as the
+      // plain palette rather than being re-rolled — a world you come back to
+      // should have the same wolves in it.
+      subspecies: saved.subspecies ?? null,
       carrying: null,
       job: saved.job,
     };
@@ -348,6 +364,9 @@ export class EntityManager implements EntityIndex {
     const chosen = suitable[Math.floor(Math.random() * suitable.length)];
     const child = this.spawnEntity(entity.type, chosen.x, chosen.y, {
       traits: inheritTraits(entity.traits),
+      // Colour is inherited, which is the whole reason a region ends up with a
+      // *population* of snow wolves rather than a scattering of them.
+      subspecies: entity.subspecies ?? null,
     });
     if (child) {
       recordBirth();

@@ -1,5 +1,6 @@
 // Procedural pixel-art sprites drawn on canvas textures (no external assets).
 import * as THREE from 'three';
+import { applyRamp, rampById } from './subspecies';
 import type { EntityType } from '../types/world';
 
 type Palette = Record<string, string>;
@@ -351,8 +352,10 @@ const makeTexture = (canvas: HTMLCanvasElement): THREE.CanvasTexture => {
 };
 
 /** Build (and cache) a crisp pixel-art texture for an entity type. */
-export function getPixelSpriteTexture(type: EntityType): THREE.CanvasTexture {
-  return getPixelSpriteFrames(type)[0];
+export function getPixelSpriteTexture(
+  type: EntityType, subspecies?: string | null,
+): THREE.CanvasTexture {
+  return getPixelSpriteFrames(type, subspecies)[0];
 }
 
 /**
@@ -361,10 +364,19 @@ export function getPixelSpriteTexture(type: EntityType): THREE.CanvasTexture {
  * Frame 0 is the standing pose, so anything that wants a single still image can
  * take the first entry and be right.
  */
-export function getPixelSpriteFrames(type: EntityType): THREE.CanvasTexture[] {
+export function getPixelSpriteFrames(
+  type: EntityType, subspecies?: string | null,
+): THREE.CanvasTexture[] {
+  // Keyed on the colouring as well as the kind, so a snow wolf and a sable one
+  // are two cached sets of four rather than one set repainted per creature.
+  // With fourteen ramps and twenty kinds the whole cache is still small enough
+  // to be worth never evicting.
+  const ramp = rampById(subspecies);
+  const key = ramp ? `${type}:${ramp.id}` : type;
+
   const cached: THREE.CanvasTexture[] = [];
   for (let frame = 0; frame < WALK_FRAMES; frame += 1) {
-    const hit = textureCache.get(`${type}:${frame}`);
+    const hit = textureCache.get(`${key}:${frame}`);
     if (!hit) break;
     cached.push(hit);
   }
@@ -372,11 +384,12 @@ export function getPixelSpriteFrames(type: EntityType): THREE.CanvasTexture[] {
 
   const spec = SPECS[type] ?? SPECS.human;
   const grid = TEMPLATES[spec.template];
+  const palette = ramp ? applyRamp(spec.palette, ramp) : spec.palette;
 
   const frames: THREE.CanvasTexture[] = [];
   for (let frame = 0; frame < WALK_FRAMES; frame += 1) {
-    const texture = makeTexture(drawGrid(grid, spec.palette, frame));
-    textureCache.set(`${type}:${frame}`, texture);
+    const texture = makeTexture(drawGrid(grid, palette, frame));
+    textureCache.set(`${key}:${frame}`, texture);
     frames.push(texture);
   }
   return frames;

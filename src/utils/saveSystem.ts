@@ -55,6 +55,8 @@ export interface SavedEntity {
   kingdomId: string | null;
   villageId: string | null;
   job: Entity['job'];
+  /** Colour ramp id. Optional so older saves load as plain-coloured. */
+  subspecies?: string | null;
 }
 
 export interface SavedBuilding {
@@ -190,6 +192,7 @@ export const buildSave = (options: {
       kingdomId: entity.kingdomId ?? null,
       villageId: entity.villageId ?? null,
       job: entity.job ?? null,
+      subspecies: entity.subspecies ?? null,
     })),
     villages: options.villages.map(village => ({
       id: village.id,

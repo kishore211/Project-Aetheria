@@ -218,7 +218,7 @@ export function createEntityMesh(entity: Entity): THREE.Object3D {
   const container = new THREE.Object3D();
   container.name = `entity-${entity.id}`;
 
-  const texture = getPixelSpriteTexture(entity.type);
+  const texture = getPixelSpriteTexture(entity.type, entity.subspecies);
   const material = new THREE.SpriteMaterial({
     map: texture,
     transparent: true,
@@ -363,7 +363,7 @@ export function updateEntityMesh(entity: Entity, deltaTime = 1 / 60, detailLevel
     const stridesPerSecond = Math.max(1.6, tilesPerSecondOf(entity) * 1.9);
     entity.walkPhase = ((entity.walkPhase ?? 0) + deltaTime * stridesPerSecond) % 1;
 
-    const frames = getPixelSpriteFrames(entity.type);
+    const frames = getPixelSpriteFrames(entity.type, entity.subspecies);
     const frameIndex = Math.floor(entity.walkPhase * WALK_FRAMES) % frames.length;
     if (material.map !== frames[frameIndex]) {
       material.map = frames[frameIndex];
@@ -391,7 +391,7 @@ export function updateEntityMesh(entity: Entity, deltaTime = 1 / 60, detailLevel
     sprite.material.rotation = -(entity.facing ?? 1) * air * 0.07;
   } else {
     entity.walkPhase = ((entity.walkPhase ?? 0) + deltaTime * 0.35) % 1;
-    const frames = getPixelSpriteFrames(entity.type);
+    const frames = getPixelSpriteFrames(entity.type, entity.subspecies);
     if (material.map !== frames[0]) {
       material.map = frames[0];
       material.needsUpdate = true;
