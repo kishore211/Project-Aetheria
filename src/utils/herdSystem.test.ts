@@ -294,5 +294,10 @@ describe('survival while travelling', () => {
     expect(fedFraction / RUNS).toBeGreaterThan(0.5);
     // A herd may starve; a herd should not reliably vanish.
     expect(collapses).toBe(0);
-  });
+    // Twenty runs of two hundred simulated seconds for twenty-four animals is
+    // about ninety thousand creature-seconds, and that cost is the point — it
+    // is what makes the number stable. Alone it takes a second; sharing eight
+    // cores with twenty-nine other files it does not, and the default
+    // five-second limit was turning load into a red test.
+  }, 30_000);
 });

@@ -14,6 +14,7 @@ import {
   type TraitId,
 } from '../types/world';
 import { getPixelSpriteTexture, getPixelSpriteFrames, WALK_FRAMES } from './pixelSprites';
+import { groundSpeed, stepOnGround } from './biomeEffects';
 import {
   canSwim,
   findNearestStandable,
@@ -544,6 +545,19 @@ export class EntityAI {
     // Mood shares the needs pass: it reads the same fields, needs the same
     // delta, and gives the status timers somewhere to tick from.
     updateMood(this.entity, deltaTime);
+
+    // What the ground does to you. Most of the map does nothing at all and the
+    // roll is skipped entirely there — see the note in `stepOnGround` about
+    // why the guard has to come before the draw and not after it.
+    const underfoot = this.tileUnderfoot(tiles);
+    if (underfoot) {
+      stepOnGround(this.entity, underfoot.type, deltaTime);
+      if (this.entity.health <= 0) {
+        this.currentState = 'dying';
+        this.handleDyingState();
+        return;
+      }
+    }
 
     // Moods and bonds are checked wherever the creature happens to be, not
     // only while it stands at a bonfire. Gating them on the socialising state
@@ -1228,12 +1242,26 @@ export class EntityAI {
     }
   }
 
-  private tilesPerSecond(): number {
+  private tilesPerSecond(tiles?: Tile[][]): number {
     let speed = this.entity.attributes.speed * 0.12;
     if (this.entity.status.includes('exhausted')) speed *= 0.5;
     // A captain deliberately marches slower so its warband stays with it
     if (this.entity.status.includes('captain')) speed *= 0.72;
+    // ...and the ground itself, which is most of what makes a swamp a swamp
+    // rather than a green patch.
+    if (tiles) {
+      const here = this.tileUnderfoot(tiles);
+      if (here) speed *= groundSpeed(here.type);
+    }
     return speed;
+  }
+
+  /** The tile the creature is standing on, or null if it has wandered off. */
+  private tileUnderfoot(tiles: Tile[][]): Tile | null {
+    const x = Math.floor(this.entity.position.x);
+    const y = Math.floor(this.entity.position.y);
+    if (x < 0 || y < 0 || x >= tiles.length || y >= (tiles[0]?.length ?? 0)) return null;
+    return tiles[x][y];
   }
 
   private handleMovingState(tiles: Tile[][], deltaTime: number): void {
@@ -1300,7 +1328,7 @@ export class EntityAI {
       return;
     }
 
-    const step = Math.min(this.tilesPerSecond() * deltaTime, length);
+    const step = Math.min(this.tilesPerSecond(tiles) * deltaTime, length);
     this.entity.position = {
       x: x + (dx / length) * step,
       y: y + (dy / length) * step,
@@ -1333,7 +1361,7 @@ export class EntityAI {
 
     this.addStatus('moving');
     this.entity.lastPosition = { ...this.entity.position };
-    const step = this.tilesPerSecond() * deltaTime;
+    const step = this.tilesPerSecond(tiles) * deltaTime;
     const nextX = this.entity.position.x + (dx / gap) * step;
     const nextY = this.entity.position.y + (dy / gap) * step;
 
@@ -1467,7 +1495,7 @@ export class EntityAI {
 
     this.addStatus('moving');
     this.entity.lastPosition = { ...this.entity.position };
-    const step = this.tilesPerSecond() * deltaTime;
+    const step = this.tilesPerSecond(tiles) * deltaTime;
     const nextX = this.entity.position.x + (dx / distance) * step;
     const nextY = this.entity.position.y + (dy / distance) * step;
     if (this.canStand(tiles, nextX, nextY)) {
@@ -1559,7 +1587,7 @@ export class EntityAI {
     this.addStatus('moving');
     this.entity.lastPosition = { ...this.entity.position };
 
-    const step = this.tilesPerSecond() * 1.25 * deltaTime;
+    const step = this.tilesPerSecond(tiles) * 1.25 * deltaTime;
     const dirX = -dx / (distance || 1);
     const dirY = -dy / (distance || 1);
 

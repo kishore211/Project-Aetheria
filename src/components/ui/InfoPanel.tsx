@@ -4,6 +4,7 @@ import type { Entity, Resource, TraitId } from '../../types/world';
 import { TRAITS } from '../../utils/traits';
 import { MOOD_MAX, MOOD_MIN, moodFace } from '../../utils/mood';
 import { statusDef } from '../../utils/statusEffects';
+import { BIOME_STEPS, groundSpeed } from '../../utils/biomeEffects';
 import { CULTURE_TRAITS, type CultureTraitId } from '../../utils/identity';
 import { worldAccess } from '../../utils/worldAccess';
 
@@ -390,6 +391,24 @@ const InfoPanel = () => {
               <div><span className="text-muted-foreground block">Temp</span>{Math.round(selectedTile.temperature * 100)}%</div>
               <div><span className="text-muted-foreground block">Fertility</span>{Math.round(selectedTile.fertility * 100)}%</div>
             </div>
+
+            {/*
+              * What the ground does to whoever stands on it. Shown as its own
+              * line rather than folded into the stats grid: it is the only
+              * thing on this panel that is about consequence rather than
+              * measurement, and a percentage next to it would read as one more
+              * number to ignore.
+              */}
+            {BIOME_STEPS[selectedTile.type] && (
+              <p className="text-xs text-muted-foreground italic">
+                {BIOME_STEPS[selectedTile.type]!.note}
+                {groundSpeed(selectedTile.type) < 1 && (
+                  <span className="not-italic">
+                    {' '}Crossing it costs {Math.round((1 - groundSpeed(selectedTile.type)) * 100)}% of your pace.
+                  </span>
+                )}
+              </p>
+            )}
 
             {selectedTile.isOnFire && <p className="text-xs text-orange-400">This tile is burning.</p>}
           </div>

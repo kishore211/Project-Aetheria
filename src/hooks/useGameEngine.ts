@@ -4,6 +4,7 @@ import { useThree, useFrame } from '@react-three/fiber';
 
 import { useGameStore } from '../store/gameStore';
 import { generateWorld, determineBiome } from '../utils/worldGenerator';
+import { WorldBehaviour, type WorldContext } from '../utils/worldBehaviour';
 import {
   Tile,
   MAP_SIZES,
@@ -136,7 +137,13 @@ export const useGameEngine = () => {
   const phaseTimerRef = useRef<number>(0);
   const weatherTimerRef = useRef<number>(0);
   const statsTimerRef = useRef<number>(0);
-  const ecologyTimerRef = useRef<number>(0);
+  /**
+   * The world's ambient processes, on one clock.
+   *
+   * Held in a ref rather than rebuilt: each row carries its own countdown, and
+   * a scheduler recreated on every render is a scheduler that never fires.
+   */
+  const worldBehaviourRef = useRef<WorldBehaviour>(new WorldBehaviour());
   const autosaveTimerRef = useRef<number>(0);
   const lastCameraNonceRef = useRef<number>(0);
   const lastZoomNonceRef = useRef<number>(0);
@@ -1292,98 +1299,32 @@ export const useGameEngine = () => {
    * spreads, scorched land recovers. Sampled rather than exhaustive so cost is
    * independent of map size.
    */
-  const simulateEcology = useCallback(() => {
-    const tiles = tilesRef.current;
-    if (tiles.length === 0) return;
+  /**
+   * What the ambient processes are allowed to touch.
+   *
+   * Rebuilt each firing rather than memoised: it reads the season, the age and
+   * the world laws, all of which change under it, and a stale context is a
+   * world that keeps growing through a winter nobody is having.
+   */
+  const worldContext = useCallback((): WorldContext => {
     const store = useGameStore.getState();
-    const size = tiles.length;
-    const samples = Math.max(24, Math.floor((size * size) / 220));
-    const growthAllowed = store.worldLaws.biomeGrowth;
-    const winter = store.season === 'winter';
-    // An Age of Wonders nearly doubles growth; an Age of Ash all but stops it.
-    const era = simulation.age.growth;
-
-    for (let i = 0; i < samples; i++) {
-      const x = Math.floor(Math.random() * size);
-      const y = Math.floor(Math.random() * size);
-      const tile = tiles[x][y];
-      if (tile.isOnFire || isWaterBiome(tile.type)) continue;
-
-      // Food regrowth, driven by fertility and the season
-      const food = tile.resources.find(r => r.type === 'food');
-      const regrowthChance = tile.fertility * (winter ? 0.12 : 0.55) * era;
-      if (Math.random() < regrowthChance) {
-        if (food) {
-          food.quantity = Math.min(10, food.quantity + 1);
-          food.discovered = true;
-        } else if (tile.fertility > 0.35) {
-          tile.resources.push({ type: 'food', quantity: 2, discovered: true });
-        }
-      }
-
-      // Standing timber and exposed rock replenish, so a village that manages
-      // its land can keep building instead of stripping the map bare once.
-      const forested = ['deciduous_forest', 'coniferous_forest', 'rainforest', 'tropical_forest', 'taiga', 'enchanted_forest'].includes(tile.type);
-      if (forested && !winter && Math.random() < 0.3 * era) {
-        const wood = tile.resources.find(r => r.type === 'wood');
-        if (wood) wood.quantity = Math.min(10, wood.quantity + 1);
-        else tile.resources.push({ type: 'wood', quantity: 2, discovered: true });
-      }
-      if ((tile.type === 'mountains' || tile.type === 'hills') && Math.random() < 0.2) {
-        const stone = tile.resources.find(r => r.type === 'stone');
-        if (stone) stone.quantity = Math.min(10, stone.quantity + 1);
-        else tile.resources.push({ type: 'stone', quantity: 2, discovered: true });
-      }
-
-      if (!growthAllowed) continue;
-
-      // Forests creep into fertile neighbours
-      if (['deciduous_forest', 'coniferous_forest', 'rainforest', 'tropical_forest', 'taiga'].includes(tile.type)) {
-        const dx = Math.floor(Math.random() * 3) - 1;
-        const dy = Math.floor(Math.random() * 3) - 1;
-        const nx = x + dx;
-        const ny = y + dy;
-        if (inBounds(nx, ny)) {
-          const neighbor = tiles[nx][ny];
-          if (
-            (neighbor.type === 'grassland' || neighbor.type === 'hills') &&
-            neighbor.moisture > 0.45 &&
-            neighbor.fertility > 0.4 &&
-            !neighbor.villageId &&
-            Math.random() < 0.25
-          ) {
-            neighbor.type = tile.type;
-            neighbor.structure = { type: 'young_tree', health: 100, level: 1 };
-            neighbor.resources.push({ type: 'wood', quantity: 4, discovered: true });
-            syncTile(neighbor);
-          }
-        }
-      }
-
-      // Corruption creeps, but only slowly
-      if (tile.type === 'corrupted' && Math.random() < 0.12) {
-        const dx = Math.floor(Math.random() * 3) - 1;
-        const dy = Math.floor(Math.random() * 3) - 1;
-        if (inBounds(x + dx, y + dy)) {
-          const neighbor = tiles[x + dx][y + dy];
-          if (neighbor.height > 0.25 && !isWaterBiome(neighbor.type) && neighbor.type !== 'corrupted') {
-            neighbor.type = 'corrupted';
-            neighbor.structure = null;
-            neighbor.fertility = Math.max(0, neighbor.fertility - 0.3);
-            syncTile(neighbor);
-          }
-        }
-      }
-
-      // Burned ground slowly heals
-      if (tile.type === 'badlands' && tile.moisture > 0.4 && Math.random() < 0.08) {
-        tile.fertility = Math.min(1, tile.fertility + 0.15);
-        if (tile.fertility > 0.5) {
-          tile.type = determineBiome(tile.height, tile.moisture, tile.temperature);
-          syncTile(tile);
-        }
-      }
-    }
+    const tiles = tilesRef.current;
+    return {
+      tiles,
+      size: tiles.length,
+      season: store.season,
+      growth: simulation.age.growth,
+      laws: {
+        biomeGrowth: store.worldLaws.biomeGrowth,
+        disasters: store.worldLaws.disasters,
+      },
+      inBounds,
+      syncTile,
+      spawn: (type, x, y) => Boolean(entityManagerRef.current?.spawnEntity(type, x, y)),
+      population: () => entityManagerRef.current?.getAllEntities().length ?? 0,
+      announce: (message, at) => store.addEvent(message, 'info', at),
+      random: Math.random,
+    };
   }, [inBounds, syncTile]);
 
   /** Re-tint every tile after a time-of-day or season change. */
@@ -1716,10 +1657,10 @@ export const useGameEngine = () => {
     // to call every frame; sampleWorld owns its own interval.
     sampleWorld(scaledDelta, useGameStore.getState().population);
 
-    ecologyTimerRef.current += scaledDelta;
-    if (ecologyTimerRef.current >= 2.5) {
-      ecologyTimerRef.current = 0;
-      simulateEcology();
+    // Every ambient process, on one clock it owns itself. Each row keeps its
+    // own countdown, so nothing has to be scheduled from here.
+    if (tilesRef.current.length > 0) {
+      worldBehaviourRef.current.advance(scaledDelta, worldContext());
     }
 
     // Publish stats and drive weather visuals
@@ -1747,7 +1688,7 @@ export const useGameEngine = () => {
         }
       }
     }
-  }, [isGamePaused, gameSpeed, scene, refreshWorldColors, simulateFire, simulateEcology, updateCamera, advanceAge]);
+  }, [isGamePaused, gameSpeed, scene, refreshWorldColors, simulateFire, worldContext, updateCamera, advanceAge]);
 
   // Initialize the world when the seed, size, template or revision changes
   useEffect(() => {
