@@ -7,6 +7,7 @@ import { statusDef } from '../../utils/statusEffects';
 import { BIOME_STEPS, groundSpeed } from '../../utils/biomeEffects';
 import { describeCreature } from '../../utils/subspecies';
 import { describeSize, sizeOf } from '../../utils/size';
+import { biomeLine, creatureLine } from '../../utils/flavour';
 import { CULTURE_TRAITS, type CultureTraitId } from '../../utils/identity';
 import { worldAccess } from '../../utils/worldAccess';
 
@@ -92,6 +93,14 @@ const InfoPanel = () => {
             {describeSize(sizeOf(selectedEntity))} {describeCreature(selectedEntity.type, selectedEntity.subspecies)}
             {selectedEntity.job ? ` · ${selectedEntity.job}` : ''}
           </p>
+          {/* What it would say for itself. Keyed on its id, so the same
+              creature always says the same thing and two of a kind standing
+              together say different things. */}
+          {creatureLine(selectedEntity.type, selectedEntity.id) && (
+            <p className="text-xs text-muted-foreground italic -mt-2 mb-3">
+              {creatureLine(selectedEntity.type, selectedEntity.id)}
+            </p>
+          )}
 
           <div className="flex gap-2 mb-3">
             <button
@@ -406,6 +415,10 @@ const InfoPanel = () => {
               * measurement, and a percentage next to it would read as one more
               * number to ignore.
               */}
+            <p className="text-xs text-muted-foreground italic">
+              {biomeLine(selectedTile.type)}
+            </p>
+
             {BIOME_STEPS[selectedTile.type] && (
               <p className="text-xs text-muted-foreground italic">
                 {BIOME_STEPS[selectedTile.type]!.note}
