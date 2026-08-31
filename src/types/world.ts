@@ -283,6 +283,18 @@ export interface Entity {
   loverId?: string | null;
 
   // Identity. All three spread by the same pot mechanic; see utils/identity.ts.
+  /**
+   * Money, in three fields rather than one.
+   *
+   * `loot` is what a creature has earned and not yet been taxed on; `coins` is
+   * what it may actually spend. Separating them means every wage visibly
+   * passes through a lord's hands, which is the whole reason WorldBox's economy
+   * reads as a class system rather than a resource counter
+   * (09-WORLDBOX-VISUAL-RESEARCH.md §7).
+   */
+  loot?: number;
+  coins?: number;
+
   cultureId?: string | null;
   languageId?: string | null;
   religionId?: string | null;

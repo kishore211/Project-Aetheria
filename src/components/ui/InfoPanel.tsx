@@ -250,6 +250,9 @@ const InfoPanel = () => {
               <p className="text-xs text-muted-foreground">
                 Granary: {village.store.food} food · {village.store.wood} wood · {village.store.stone} stone
               </p>
+              <p className="text-xs text-muted-foreground">
+                Treasury: <span className="text-amber-300">{Math.round(village.store.gold)}</span> gold
+              </p>
               {village.identity.culture && (
                 <div className="mt-1.5 pt-1.5 border-t border-muted/30">
                   <p className="text-xs flex items-center gap-1.5">

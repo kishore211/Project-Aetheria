@@ -24,7 +24,7 @@ export interface WorldAccess {
     kingdomName: string;
     kingdomColor: string;
     race: string;
-    store: { food: number; wood: number; stone: number };
+    store: { food: number; wood: number; stone: number; gold: number };
     buildings: number;
     territory: number;
     capital: boolean;

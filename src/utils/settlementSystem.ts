@@ -101,6 +101,8 @@ export interface VillageStore {
   food: number;
   wood: number;
   stone: number;
+  /** The village treasury. Taxes flow in; the ledger and thieves flow out. */
+  gold: number;
 }
 
 export interface Village {
@@ -314,6 +316,51 @@ const fitsLayout = (
 
 const REBELLION_PATIENCE = 45;
 
+/** What a meal costs a villager who has to pay for one. */
+const MEAL_PRICE = 5;
+
+/** The lord's cut of every wage, before it becomes spendable. */
+const TAX_RATE = 0.25;
+
+/**
+ * What each building earns per round.
+ *
+ * The architecture *is* the income graph — a town's wealth is legible from its
+ * skyline rather than from a panel. Their tiers run a T1 house at 1 up to a T6
+ * at 6, with a town hall at 10; ours has no tiers yet, so these are the
+ * single-tier equivalents.
+ */
+const BUILDING_YIELD: Record<string, number> = {
+  hall: 6,
+  house: 2,
+  farm: 3,
+  mine: 4,
+  temple: 2,
+  statue: 1,
+  tower: 1,
+  bonfire: 0,
+};
+
+/** How many residents each building houses, for the homelessness term. */
+const HOUSING: Record<string, number> = {
+  house: 4,
+  hall: 3,
+  farm: 1,
+};
+
+/**
+ * How much the ground under a building is worth.
+ *
+ * Terrain visibly matters to income, which is most of what makes siting a town
+ * on good land feel like a decision rather than a formality.
+ */
+const groundBonus = (tile: Tile): number => {
+  if (tile.type === 'badlands' || tile.type === 'desert' || tile.type === 'mesa') return 0.6;
+  if (tile.type === 'volcanic' || tile.type === 'corrupted') return 0.4;
+  if (tile.fertility > 0.65) return 1.4;
+  return 1;
+};
+
 /**
  * How much each building breathes, 0-1.
  *
@@ -404,6 +451,7 @@ export class SettlementSystem {
   private colonyTimer = 0;
   private publishTimer = 0;
   private loyaltyTimer = 0;
+  private economyTimer = 0;
   private plotTimer = 0;
   /** Live schemes, keyed by id. */
   private plots = new Map<string, Plot>();
@@ -476,6 +524,12 @@ export class SettlementSystem {
       this.workTimer = 0;
       this.manageWorkforce();
       this.feedVillagers();
+    }
+
+    this.economyTimer += delta;
+    if (this.economyTimer >= 5) {
+      this.economyTimer = 0;
+      this.economyRound();
     }
 
     this.buildTimer += delta;
@@ -606,7 +660,7 @@ export class SettlementSystem {
       centerX: tile.x,
       centerY: tile.y,
       buildings: [],
-      store: { food: 4, wood: 4, stone: 2 },
+      store: { food: 4, wood: 4, stone: 2, gold: 0 },
       territory: new Set(),
       founded: { year: 0, season: simulation.season },
       capital: kingdom.villageIds.length === 0,
@@ -1014,6 +1068,17 @@ export class SettlementSystem {
   }
 
   /** Villages feed their residents from the granary. */
+  /**
+   * Feeding the village, as a transaction.
+   *
+   * A meal costs coins. Rulers, children and the genuinely starving eat free,
+   * and anyone who cannot pay and is desperate enough steals from the treasury
+   * — and is unhappy about having had to.
+   *
+   * One rule, and food stops being a progress bar and becomes a class system:
+   * you can watch a village where the warriors eat and the gatherers do not
+   * (09-WORLDBOX-VISUAL-RESEARCH.md §7).
+   */
   private feedVillagers(): void {
     for (const village of this.villages.values()) {
       if (village.store.food <= 0) continue;
@@ -1023,10 +1088,92 @@ export class SettlementSystem {
 
       for (const resident of residents) {
         if (village.store.food <= 0) break;
+
+        const exempt = resident.status.includes('king')
+          || resident.status.includes('leader')
+          || resident.age < resident.maxAge * 0.18;
+        const desperate = resident.needs.hunger < 0.2;
+
+        if (!exempt && !desperate) {
+          if ((resident.coins ?? 0) < MEAL_PRICE) continue;
+          resident.coins = (resident.coins ?? 0) - MEAL_PRICE;
+          village.store.gold += MEAL_PRICE;
+        } else if (!exempt && desperate && (resident.coins ?? 0) < MEAL_PRICE) {
+          // Starving and broke: takes what it needs and feels it.
+          village.store.gold = Math.max(0, village.store.gold - MEAL_PRICE);
+          applyScenario(resident, 'turnedOut');
+        }
+
         village.store.food -= 1;
         resident.needs.hunger = Math.min(1, resident.needs.hunger + 0.4);
       }
     }
+  }
+
+  /**
+   * Wages, tax, and the village ledger.
+   *
+   * Three steps, in this order, because the order *is* the politics:
+   *
+   * 1. Buildings yield loot, scaled by tier and modified by the ground they
+   *    stand on. The architecture is the income graph.
+   * 2. Loot is taxed on its way to becoming spendable coin, and the tax lands
+   *    in the treasury. Every wage passes visibly through a lord's hands.
+   * 3. The village pays its bills — their four one-line terms, where
+   *    homelessness costs twice a soldier and over-building bankrupts you.
+   */
+  private economyRound(): void {
+    const members = this.entities.getEntitiesByVillage();
+
+    for (const village of this.villages.values()) {
+      const residents = members.get(village.id) ?? [];
+      if (residents.length === 0) continue;
+
+      // -- 1. buildings earn --------------------------------------------
+      let yield_ = 0;
+      for (const building of village.buildings) {
+        const base = BUILDING_YIELD[building.kind] ?? 1;
+        const tile = this.tileAt(building.x, building.y);
+        yield_ += base * (tile ? groundBonus(tile) : 1);
+      }
+      // Split across whoever is working, so a big town with few people does
+      // not make each of them rich.
+      const share = yield_ / Math.max(1, residents.length);
+      for (const resident of residents) {
+        resident.loot = (resident.loot ?? 0) + share;
+      }
+
+      // -- 2. the lord takes a cut ---------------------------------------
+      for (const resident of residents) {
+        const loot = resident.loot ?? 0;
+        if (loot < 1) continue;
+        const tax = Math.floor(loot * TAX_RATE);
+        resident.loot = loot - Math.floor(loot);
+        resident.coins = (resident.coins ?? 0) + (Math.floor(loot) - tax);
+        village.store.gold += tax;
+        // Being taxed is a small, frequent grievance — which is exactly the
+        // sort of thing that shows up later as loyalty.
+        if (tax > 0 && Math.random() < 0.04) applyScenario(resident, 'sleptRough');
+      }
+
+      // -- 3. the ledger --------------------------------------------------
+      const homeless = Math.max(0, residents.length - this.homesIn(village));
+      const warriors = residents.filter(r => r.job === 'warrior').length;
+      const ledger = Math.floor(residents.length / 2)
+        - homeless
+        - Math.floor(warriors / 2)
+        - Math.floor(village.buildings.length / 2);
+      village.store.gold = Math.max(0, village.store.gold + ledger);
+    }
+  }
+
+  /** How many residents this village can actually house. */
+  private homesIn(village: Village): number {
+    let capacity = 0;
+    for (const building of village.buildings) {
+      capacity += HOUSING[building.kind] ?? 0;
+    }
+    return capacity;
   }
 
   /** A unit reached the tile a village sent it to. */
@@ -2627,7 +2774,7 @@ export class SettlementSystem {
         centerX: saved.centerX,
         centerY: saved.centerY,
         buildings: [],
-        store: { ...saved.store },
+        store: { ...saved.store, gold: saved.store.gold ?? 0 },
         territory: new Set(),
         founded: { year: 0, season: simulation.season },
         capital: saved.capital ?? false,

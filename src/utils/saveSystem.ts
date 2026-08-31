@@ -73,7 +73,12 @@ export interface SavedVillage {
   race: Race;
   centerX: number;
   centerY: number;
-  store: Village['store'];
+  /**
+   * The granary. `gold` is optional so a save written before the treasury
+   * existed still loads — an old world simply starts broke, which is the right
+   * answer and needs no migration.
+   */
+  store: Omit<Village['store'], 'gold'> & { gold?: number };
   buildings: SavedBuilding[];
   /** The kingdom's founding settlement. */
   capital?: boolean;
