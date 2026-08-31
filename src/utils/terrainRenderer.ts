@@ -138,6 +138,11 @@ export class TerrainRenderer {
   private grainStrength!: THREE.InstancedBufferAttribute;
   /** Shared clock uniform, so every water tile moves together. */
   private waveTime = { value: 0 };
+  /**
+   * How many screen pixels one tile currently covers. Drives the grain's
+   * level of detail — see `setTilePixels`.
+   */
+  private tilePixels = { value: 32 };
   /** Which question the map is currently answering. */
   private layer: MapLayer = 'natural';
   private scratchColor = new THREE.Color();
@@ -249,6 +254,7 @@ export class TerrainRenderer {
 
     material.onBeforeCompile = (shader) => {
       shader.uniforms.uWaveTime = this.waveTime;
+      shader.uniforms.uTilePixels = this.tilePixels;
 
       shader.vertexShader = shader.vertexShader
         .replace('#include <common>', `#include <common>
@@ -298,6 +304,7 @@ export class TerrainRenderer {
           varying vec3 vLocalNormal;
           varying float vShore;
           varying float vGrain;
+          uniform float uTilePixels;
 
           /** The off-hue pixels stamped on a decorated ground tile. */
           const vec3 FLOWER_TINT = vec3(0.92, 0.86, 0.42);
@@ -320,6 +327,15 @@ export class TerrainRenderer {
           // texture atlas: no atlas to author or manage, and it applies to all
           // 28 biomes automatically.
           if (vLocalNormal.y > 0.5) {
+            // Fade the grain out as tiles shrink on screen.
+            //
+            // An 8x8 pattern inside a tile that covers four screen pixels
+            // cannot be resolved, and what you get instead is moiré — the
+            // zoomed-out map came out covered in diagonal stripes. Below about
+            // twelve pixels a tile the grain is dropped entirely and the tile
+            // is simply its flat colour, which is also what it should look like
+            // from that far away.
+            float detail = smoothstep(12.0, 26.0, uTilePixels);
             vec2 cell = floor(vTileUv * 8.0);
             // Decorrelate each tile's grain by offsetting the lookup by a
             // per-tile random amount, rather than by the tile's coordinates.
@@ -345,19 +361,21 @@ export class TerrainRenderer {
             // Depth flattens detail. Shallow water is mottled across 22 of 28
             // interior pixels; close ocean 2 of 28; deep ocean is a single flat
             // colour with no edge at all. Land keeps its full grain.
-            gl_FragColor.rgb = mix(gl_FragColor.rgb, gl_FragColor.rgb * shade, vGrain);
+            gl_FragColor.rgb = mix(gl_FragColor.rgb, gl_FragColor.rgb * shade, vGrain * detail);
 
             // Corners left darker rather than transparent. Theirs cuts them out
             // over a solid base layer; we have no layer underneath, so a hole
             // would show sky. Darkening reads as the same rounded silhouette.
             vec2 fromEdge = min(cell, 7.0 - cell);
-            if (fromEdge.x + fromEdge.y < 1.0) gl_FragColor.rgb *= 0.90;
+            if (fromEdge.x + fromEdge.y < 1.0) {
+              gl_FragColor.rgb *= mix(1.0, 0.90, detail);
+            }
 
             // Roughly one land tile in four carries two to four off-hue pixels
             // — their flower tiles, which are the plain ground tile with a few
             // pixels stamped over it. It is the cheapest charm in the whole
             // palette: a field stops being a colour and becomes a field.
-            if (vGrain > 0.9) {
+            if (vGrain > 0.9 && detail > 0.5) {
               float tuft = cellHash(cell * 3.7 + vec2(tileNoise * 211.0, 17.0));
               if (tileNoise > 0.77 && tuft > 0.88) {
                 gl_FragColor.rgb = mix(gl_FragColor.rgb, FLOWER_TINT, 0.5);
@@ -414,6 +432,18 @@ export class TerrainRenderer {
   }
 
   /**
+   * Tell the shader how large a tile currently is on screen, in pixels.
+   *
+   * Everything the grain does has to switch off when a tile is too small to
+   * resolve it, or the map fills with aliasing patterns that look like a
+   * rendering fault. Pushed once per frame from the engine, which is the only
+   * thing that knows the camera and the viewport.
+   */
+  setTilePixels(pixels: number): void {
+    this.tilePixels.value = pixels;
+  }
+
+  /**
    * Advance the water swell and the wind. Called once per frame by the engine,
    * and deliberately not gated on the game being unpaused: a frozen sea and a
    * frozen forest are the two most obvious tells that a place is a diagram.
@@ -449,7 +479,7 @@ export class TerrainRenderer {
   }
 
   private applyColor(tile: Tile, id: number, timeOfDay: TimeOfDay, season: Season): void {
-    const color = getBiomeColor(tile.type, timeOfDay, season, tile.variant, tile.height);
+    const color = getBiomeColor(tile.type, timeOfDay, season, tile.shade ?? tile.variant, tile.height);
 
     if (isDataLayer(this.layer)) {
       // Data layers ignore the biome entirely — that is the point of them —

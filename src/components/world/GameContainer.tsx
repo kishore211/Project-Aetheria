@@ -8,13 +8,32 @@ import { MAP_SIZES, TILE_SIZE } from '../../types/world';
 import { useGameStore } from '../../store/gameStore';
 
 /**
- * Scene-level setup: camera controls tuned for a map (pan first, high pitch)
- * and the game engine itself. Lighting is owned by the engine so it can follow
- * the time of day; terrain shadows are deliberately absent.
+ * High enough that nothing clips, low enough to stay well inside `far`. With an
+ * orthographic camera the altitude has no effect on framing at all — only on
+ * what falls inside the near/far planes.
+ */
+const CAMERA_ALTITUDE = 200;
+
+/**
+ * How far off vertical the camera sits, in radians.
+ *
+ * Not zero. At exactly zero the view direction is parallel to `camera.up`, the
+ * camera's roll is undefined, and OrbitControls resolves it by flipping the
+ * world around unpredictably as you pan. A thousandth of a radian is
+ * indistinguishable from straight down — the tile sides it exposes are well
+ * under a pixel — and it is numerically stable.
+ */
+const TOP_DOWN_EPSILON = 0.001;
+
+/**
+ * Scene-level setup: a straight-down orthographic map camera, and the game
+ * engine itself. Lighting is owned by the engine so it can follow the time of
+ * day; terrain shadows are deliberately absent.
  */
 const GameContainer = () => {
   const controlsRef = useRef<MapControlsImpl>(null);
   const camera = useThree((state) => state.camera);
+  const size = useThree((state) => state.size);
   const { worldSize, customWorldSize, worldSeed, worldRevision } = useGameStore();
   const { isInitialized } = useGameEngine();
 
@@ -24,43 +43,50 @@ const GameContainer = () => {
 
     const mapSize = worldSize === 'custom' ? customWorldSize : MAP_SIZES[worldSize];
     const worldUnits = mapSize * TILE_SIZE;
+    const ortho = camera as THREE.OrthographicCamera;
 
-    // Close enough to read a single creature, far enough to see the whole map
-    controls.minDistance = Math.max(3, worldUnits * 0.06);
-    controls.maxDistance = worldUnits * 1.35;
+    // Zoom, not distance. An orthographic camera's framing is `zoom`, and
+    // moving it along its view axis changes nothing you can see.
+    const viewport = Math.min(size.width, size.height);
+    // Whole map in frame at the far end, a few tiles across at the near end.
+    controls.minZoom = viewport / worldUnits * 0.75;
+    // At most about 34 tiles across the short edge. Closer than that and a
+    // single tile fills a large part of the screen, which makes an 8x8 grain
+    // read as eight enormous blocks rather than as texture.
+    controls.maxZoom = viewport / (TILE_SIZE * 34);
 
-    // Never look from below the horizon, and keep a map-like tilt
-    controls.minPolarAngle = 0;
-    controls.maxPolarAngle = Math.PI / 2.6;
+    // Straight down, and staying there. Rotation is what put the sides of the
+    // tiles on screen in the first place.
+    //
+    // A hair off vertical rather than exactly 0: at exactly zero the view
+    // direction is parallel to `camera.up` and the camera's orientation is
+    // undefined, which OrbitControls resolves by flipping unpredictably.
+    controls.minPolarAngle = TOP_DOWN_EPSILON;
+    controls.maxPolarAngle = TOP_DOWN_EPSILON;
+    controls.enableRotate = false;
 
-    // Keep panning inside the world instead of drifting into empty space
-    controls.screenSpacePanning = false;
+    controls.screenSpacePanning = true;
     controls.enableDamping = true;
     controls.dampingFactor = 0.12;
     controls.zoomSpeed = 1.1;
     controls.panSpeed = 1.0;
 
-    // Frame the new world.
-    //
-    // A fixed starting camera means a small world sits marooned in the middle
-    // of the screen and a large one runs off the edges. Scaling the distance to
-    // the world instead lands you close enough that the map reaches past the
-    // frame — which is what makes it read as a place you are above rather than
-    // a diorama on a table.
-    const direction = new THREE.Vector3(0, 50, 34).normalize();
-    const distance = THREE.MathUtils.clamp(
-      worldUnits * 0.58, controls.minDistance, controls.maxDistance,
-    );
+    // Frame the new world: close enough that the map runs past the edges of
+    // the screen, which is what makes it read as a place rather than an object.
     controls.target.set(0, 0, 0);
-    camera.position.copy(direction).multiplyScalar(distance);
+    camera.position.set(0, CAMERA_ALTITUDE, CAMERA_ALTITUDE * Math.tan(TOP_DOWN_EPSILON));
+    ortho.zoom = THREE.MathUtils.clamp(
+      viewport / worldUnits * 1.15, controls.minZoom, controls.maxZoom,
+    );
+    ortho.updateProjectionMatrix();
     controls.update();
-  }, [isInitialized, worldSize, customWorldSize, worldSeed, worldRevision, camera]);
+  }, [isInitialized, worldSize, customWorldSize, worldSeed, worldRevision, camera, size]);
 
   return (
     <MapControls
       ref={controlsRef}
       makeDefault
-      enableRotate
+      enableRotate={false}
       enableZoom
       enablePan
       target={[0, 0, 0]}

@@ -33,6 +33,7 @@ import { nudgeMood } from '../utils/mood';
 import { AGES, AGE_LENGTH, nextAge, type AgeAction } from '../utils/ages';
 import { resetPlotIds } from '../utils/plots';
 import { resetIdentity } from '../utils/identity';
+import { viewFraction, visibleWorldSpan } from '../utils/cameraView';
 import { ageBridge } from '../utils/ageBridge';
 import { recordDeath, resetStats, sampleWorld } from '../utils/worldStats';
 
@@ -431,7 +432,7 @@ export const useGameEngine = () => {
         return {
           x: target.x / TILE_SIZE + size / 2,
           y: target.z / TILE_SIZE + size / 2,
-          span: camera.position.distanceTo(target) / TILE_SIZE,
+          span: visibleWorldSpan(camera, target) / TILE_SIZE,
         };
       },
       captureSave: (label: string) => {
@@ -1179,7 +1180,7 @@ export const useGameEngine = () => {
     const orbit = controls as unknown as { target?: THREE.Vector3 } | null;
     const focus = orbit?.target ?? new THREE.Vector3();
     const worldUnits = size * TILE_SIZE;
-    const zoom = camera.position.distanceTo(focus) / worldUnits;
+    const zoom = viewFraction(camera, worldUnits, focus);
 
     // Fade bands, so labels arrive and leave rather than popping
     const kingdomOpacity = THREE.MathUtils.clamp((zoom - 0.35) / 0.2, 0, 1);
@@ -1230,7 +1231,7 @@ export const useGameEngine = () => {
 
     const orbit = controls as unknown as { target?: THREE.Vector3 } | null;
     const focus = orbit?.target ?? new THREE.Vector3();
-    const zoom = camera.position.distanceTo(focus) / (size * TILE_SIZE);
+    const zoom = viewFraction(camera, size * TILE_SIZE, focus);
     // Numbers over two hundred creatures at map scale are static, not
     // information. They fade in as you come down to where you can tell who
     // is who.
@@ -1414,15 +1415,16 @@ export const useGameEngine = () => {
     // scroll wheel does, so +/- and the wheel end up feeling like one control.
     if (store.zoomRequest && store.zoomRequest.nonce !== lastZoomNonceRef.current) {
       lastZoomNonceRef.current = store.zoomRequest.nonce;
-      const toCamera = camera.position.clone().sub(orbit.target);
-      const distance = toCamera.length();
-      const wanted = distance * (store.zoomRequest.direction > 0 ? 1.18 : 1 / 1.18);
-      const limits = controls as unknown as { minDistance?: number; maxDistance?: number };
-      const clamped = Math.min(
-        limits.maxDistance ?? Infinity,
-        Math.max(limits.minDistance ?? 1, wanted),
+      // Orthographic: zoom is a property, not a distance. Moving the camera
+      // along its own view axis changes nothing you can see.
+      const ortho = camera as THREE.OrthographicCamera;
+      const limits = controls as unknown as { minZoom?: number; maxZoom?: number };
+      const step = store.zoomRequest.direction > 0 ? 1 / 1.18 : 1.18;
+      ortho.zoom = Math.min(
+        limits.maxZoom ?? Infinity,
+        Math.max(limits.minZoom ?? 0.01, ortho.zoom * step),
       );
-      camera.position.copy(orbit.target).add(toCamera.setLength(clamped));
+      ortho.updateProjectionMatrix();
       orbit.update?.();
     }
 
@@ -1850,6 +1852,15 @@ export const useGameEngine = () => {
     // Water moves whether the world is paused or not: a frozen sea is the most
     // obvious tell that a place is a diagram. Same reason the sky keeps
     // drifting while paused.
+    // How big a tile is on screen right now, so the terrain shader can drop
+    // detail it cannot resolve.
+    {
+      const span = visibleWorldSpan(camera);
+      const viewportPixels = gl.domElement.clientHeight;
+      if (span > 0 && viewportPixels > 0) {
+        terrainRef.current?.setTilePixels((TILE_SIZE / span) * viewportPixels);
+      }
+    }
     terrainRef.current?.advanceWater(deltaTime);
     settlementRef.current?.advancePulse(deltaTime);
 

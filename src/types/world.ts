@@ -364,6 +364,11 @@ export interface Tile {
    * still forest underneath and comes back if the village goes.
    */
   road?: boolean;
+  /**
+   * Which material shade this tile wears, 0-1. A *smooth* field, unlike
+   * `variant` — see the note where it is generated.
+   */
+  shade?: number;
   
   // For pathfinding. `searchStamp` marks which A* run last touched these
   // scratch fields, so a search never has to clear the whole grid first.

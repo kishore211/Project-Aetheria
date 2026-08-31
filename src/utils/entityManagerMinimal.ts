@@ -9,6 +9,7 @@ import { chronicle, deathTopic } from './chronicle';
 import { recordBirth } from './worldStats';
 import { applyStatus, clearStatus, forgetStatuses } from './statusEffects';
 import { seedMood } from './mood';
+import { viewFraction } from './cameraView';
 import { applyScenario } from './scenarios';
 
 /**
@@ -232,13 +233,20 @@ export class EntityManager implements EntityIndex {
     });
   }
 
-  /** Cheap zoom-based level of detail: hide chrome when the map is far away. */
+  /**
+   * Cheap zoom-based level of detail: hide chrome when the map is far away.
+   *
+   * Asked as "how much of the world is on screen" rather than "how far is the
+   * camera", because the map camera is orthographic and sits at a fixed
+   * altitude — its distance never changes, so the old test froze detail at one
+   * value for ever.
+   */
   private updateDetailLevel(): void {
     if (!this.camera) return;
     const worldUnits = this.tiles.length * TILE_SIZE;
-    const distance = this.camera.position.length();
-    // Full detail up to a third of the world size, none past the whole world.
-    const t = (distance - worldUnits * 0.35) / (worldUnits * 0.65);
+    const fraction = viewFraction(this.camera, worldUnits);
+    // Full detail up to a third of the world in view, none past the whole world.
+    const t = (fraction - 0.35) / 0.65;
     this.detailLevel = Math.max(0, Math.min(1, 1 - t));
   }
 

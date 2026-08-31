@@ -22,13 +22,28 @@ function App() {
   return (
     <div className="w-full h-full flex flex-col">
       <div className="game-container flex flex-1">
+        {/*
+          Orthographic and straight down.
+          *
+          * This was a perspective camera at a 34-degree tilt, which is why the
+          * map read as "Minecraft boxes": at any tilt you see the *sides* of
+          * every tile, and perspective makes distant tiles lean. WorldBox is a
+          * flat top-down tilemap and no amount of tile art can imitate one from
+          * an angle — the geometry has to go.
+          *
+          * The camera keeps the default +Y up vector: OrbitControls measures its
+          * polar angle *from* `camera.up`, so overriding it to -Z put the world
+          * on the equator of the orbit and rendered the map edge-on as a line.
+          * Straight down is expressed as a polar angle instead, in
+          * GameContainer.
+          */}
         <Canvas
-          camera={{ position: [0, 50, 34], fov: 55, far: 800 }}
-          gl={{ antialias: true }}
+          orthographic
+          camera={{ position: [0, 200, 0], zoom: 14, near: 0.1, far: 600 }}
+          gl={{ antialias: false }}
           className="w-full h-full"
         >
           <color attach="background" args={['#0b1120']} />
-          <fog attach="fog" args={['#0b1120', 140, 420]} />
           <GameContainer />
         </Canvas>
         {/* Both belong to the world, not the HUD, so they survive Hide UI */}

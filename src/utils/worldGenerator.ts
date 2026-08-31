@@ -244,24 +244,17 @@ const TIME_TINTS: Record<TimeOfDayName, { color: THREE.Color; amount: number }> 
  * `variant` (0-1) applies a small deterministic shade jitter so large areas of
  * one biome do not look flat.
  */
-/**
- * The three material variants, as HSL offsets from a biome's base colour.
- *
- * Hue and saturation move, not just lightness. That is the whole point: a
- * brightness-only jitter reads as one surface under uneven light, which is
- * exactly the grid effect it was meant to break up.
- */
-const VARIANT_SHIFTS = [
-  { h: 0, s: 0, l: 0 },
-  { h: 0.014, s: -0.032, l: 0.018 },
-  { h: -0.016, s: 0.036, l: -0.016 },
-];
-
 export const getBiomeColor = (
   type: BiomeType,
   timeOfDay: TimeOfDayName = 'day',
   season: SeasonName = 'summer',
-  variant?: number,
+  /**
+   * Kept in the signature, unused, and deliberately so: several callers pass a
+   * tile's shade and it costs them nothing, while removing the parameter would
+   * silently shift `elevation` into its place at every call site. It is a
+   * no-op, not an oversight.
+   */
+  _shade?: number,
   elevation?: number,
 ): THREE.Color => {
   const color = new THREE.Color(BIOME_BASE_COLORS[type] ?? 0x9e9e9e);
@@ -278,38 +271,26 @@ export const getBiomeColor = (
     if (boost) color.multiplyScalar(boost);
   }
 
-  // Three material variants per biome, plus elevation shading.
+  // No per-tile colour offset at all. This is the correction that finally made
+  // fields read as continuous.
   //
-  // A single colour per biome with a brightness jitter on top is what made
-  // large areas read as a grid of one thing: brightness noise looks like
-  // *lighting* on one surface, where a hue and saturation shift looks like a
-  // different patch of ground. WorldBox ships three hand-authored art variants
-  // for 52 of its tiles and calls it out as the thing that "adds diversity to
-  // your worldscape automatically"
-  // (09-WORLDBOX-VISUAL-RESEARCH.md §3).
-  //
-  // Derived from the base colour rather than authored, because 28 biomes times
-  // three is 84 colours to pick blind, and offsets stay tunable in one place.
-  if (variant !== undefined) {
-    const shift = VARIANT_SHIFTS[Math.min(2, Math.floor(variant * 3))];
-    color.offsetHSL(shift.h, shift.s, shift.l);
-    // A little continuous jitter on top of the discrete variant, so two
-    // neighbouring tiles of the same variant are still not identical.
-    //
-    // Both this and the variant shifts above were halved once the fragment
-    // shader started drawing an 8x8 grain inside every tile. Whole-tile colour
-    // steps were doing the job the grain now does better, and together they
-    // read as large flat blocks — which is the grid, wearing a new coat.
-    color.multiplyScalar(0.988 + ((variant * 7) % 1) * 0.024);
-  }
+  // Decoding their art showed all three grass variants share an *identical*
+  // palette — #589038 / #558733 / #527e33 — and differ only in which pixel gets
+  // which shade. WorldBox never tints one grass tile differently from the next.
+  // Giving each tile its own hue and saturation offset, as this did, is
+  // precisely what turned a field into a patchwork of hard-edged squares: no
+  // amount of smoothing the offset helps, because the offset itself is the
+  // artefact. All the variation belongs *inside* the tile, where the shader's
+  // 8x8 grain puts it, using the same three shades everywhere.
 
-  // Elevation reads as a colour change, not only as geometry. WorldBox gives
-  // high and low ground genuinely different hex values (grass 5F833C vs
-  // 7EAF46) so height is legible with no lighting pass at all — which matters
-  // most looking straight down, where our tile heights foreshorten away.
+  // Elevation reads as a colour change, not only as geometry — and it is
+  // legitimately per-tile because height is a smooth field, so it produces
+  // broad relief rather than a grid. WorldBox gives high and low ground
+  // genuinely different hex values (grass 5F833C vs 7EAF46) for the same
+  // reason: from straight above, relief is invisible without it.
   if (elevation !== undefined && !isWaterBiome(type)) {
     const band = Math.max(0, Math.min(1, (elevation - 0.28) / 0.5));
-    color.offsetHSL(0, -band * 0.06, -band * 0.05);
+    color.offsetHSL(0, -band * 0.05, -band * 0.055);
   }
 
   // Time of day
@@ -575,9 +556,9 @@ export const generateWorld = ({
 }: GenerateWorldOptions): { tilesData: Tile[][] } => {
   const config = WORLD_TEMPLATES[template] ?? WORLD_TEMPLATES.continents;
   const simplex = new SimplexNoise(seed);
+  const variantRandom = seedrandom(`${seed}-variant`);
   const seededRandom = seedrandom(seed.toString());
   const random = () => seededRandom();
-  const variantRandom = seedrandom(`${seed}-variant`);
 
   const tilesData: Tile[][] = [];
 
@@ -657,7 +638,26 @@ export const generateWorld = ({
         tile.type = determineBiome(tile.height, tile.moisture, tile.temperature);
       }
 
+      // Two different kinds of randomness, deliberately kept apart.
+      //
+      // `variant` stays an independent per-tile roll, because the things that
+      // read it want scatter: which tiles get a tree, which stretch of coast
+      // turns to sand. A smooth field there would clump every forest into bands.
+      //
+      // `shade` picks which of three material shades the tile wears, and that
+      // wants the opposite. Rolled per tile, neighbours never agreed and a
+      // field of one biome came out as a patchwork of hard-edged squares —
+      // the single biggest reason the map read as tiled rather than continuous.
+      // Sampled from low-frequency noise, shade varies over a dozen tiles the
+      // way real ground does, and the shader's 8x8 grain supplies the fine
+      // texture on top.
       tile.variant = variantRandom();
+      tile.shade = Math.max(0, Math.min(0.999,
+        (simplex.noise2D(
+          (x / mapSize) * VARIANT_SCALE + 41.7,
+          (y / mapSize) * VARIANT_SCALE + 17.3,
+        ) + 1) / 2,
+      ));
       tile.resources = generateResources(tile, random);
       tile.structure = determineNaturalStructure(tile, random);
       tile.scaledHeight = computeScaledHeight(tile.height, tile.type);
@@ -768,6 +768,15 @@ export const shapeCoastlines = (tiles: Tile[][], size: number): void => {
     }
   }
 };
+
+/**
+ * How quickly the material-shade field varies, in cycles across the map.
+ *
+ * Low on purpose: at 9 cycles over a 128-tile world one patch spans roughly
+ * fourteen tiles, which reads as ground changing underfoot rather than as
+ * noise. Raise it and the patchwork comes back.
+ */
+const VARIANT_SCALE = 9;
 
 /** Ground above this is too steep to hold sand, and stays rock at the shore. */
 const COAST_SAND_MAX_HEIGHT = 0.40;
