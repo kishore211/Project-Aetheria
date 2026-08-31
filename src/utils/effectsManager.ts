@@ -1,5 +1,6 @@
 // Visual effects manager for god powers and weather.
 import * as THREE from 'three';
+import { TILE_SIZE } from '../types/world';
 
 interface ActiveEffect {
   object: THREE.Object3D;
@@ -38,35 +39,70 @@ export class EffectsManager {
     this.cloudArea = worldUnits * 1.1;
     this.rainArea = worldUnits;
 
-    // Procedural soft cloud texture
-    const canvas = document.createElement('canvas');
-    canvas.width = 128;
-    canvas.height = 64;
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      for (let i = 0; i < 14; i++) {
-        const x = 20 + Math.random() * 88;
-        const y = 20 + Math.random() * 24;
-        const r = 10 + Math.random() * 16;
-        const gradient = ctx.createRadialGradient(x, y, 0, x, y, r);
-        gradient.addColorStop(0, 'rgba(255,255,255,0.55)');
-        gradient.addColorStop(1, 'rgba(255,255,255,0)');
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-      }
-    }
-    const cloudTexture = new THREE.CanvasTexture(canvas);
+    // Clouds made of pixels, not of airbrush.
+    //
+    // These were soft radial gradients stretched across thirty tiles, which
+    // made them the one blurred thing on a map where everything else is an
+    // eight-pixel grid — zoomed in they read as a smear on the lens rather
+    // than as weather. Same gradients, but the alpha is then cut into three
+    // hard steps and sampled with a nearest filter, so a cloud has an edge and
+    // that edge is made of the same size pixel as the ground under it.
+    //
+    // The canvas is sized so one texel lands on one terrain pixel at the fixed
+    // sprite scale below: 256 texels over 32 tiles is the 8-per-tile the
+    // ground uses. Shape variety comes from three different textures rather
+    // than from scaling one, because scaling would break that alignment.
+    const CLOUD_TEXELS = 128;
+    const CLOUD_TILES = 16;
+    const cloudWidth = CLOUD_TILES * TILE_SIZE;
 
-    for (let i = 0; i < 10; i++) {
+    const makeCloudTexture = (): THREE.Texture => {
+      const canvas = document.createElement('canvas');
+      canvas.width = CLOUD_TEXELS;
+      canvas.height = CLOUD_TEXELS / 2;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        for (let i = 0; i < 14; i++) {
+          const x = 20 + Math.random() * 88;
+          const y = 20 + Math.random() * 24;
+          const r = 10 + Math.random() * 16;
+          const gradient = ctx.createRadialGradient(x, y, 0, x, y, r);
+          gradient.addColorStop(0, 'rgba(255,255,255,0.55)');
+          gradient.addColorStop(1, 'rgba(255,255,255,0)');
+          ctx.fillStyle = gradient;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+        // Body, fringe, nothing. Two steps rather than one so a cloud still
+        // has a softer rim, which is what keeps it from reading as a sticker.
+        const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        for (let i = 3; i < image.data.length; i += 4) {
+          const alpha = image.data[i];
+          image.data[i] = alpha > 140 ? 235 : alpha > 70 ? 130 : 0;
+        }
+        ctx.putImageData(image, 0, 0);
+      }
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.magFilter = THREE.NearestFilter;
+      texture.minFilter = THREE.NearestFilter;
+      return texture;
+    };
+
+    const cloudTextures = [makeCloudTexture(), makeCloudTexture(), makeCloudTexture()];
+
+    // Fewer, smaller, and all at one opacity. Ten sprites thirty tiles wide at
+    // random opacities do not read as ten clouds — they overlap into a single
+    // grey haze with no edge anywhere in it, which on this map looks like a
+    // smudge on the glass. At one opacity the overlaps land on a handful of
+    // discrete levels instead, and each cloud keeps its own shape.
+    for (let i = 0; i < 7; i++) {
       const material = new THREE.SpriteMaterial({
-        map: cloudTexture,
+        map: cloudTextures[i % cloudTextures.length],
         transparent: true,
-        opacity: 0.35 + Math.random() * 0.25,
+        opacity: 0.4,
         depthWrite: false,
       });
       const cloud = new THREE.Sprite(material);
-      const scale = 6 + Math.random() * 10;
-      cloud.scale.set(scale, scale * 0.45, 1);
+      cloud.scale.set(cloudWidth, cloudWidth * 0.5, 1);
       cloud.position.set(
         (Math.random() - 0.5) * this.cloudArea,
         9 + Math.random() * 5,

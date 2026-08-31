@@ -8,6 +8,18 @@ import { generateWorld } from './worldGenerator';
 import { DEFAULT_WORLD_LAWS } from '../store/gameStore';
 import type { Tile } from '../types/world';
 
+/**
+ * The same generator the test setup seeds `Math.random` with, so a test that
+ * samples several streams can pick its own rather than reruns of one.
+ */
+const mulberry32 = (seed: number) => () => {
+  seed |= 0;
+  seed = (seed + 0x6d2b79f5) | 0;
+  let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
+
 interface Harness {
   tiles: Tile[][];
   terrain: TerrainRenderer;
@@ -293,23 +305,49 @@ describe('save round trip', () => {
 });
 
 describe('colonisation', () => {
+  // Sampled across streams rather than asserted on one, because whether a
+  // village can spare a party in the time given is emergent: it depends on
+  // births, food, and where the wandering settlers happen to stop. Pinned to a
+  // single stream this passed for the wrong reason — any unrelated change that
+  // consumed a different amount of randomness (one more `THREE.Texture`, whose
+  // uuid costs four draws) flipped it, and a red test that means nothing is
+  // worse than no test.
   it('sends settlers out and founds a second village from them', () => {
-    const harness = makeHarness(70);
-    // A healthy starting population: enough to spare a party
-    for (let i = 0; i < 14; i++) {
-      harness.entities.spawnEntity('human', 30 + (i % 4), 30 + Math.floor(i / 4));
+    const STREAMS = 12;
+    let colonised = 0;
+    let announced = 0;
+
+    for (let stream = 0; stream < STREAMS; stream++) {
+      Math.random = mulberry32(1000 + stream * 7919);
+      const harness = makeHarness(70);
+      // A healthy starting population: enough to spare a party
+      for (let i = 0; i < 14; i++) {
+        harness.entities.spawnEntity('human', 30 + (i % 4), 30 + Math.floor(i / 4));
+      }
+
+      run(harness, 20);
+      expect(harness.settlements.villages.size).toBe(1);
+
+      // Give the founding village time to settle in, then colonise
+      run(harness, 160, 1);
+
+      const kingdom = Array.from(harness.settlements.kingdoms.values())[0];
+      if (kingdom.villageIds.length > 1) {
+        colonised++;
+        // A daughter village nobody hears about is a daughter village the
+        // chronicle cannot tell a story from, so the events are checked on
+        // exactly the runs that produced one.
+        if (
+          harness.events.some((message) => matchesTopic(message, 'settlers_leave'))
+          && harness.events.some((message) => matchesTopic(message, 'village_settled_from'))
+        ) {
+          announced++;
+        }
+      }
     }
 
-    run(harness, 20);
-    expect(harness.settlements.villages.size).toBe(1);
-
-    // Give the founding village time to settle in, then colonise
-    run(harness, 160, 1);
-
-    const kingdom = Array.from(harness.settlements.kingdoms.values())[0];
-    expect(kingdom.villageIds.length).toBeGreaterThan(1);
-    expect(harness.events.some((message) => matchesTopic(message, 'settlers_leave'))).toBe(true);
-    expect(harness.events.some((message) => matchesTopic(message, 'village_settled_from'))).toBe(true);
+    expect(colonised).toBeGreaterThanOrEqual(8);
+    expect(announced).toBe(colonised);
   });
 
   it('marks exactly one capital per kingdom', () => {

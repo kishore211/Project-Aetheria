@@ -1931,7 +1931,8 @@ export const useGameEngine = () => {
         camera.position.set(position.x, camera.position.y, position.z);
 
         if (ortho.isOrthographicCamera) {
-          const viewport = Math.min(gl.domElement.clientWidth, gl.domElement.clientHeight);
+          const canvas = gl.domElement;
+          const viewport = Math.min(canvas.clientWidth, canvas.clientHeight);
           ortho.zoom = THREE.MathUtils.clamp(
             viewport / (tilesAcross * TILE_SIZE),
             orbit?.minZoom ?? 0.01,
@@ -1944,7 +1945,7 @@ export const useGameEngine = () => {
       store: useGameStore,
     };
     (window as unknown as { __aetheria?: typeof bridge }).__aetheria = bridge;
-  }, [isInitialized, camera, controls, inBounds, applyToolEffect, tileWorldPosition]);
+  }, [isInitialized, camera, controls, gl, inBounds, applyToolEffect, tileWorldPosition]);
 
   return {
     tilesRef,

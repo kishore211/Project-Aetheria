@@ -22,13 +22,39 @@ import { SpriteCloud } from './spriteCloud';
 import type { Season, TimeOfDay } from '../types/world';
 
 const FIRE_COLOR = new THREE.Color('#ff6a1f');
-/** The four orthogonal neighbours, for shoreline outlines. */
-const NEIGHBOUR_OFFSETS: ReadonlyArray<readonly [number, number]> = [
-  [0, 1], [0, -1], [-1, 0], [1, 0],
-];
+
+/**
+ * A stable 0-1 value from a tile coordinate and a salt.
+ *
+ * The same shape as the shader's `cellHash`, and for the same reason: the map
+ * has to look identically scattered every time it is drawn or reloaded, so
+ * nothing here may reach for `Math.random`.
+ */
+const tileHash = (x: number, y: number, salt: number): number => {
+  const n = Math.sin(x * 127.1 + y * 311.7 + salt * 74.7) * 43758.5453123;
+  return n - Math.floor(n);
+};
 
 /** Packed earth, for village paths. */
 const ROAD_COLOR = new THREE.Color('#9a8260');
+
+/**
+ * What the ground is, as the alpha byte of the field texture.
+ *
+ * Land is 255 and water darkens with depth, which does double duty: it is
+ * both the water test the shoreline needs and the amount of pixel grain the
+ * surface carries. Measured on their art, shallow water is mottled across 22
+ * of its 28 interior pixels, close ocean across 2, and deep ocean is a single
+ * flat colour — detail falling away with depth is what stops a big sea
+ * reading as static. Anything not listed is land.
+ */
+const SURFACE_ALPHA: Partial<Record<string, number>> = {
+  deep_ocean: 0,
+  ocean: 80,
+  shallow_water: 160,
+  river: 160,
+  lake: 160,
+};
 
 /** Muted sea on data layers, so the coastline still reads. */
 const DATA_WATER = new THREE.Color('#182b45');
@@ -60,15 +86,20 @@ const pickDetail = (tile: Tile): { sprite: string; size: number } | null => {
   const structure = tile.structure?.type;
 
   if (structure) {
-    // Thinned out on purpose: a solid carpet of sprites hides the biome colour,
-    // which is what actually tells the player what they are looking at.
+    // Still thinned, but far less than it was.
+    //
+    // Two in five trees were drawn, which was the right call for a tilted
+    // camera where a wood was read from its silhouette. Straight down there is
+    // no silhouette: a forest is only as dense as the canopy on it, and at two
+    // in five it read as scrubland with a tree problem. The ground under it
+    // carries its own grain now, so it does not need the gaps to stay legible.
     if (structure === 'sapling' || structure === 'young_tree') {
-      return variant < 0.55 ? { sprite: tile.temperature < 0.32 ? 'pine' : 'tree', size: 0.26 } : null;
+      return variant < 0.75 ? { sprite: tile.temperature < 0.32 ? 'pine' : 'tree', size: 0.3 } : null;
     }
     if (structure === 'mature_tree' || structure === 'ancient_tree') {
-      if (variant > 0.62) return null;
+      if (variant > 0.85) return null;
       const cold = tile.temperature < 0.32;
-      const size = structure === 'ancient_tree' ? 0.46 : 0.38;
+      const size = structure === 'ancient_tree' ? 0.52 : 0.44;
       if (tile.type === 'enchanted_forest') return { sprite: 'crystal', size };
       if (tile.type === 'rainforest' && variant > 0.4) return { sprite: 'palm', size };
       return { sprite: cold ? 'pine' : 'tree', size };
@@ -130,12 +161,20 @@ export class TerrainRenderer {
   private overlayBorder: THREE.InstancedMesh;
   private details: SpriteCloud;
   private matrix = new THREE.Matrix4();
-  /** 1 per water instance, 0 per land instance. Drives the wave in the shader. */
-  private waterFlags!: THREE.InstancedBufferAttribute;
-  /** Which sides of each land tile meet water, packed S=1 N=2 W=4 E=8. */
-  private shoreFlags!: THREE.InstancedBufferAttribute;
-  /** How much pixel grain a tile carries, 0-1. Deep water carries none. */
-  private grainStrength!: THREE.InstancedBufferAttribute;
+  /**
+   * Every tile's colour and surface, as a texture the fragment shader reads.
+   *
+   * RGB is the tile's painted colour in sRGB; alpha is the surface — land, or
+   * one of three depths of water. Both live here rather than in per-instance
+   * attributes because a fragment that has bled across a tile boundary has to
+   * read the surface of the tile it is *showing*, not the one it belongs to. A shader cannot see a neighbouring instance, which is what left the
+   * map a grid of hard squares: with the whole map in a texture, a fragment
+   * can read any tile it likes, and the boundary between two of them can be
+   * dithered instead of drawn as a straight line. It is also what lets the
+   * coastline be found per pixel rather than per tile edge.
+   */
+  private field!: THREE.DataTexture;
+  private fieldData!: Uint8Array;
   /** Shared clock uniform, so every water tile moves together. */
   private waveTime = { value: 0 };
   /**
@@ -153,20 +192,19 @@ export class TerrainRenderer {
     this.mapSize = tiles.length;
     const count = this.mapSize * this.mapSize;
 
+    // Built before the first paint: `applyColor` writes into it.
+    this.fieldData = new Uint8Array(count * 4);
+    this.field = new THREE.DataTexture(this.fieldData, this.mapSize, this.mapSize);
+    this.field.magFilter = THREE.NearestFilter;
+    this.field.minFilter = THREE.NearestFilter;
+    this.field.needsUpdate = true;
+
     // --- terrain boxes ---
     const boxGeometry = new THREE.BoxGeometry(TILE_SIZE, 1, TILE_SIZE);
     // Shift the pivot to the bottom face so the instance's Y scale grows upward.
     boxGeometry.translate(0, 0.5, 0);
     const terrainMaterial = this.createTerrainMaterial();
     this.terrain = new THREE.InstancedMesh(boxGeometry, terrainMaterial, count);
-    // Per-instance flags read by the shader: whether this tile is water, and
-    // which of its four sides face water (packed one per bit).
-    this.waterFlags = new THREE.InstancedBufferAttribute(new Float32Array(count), 1);
-    boxGeometry.setAttribute('aWater', this.waterFlags);
-    this.shoreFlags = new THREE.InstancedBufferAttribute(new Float32Array(count), 1);
-    boxGeometry.setAttribute('aShore', this.shoreFlags);
-    this.grainStrength = new THREE.InstancedBufferAttribute(new Float32Array(count), 1);
-    boxGeometry.setAttribute('aGrain', this.grainStrength);
     this.terrain.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.terrain.castShadow = false;
     this.terrain.receiveShadow = false;
@@ -255,56 +293,33 @@ export class TerrainRenderer {
     material.onBeforeCompile = (shader) => {
       shader.uniforms.uWaveTime = this.waveTime;
       shader.uniforms.uTilePixels = this.tilePixels;
+      shader.uniforms.uField = { value: this.field };
+      shader.uniforms.uMapSize = { value: this.mapSize };
 
       shader.vertexShader = shader.vertexShader
         .replace('#include <common>', `#include <common>
-          attribute float aWater;
-          attribute float aShore;
-          attribute float aGrain;
-          uniform float uWaveTime;
-          varying float vWater;
-          varying float vWave;
-          varying vec2 vTileUv;
-          varying vec3 vTileOrigin;
+          varying vec2 vWorldXZ;
           varying vec3 vLocalNormal;
-          varying float vShore;
-          varying float vGrain;
         `)
         .replace('#include <begin_vertex>', `#include <begin_vertex>
-          vWater = aWater;
-          vWave = 0.0;
-          vTileUv = uv;
-          vTileOrigin = instanceMatrix[3].xyz;
           vLocalNormal = normal;
-          vShore = aShore;
-          vGrain = aGrain;
-          if (aWater > 0.5) {
-            // World-space position of this instance, so neighbouring tiles are
-            // offset from each other and the swell travels across the sea
-            // instead of every tile bobbing in place.
-            vec3 tileOrigin = instanceMatrix[3].xyz;
-            float phase = tileOrigin.x * 1.7 + tileOrigin.z * 1.1;
-            float swell = sin(uWaveTime * 1.15 + phase) * 0.6
-                        + sin(uWaveTime * 0.63 - phase * 1.9) * 0.4;
-            vWave = swell;
-            // Only the top face moves; the sides stay put so the tile does not
-            // detach from its neighbours.
-            if (position.y > 0.5) {
-              transformed.y += swell * 0.035;
-            }
-          }
+          // Where this fragment lands on the map, which is what lets the
+          // fragment shader look tiles up in the field texture.
+          vWorldXZ = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xz;
         `);
 
       shader.fragmentShader = shader.fragmentShader
         .replace('#include <common>', `#include <common>
-          varying float vWater;
-          varying float vWave;
-          varying vec2 vTileUv;
-          varying vec3 vTileOrigin;
+          varying vec2 vWorldXZ;
           varying vec3 vLocalNormal;
-          varying float vShore;
-          varying float vGrain;
           uniform float uTilePixels;
+          uniform float uWaveTime;
+          uniform sampler2D uField;
+          uniform float uMapSize;
+
+          const float TILE = ${TILE_SIZE.toFixed(6)};
+          /** Sub-tile resolution of the pixel art: 8x8, as their tiles are. */
+          const float GRID = 8.0;
 
           /** The off-hue pixels stamped on a decorated ground tile. */
           const vec3 FLOWER_TINT = vec3(0.92, 0.86, 0.42);
@@ -314,95 +329,168 @@ export class TerrainRenderer {
           float cellHash(vec2 cell) {
             return fract(sin(dot(cell, vec2(127.1, 311.7))) * 43758.5453123);
           }
+
+          // The field texture stores sRGB bytes, because eight bits of *linear*
+          // colour bands badly in the dark half and a third of this map is deep
+          // ocean. Decoded explicitly rather than by asking three for an sRGB
+          // internal format, so the result does not depend on which texture
+          // format the backend picked.
+          vec3 decodeField(vec3 c) {
+            return mix(
+              c / 12.92,
+              pow((c + 0.055) / 1.055, vec3(2.4)),
+              step(vec3(0.04045), c)
+            );
+          }
+
+          /**
+           * Read the map at a point, with the tile boundary dithered.
+           *
+           * This is the answer to "it still looks like squares". Each tile is
+           * its own instance, so a shader that only knows its own tile draws
+           * four perfectly straight, axis-aligned boundaries — and the eye
+           * assembles a plane of those into a grid however pretty the tile
+           * interiors are. Pixel-art tilesets solve it by drawing interlocking
+           * transitions into the art itself; with every tile's colour in a
+           * texture we can do the same thing without any art, by letting a
+           * fragment near an edge sometimes read its *neighbour's* tile.
+           *
+           * The roll is quantised to the 8x8 sub-tile grid and keyed off world
+           * position, so the result is a stable interlock of chunky pixels
+           * rather than a fizzing per-fragment fringe, and it does not crawl
+           * when the camera moves.
+           */
+          vec4 sampleField(vec2 tf, float bleed, out vec2 cellOut) {
+            vec2 cell = floor(tf);
+            vec2 within = fract(tf);
+            // Which neighbour each axis leans towards.
+            vec2 dir = step(0.5, within) * 2.0 - 1.0;
+            // Distance to the nearest edge on each axis, in sub-tile pixels.
+            vec2 edge = min(within, 1.0 - within) * GRID;
+            vec2 pixel = floor(tf * GRID);
+            // Two decorrelated draws, so the two axes do not bleed in lockstep.
+            vec2 roll = vec2(cellHash(pixel), cellHash(pixel + 37.0));
+            // Held to about a pixel and a half. Wider than that and the
+            // boundary stops being an interlock and becomes a band of static:
+            // every pair of neighbouring tiles differs slightly, so a soft
+            // dither speckles the *whole* map rather than just its seams.
+            vec2 chance = smoothstep(1.7, 0.0, edge) * bleed;
+            cell += dir * step(roll, chance);
+            cell = clamp(cell, vec2(0.0), vec2(uMapSize - 1.0));
+            cellOut = cell;
+            vec4 texel = texture2D(uField, (cell + 0.5) / uMapSize);
+            return vec4(decodeField(texel.rgb), texel.a);
+          }
+
+          /** Land is 1.0; water darkens with depth. See SURFACE_ALPHA. */
+          bool isWet(float surface) { return surface < 0.9; }
+
+          /** How much pixel grain a surface carries. */
+          float grainOf(float surface) {
+            if (surface > 0.9) return 1.0;
+            if (surface > 0.47) return 0.8;
+            if (surface > 0.16) return 0.25;
+            return 0.0;
+          }
+        `)
+        // The ground colour comes from the field, not from this instance, so
+        // that it can be a neighbour's colour. Done before lighting rather
+        // than after, so the Lambert term still applies to it.
+        .replace('#include <color_fragment>', `#include <color_fragment>
+          // Continuous tile coordinates: tile centres land on integers + 0.5.
+          vec2 tileCoord = vWorldXZ / TILE + uMapSize * 0.5;
+          // Below a handful of screen pixels a tile the dither is smaller than
+          // a pixel, and all it can do there is soften a coastline that should
+          // stay crisp. It fades in as the tiles grow.
+          float detail = smoothstep(12.0, 26.0, uTilePixels);
+          float bleed = smoothstep(6.0, 16.0, uTilePixels) * 0.5;
+          vec2 groundCell;
+          vec4 ground = sampleField(tileCoord, bleed, groundCell);
+          if (vLocalNormal.y > 0.5) {
+            diffuseColor.rgb = ground.rgb;
+          }
         `)
         .replace('#include <dithering_fragment>', `#include <dithering_fragment>
-          // The pixel grain on the top face.
-          //
-          // This is the fix for "when you zoom in it looks like square boxes".
-          // Decoding a real WorldBox grass tile showed an 8x8 sprite whose
-          // interior is noise between three greens about 4% apart, with cut
-          // corners and a darker bottom edge — so zooming in on their map
-          // reveals *pixels*, where zooming in on ours revealed a large smooth
-          // square. Same recipe here, generated per fragment instead of from a
-          // texture atlas: no atlas to author or manage, and it applies to all
-          // 28 biomes automatically.
           if (vLocalNormal.y > 0.5) {
-            // Fade the grain out as tiles shrink on screen.
+            // The pixel grain on the top face.
             //
-            // An 8x8 pattern inside a tile that covers four screen pixels
-            // cannot be resolved, and what you get instead is moiré — the
-            // zoomed-out map came out covered in diagonal stripes. Below about
-            // twelve pixels a tile the grain is dropped entirely and the tile
-            // is simply its flat colour, which is also what it should look like
-            // from that far away.
-            float detail = smoothstep(12.0, 26.0, uTilePixels);
-            vec2 cell = floor(vTileUv * 8.0);
-            // Decorrelate each tile's grain by offsetting the lookup by a
-            // per-tile random amount, rather than by the tile's coordinates.
+            // Decoding a real WorldBox grass tile showed an 8x8 sprite whose
+            // interior is noise between three greens about 4% apart — so
+            // zooming in on their map reveals *pixels*, where zooming in on
+            // ours revealed a large smooth square. Same recipe here, generated
+            // per fragment instead of from a texture atlas: no atlas to author
+            // or manage, and it applies to all 28 biomes automatically.
             //
-            // The first attempt added a scaled tile position straight into the
-            // hash input, which collides on a regular lattice — so neighbouring
-            // tiles shared a pattern and the grid came straight back as a
-            // checkerboard. A random offset per tile has no lattice to align to.
-            float tileNoise = cellHash(floor(vTileOrigin.xz * 2.0 + 0.5));
-            float pick = cellHash(cell + vec2(tileNoise * 71.0, tileNoise * 113.0));
+            // Keyed off the sampled cell rather than this instance, so a
+            // fragment that bled across a boundary carries the grain of the
+            // tile it is showing and the transition stays seamless.
+            vec2 pixel = floor(tileCoord * GRID);
+            float tileNoise = cellHash(groundCell * 1.7 + 3.3);
+            float pick = cellHash(pixel + vec2(tileNoise * 71.0, tileNoise * 113.0));
 
             // Three shades, chosen not blended: a smooth gradient reads as
-            // lighting, discrete steps read as pixel art.
-            // Three shades about 3% apart, matching what their art measures at
-            // (interior spread a median 6.9%, never past ~12% or the tile stops
-            // reading as one material).
-            //
-            // Distributed 39/39/22 rather than evenly. Their most common
-            // measured layout is 11/11/6 of 28 interior pixels, and an even
-            // third each is the one distribution that reads as noise rather
-            // than as a material with a dominant tone and a highlight.
+            // lighting, discrete steps read as pixel art. About 3% apart,
+            // matching what their art measures at (interior spread a median
+            // 6.9%, never past ~12% or the tile stops reading as one
+            // material), and distributed 39/39/22 rather than evenly — their
+            // most common measured layout is 11/11/6 of 28 interior pixels,
+            // and an even third each is the one distribution that reads as
+            // noise rather than as a material with a dominant tone.
             float shade = pick < 0.39 ? 0.968 : (pick < 0.78 ? 1.0 : 1.032);
             // Depth flattens detail. Shallow water is mottled across 22 of 28
             // interior pixels; close ocean 2 of 28; deep ocean is a single flat
-            // colour with no edge at all. Land keeps its full grain.
-            gl_FragColor.rgb = mix(gl_FragColor.rgb, gl_FragColor.rgb * shade, vGrain * detail);
-
-            // Corners left darker rather than transparent. Theirs cuts them out
-            // over a solid base layer; we have no layer underneath, so a hole
-            // would show sky. Darkening reads as the same rounded silhouette.
-            vec2 fromEdge = min(cell, 7.0 - cell);
-            if (fromEdge.x + fromEdge.y < 1.0) {
-              gl_FragColor.rgb *= mix(1.0, 0.90, detail);
-            }
+            // colour. Land keeps its full grain.
+            float grain = grainOf(ground.a);
+            gl_FragColor.rgb = mix(gl_FragColor.rgb, gl_FragColor.rgb * shade, grain * detail);
 
             // Roughly one land tile in four carries two to four off-hue pixels
             // — their flower tiles, which are the plain ground tile with a few
             // pixels stamped over it. It is the cheapest charm in the whole
             // palette: a field stops being a colour and becomes a field.
-            if (vGrain > 0.9 && detail > 0.5) {
-              float tuft = cellHash(cell * 3.7 + vec2(tileNoise * 211.0, 17.0));
-              if (tileNoise > 0.77 && tuft > 0.88) {
+            if (!isWet(ground.a) && detail > 0.5) {
+              float tuft = cellHash(pixel * 3.7 + vec2(tileNoise * 211.0, 17.0));
+              // Rarer than the first pass, which put a few off-hue pixels on
+              // roughly a quarter of all land and left the whole map fizzing.
+              // Their flower tiles are an occasional find, not a texture.
+              if (tileNoise > 0.88 && tuft > 0.93) {
                 gl_FragColor.rgb = mix(gl_FragColor.rgb, FLOWER_TINT, 0.5);
               }
             }
 
-            // The shoreline outline.
+            // The shoreline.
             //
-            // Drawn on *every* tile in the first attempt, which put a faint
-            // horizontal line under every tile on the map — a grid, wearing a
-            // new coat again. Their art spends an edge colour on only 12 of 185
-            // tiles, and only on the waterline, the snowline and player-built
-            // walls (09-WORLDBOX-VISUAL-RESEARCH.md §3). That restraint is the
-            // whole reason their silhouettes read.
+            // Four taps around this fragment, through the same dithered
+            // lookup, so the outline follows the interlocked coast exactly
+            // instead of tracing the square tile underneath it. The tap
+            // distance is held at roughly one screen pixel at every zoom:
+            // fixed at an eighth of a tile it would thin to nothing on the
+            // world map, and the coastline is the last thing that should stop
+            // reading when you zoom out.
             //
-            // aShore carries which of the four sides touch water, packed one per
-            // bit, so the outline is drawn only against the sea.
-            if (vShore > 0.0) {
-              float flags = vShore;
-              bool south = mod(flags, 2.0) >= 1.0;
-              bool north = mod(floor(flags / 2.0), 2.0) >= 1.0;
-              bool west  = mod(floor(flags / 4.0), 2.0) >= 1.0;
-              bool east  = mod(floor(flags / 8.0), 2.0) >= 1.0;
-              bool onEdge =
-                (south && cell.y >= 7.0) || (north && cell.y <= 0.0) ||
-                (west && cell.x <= 0.0) || (east && cell.x >= 7.0);
-              if (onEdge) gl_FragColor.rgb *= 0.82;
+            // Their art spends an edge colour on only 12 of 185 tiles, and
+            // only on the waterline, the snowline and player-built walls
+            // (09-WORLDBOX-VISUAL-RESEARCH.md §3). That restraint is the whole
+            // reason their silhouettes read, so this is the waterline alone.
+            float tap = max(1.0 / GRID, 1.0 / max(uTilePixels, 1.0));
+            vec2 ignored;
+            float wetNear = 0.0;
+            float dryNear = 0.0;
+            for (int i = 0; i < 4; i++) {
+              vec2 dir = i == 0 ? vec2(tap, 0.0)
+                       : i == 1 ? vec2(-tap, 0.0)
+                       : i == 2 ? vec2(0.0, tap)
+                                : vec2(0.0, -tap);
+              float a = sampleField(tileCoord + dir, bleed, ignored).a;
+              wetNear = max(wetNear, isWet(a) ? 1.0 : 0.0);
+              dryNear = max(dryNear, isWet(a) ? 0.0 : 1.0);
+            }
+            if (isWet(ground.a)) {
+              // Sea against a shore: the dark rim that makes a coast a coast.
+              gl_FragColor.rgb *= mix(1.0, 0.70, dryNear);
+            } else {
+              // Land against the sea: a much softer lip, so the strong line
+              // stays on one side of the boundary and reads as one edge.
+              gl_FragColor.rgb *= mix(1.0, 0.90, wetNear);
             }
           } else {
             // Sides read as thickness, not as faces. Darkening them is what
@@ -410,24 +498,44 @@ export class TerrainRenderer {
             gl_FragColor.rgb *= 0.72;
           }
 
-          if (vWater > 0.5) {
-            // A glint on the crests. Sharpened with a power curve so it reads
-            // as scattered highlights rather than as the whole sea pulsing.
+          if (isWet(ground.a) && vLocalNormal.y > 0.5) {
+            // The swell, evaluated per fragment rather than per instance.
             //
-            // Tuned by eye against two forced phases: the first pass at half
-            // these numbers was technically correct and visually almost
-            // invisible, which for the one surface covering a third of the map
-            // is the same as not having done it.
-            float crest = pow(max(vWave, 0.0), 3.0);
-            gl_FragColor.rgb += vec3(0.10, 0.13, 0.17) * crest;
-            gl_FragColor.rgb *= 0.93 + vWave * 0.07;
+            // One brightness per tile turns the sea into a chequerboard of
+            // lighter and darker squares — the same "it looks like boxes"
+            // complaint wearing a different coat, and on the one surface that
+            // covers a third of the map. And the two waves cross rather than
+            // one being a harmonic of the other: phases that stay in step
+            // paint the whole ocean with parallel diagonal stripes, which is
+            // what the world map showed. Crossed waves interfere, and
+            // interference reads as water.
+            //
+            // Quantised to the sub-tile grid, so the shimmer is made of the
+            // same pixels as everything else rather than being the one
+            // airbrushed thing on a pixel map.
+            // Phased per sub-tile pixel rather than per tile, so a wave is
+            // about a tile long. The first pass ran the phase in tile units,
+            // which put the wavelength at four tiles: quantising a thirty-pixel
+            // gradient to eight-pixel steps changes nothing you can see, and
+            // the sea came out covered in soft airbrushed circles.
+            vec2 wave = floor(tileCoord * GRID);
+            float phaseA = wave.x * 0.70 + wave.y * 0.45;
+            float phaseB = wave.y * 0.80 - wave.x * 0.55;
+            float swell = sin(uWaveTime * 1.15 + phaseA) * 0.55
+                        + sin(uWaveTime * 0.63 + phaseB) * 0.45;
+            // Cut, not faded: a threshold gives scattered pixels that wink on
+            // and off, which is what a pixel sea does. A smoothstep here gives
+            // a gradient, and a gradient on a pixel map reads as a smudge.
+            float crest = step(0.66, swell) * detail;
+            gl_FragColor.rgb += vec3(0.075, 0.095, 0.115) * crest;
+            gl_FragColor.rgb *= 1.0 + swell * 0.015 * detail;
           }
         `);
     };
 
     // Two materials that compile to different programs must not share a cache
     // key, and three.js keys partly on this.
-    material.customProgramCacheKey = () => 'aetheria-terrain-water';
+    material.customProgramCacheKey = () => 'aetheria-terrain-field';
     return material;
   }
 
@@ -473,7 +581,6 @@ export class TerrainRenderer {
     this.terrain.instanceMatrix.needsUpdate = true;
 
     this.applyColor(tile, id, timeOfDay, season);
-    this.syncWaterFlag(tile, id);
     this.syncDetail(tile, id);
     this.syncOwnership(tile);
   }
@@ -519,86 +626,28 @@ export class TerrainRenderer {
     tile.color = color;
     this.terrain.setColorAt(id, color);
     if (this.terrain.instanceColor) this.terrain.instanceColor.needsUpdate = true;
+    this.writeField(tile, color);
   }
 
   /**
-   * Mark this instance as sea or land for the wave shader.
+   * Publish a tile's colour and wetness into the field texture.
    *
-   * Kept in `syncTile` rather than computed in the shader from colour, because
-   * terraforming changes a tile's type at runtime and a river carved through a
-   * hill has to start moving immediately.
+   * Indexed by map position rather than by instance id: the shader finds a
+   * tile by turning a world coordinate into a texel, so the layout has to be
+   * a straight translation of the map.
    */
-  private syncWaterFlag(tile: Tile, id: number): void {
-    const wanted = isWaterBiome(tile.type) ? 1 : 0;
-    if (this.waterFlags.array[id] !== wanted) {
-      this.waterFlags.setX(id, wanted);
-      this.waterFlags.needsUpdate = true;
-    }
-    this.syncGrain(tile, id);
-    this.syncShoreFlags(tile, id);
-    // A tile becoming land or sea changes its neighbours' outlines too. Without
-    // this, carving a river leaves the banks un-outlined until something else
-    // happens to touch them.
-    for (const [dx, dy] of NEIGHBOUR_OFFSETS) {
-      const nx = tile.x + dx;
-      const ny = tile.y + dy;
-      if (nx < 0 || ny < 0 || nx >= this.mapSize || ny >= this.mapSize) continue;
-      const neighbour = this.tiles[nx][ny];
-      this.syncShoreFlags(
-        neighbour, neighbour.instanceId ?? this.instanceIdFor(nx, ny),
-      );
-    }
+  private writeField(tile: Tile, color: THREE.Color): void {
+    const offset = (tile.y * this.mapSize + tile.x) * 4;
+    // sRGB bytes, not linear ones — see `decodeField` in the shader.
+    const hex = color.getHex();
+    this.fieldData[offset] = (hex >> 16) & 255;
+    this.fieldData[offset + 1] = (hex >> 8) & 255;
+    this.fieldData[offset + 2] = hex & 255;
+    this.fieldData[offset + 3] = SURFACE_ALPHA[tile.type] ?? 255;
+    // One upload per frame however many tiles changed.
+    this.field.needsUpdate = true;
   }
 
-  /**
-   * Which sides of a land tile meet the sea.
-   *
-   * Computed here rather than in the shader because a shader cannot see a
-   * neighbour. Terraforming changes this, so a coast carved by hand gets its
-   * outline immediately — and the four tiles around the change need refreshing
-   * too, which `reshapeTile` handles by syncing the whole brush.
-   */
-  private syncShoreFlags(tile: Tile, id: number): void {
-    let flags = 0;
-    if (!isWaterBiome(tile.type)) {
-      // Bit order matches the shader: S=1, N=2, W=4, E=8. Which compass
-      // direction maps to which UV edge does not matter, only that the two
-      // agree — an outline on the wrong side of a tile is still an outline.
-      if (this.isWaterAt(tile.x, tile.y + 1)) flags += 1;
-      if (this.isWaterAt(tile.x, tile.y - 1)) flags += 2;
-      if (this.isWaterAt(tile.x - 1, tile.y)) flags += 4;
-      if (this.isWaterAt(tile.x + 1, tile.y)) flags += 8;
-    }
-    if (this.shoreFlags.array[id] === flags) return;
-    this.shoreFlags.setX(id, flags);
-    this.shoreFlags.needsUpdate = true;
-  }
-
-  /**
-   * How much grain a tile shows.
-   *
-   * Land keeps all of it; water loses it with depth. Measured on their art:
-   * shallow water is mottled across 22 of its 28 interior pixels, close ocean
-   * across 2, and deep ocean is a single flat colour with no bottom edge at
-   * all. Detail falling away with depth is what stops a big sea reading as
-   * static.
-   */
-  private syncGrain(tile: Tile, id: number): void {
-    const wanted = tile.type === 'deep_ocean' ? 0
-      : tile.type === 'ocean' ? 0.25
-        : tile.type === 'shallow_water' ? 0.8
-          : 1;
-    if (this.grainStrength.array[id] === wanted) return;
-    this.grainStrength.setX(id, wanted);
-    this.grainStrength.needsUpdate = true;
-  }
-
-  private isWaterAt(x: number, y: number): boolean {
-    if (x < 0 || y < 0 || x >= this.mapSize || y >= this.mapSize) return false;
-    return isWaterBiome(this.tiles[x][y].type);
-  }
-
-  /** The 0-1 quantity a data layer paints. */
   private layerValue(tile: Tile): number {
     switch (this.layer) {
       case 'height': return tile.height;
@@ -662,11 +711,21 @@ export class TerrainRenderer {
       return;
     }
     const position = this.worldPosition(tile, this.scratchPosition).clone();
-    position.y += DETAIL_LIFT + detail.size * 0.5;
+    // Nudged off the tile centre, and sized a little differently each time.
+    //
+    // One sprite per tile, centred, is a lattice — and a lattice of trees
+    // reads as a plantation. With the tile boundaries themselves now dithered,
+    // this was the loudest remaining tell that the map is a grid: the
+    // *decoration* was still drawing it.
+    const spread = TILE_SIZE * 0.34;
+    position.x += (tileHash(tile.x, tile.y, 1) - 0.5) * 2 * spread;
+    position.z += (tileHash(tile.x, tile.y, 2) - 0.5) * 2 * spread;
+    const size = detail.size * (0.82 + tileHash(tile.x, tile.y, 3) * 0.36);
+    position.y += DETAIL_LIFT + size * 0.5;
     this.details.set(id, {
       position,
       sprite: detail.sprite,
-      size: detail.size,
+      size,
       tint: DETAIL_TINTS[tile.type],
       sway: SWAY_BY_SPRITE[detail.sprite] ?? 0,
     });
