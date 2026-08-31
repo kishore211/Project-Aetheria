@@ -34,7 +34,7 @@ Everything here is already simulated and simply invisible. No new simulation.
 | 9.4 | **Speech / thought bubbles** with written lines | ✅ done | `utils/dialogue.ts` — 18 occasions x 3-4 lines. Rationed at ~1.6/s globally with a 14 s per-unit cooldown, plus a coin flip so the budget spreads across the population. Phase 10 will widen the occasion table, not rebuild it |
 | 9.7 | **Important-event flash** for big moments | ✅ done | `ScreenFlash.tsx`, four tones. Vignette not flat wash; off under `prefers-reduced-motion` |
 | 9.8 | **Screen shake** on meteor/quake | ✅ done | Through `camera.setViewOffset`, *not* camera position — MapControls absorbs a position offset into its orbit state and the shake becomes a permanent random walk (measured 0.09 units of drift per lightning strike). Amplitude in screen pixels, so it reads the same at every zoom |
-| 9.9 | **Number tweens** for counters and bars | todo | `useTween` hook |
+| 9.9 | **Number tweens** for counters and bars | ✅ done | Landed as 16.12 |
 
 Landed alongside, both found by testing the above:
 - **Village leaders and kings are real units now**, so the icons have someone
@@ -180,18 +180,16 @@ Ordered strictly by felt-impact per hour.
 | 16.5 | **Wind sway on trees and decoration** | ✅ done | Same GPU trick as the water, on the `SpriteCloud`. `utils/spriteCloud.ts` |
 | 16.6 | **Building scale-pulse** | ✅ done | WorldBox's *"little scale animations synced with flow of time speed"* — why a paused WorldBox still looks alive and a sped-up one looks frantic |
 | 16.7 | **White flash + scale pop on status gain** | ✅ done | One line, and it is how 200 simultaneous agents stay readable. `utils/entitySystemMinimal.ts` |
-| 16.8 | **Hop locomotion + per-unit idle shake** | todo | Their locomotion is a hop, not a walk; they ship *"units random shake animation"*. Cheap on top of 16.1 |
+| 16.8 | **Hop locomotion + per-unit idle shake** | ✅ done | `abs(sin)` was two soft bounces with no rest in them — a hover. Half a sine clipped at zero gives one arc and a beat of ground contact, and the beat is what reads as weight. Squash and stretch on the same clock; idle gets a brief damped twitch phased per creature |
 | 16.9 | **Sound variant pools** | ✅ done | WorldBox: 4 loops, 1,432 one-shots, 20 variants for placing TNT alone. Ours plays one identical tone per action. `utils/soundManager.ts` |
 | 16.10 | **One paint sound per material** | ✅ done | `_Sand`, `_Soil`, `_Forest`, `_Mountains`. The map starts to sound like a place |
-| 16.11 | **Border fills fade to outline as the camera descends** | todo | How one map is both a strategy view and a diorama |
+| 16.11 | **Border fills fade to outline as the camera descends** | ✅ done | The border firms up as the fill thins: a line one tile wide gets *harder* to see as you approach it |
 | 16.12 | **Number tweens** (was 9.9) | ✅ done | *"Make the numbers go brrrr."* `components/ui/TopBar.tsx`, `StatsPanel.tsx` |
-| 16.13 | **Saturation as progress on plot icons** | todo | Read "how close" without opening a panel. `utils/unitIconLayer.ts` |
-| 16.14 | **Held-item sprites** (4 shapes × material tint) | speculative | Tech tier readable across the map with no UI. Needs an item system we do not have |
+| 16.13 | **Saturation as progress on plot icons** | ✅ done | A fresh plot is nearly grey, a ripe one is blood red. `plottingIds()` carries the share now, and the furthest-along scheme wins when somebody runs two |
+| 16.14 | **Held-item sprites** (4 shapes × material tint) | ✅ done | No item system needed after all. Not wood/stone/bronze/iron — bronze and wood are the same warm brown at eight pixels, so the two rungs that matter most would be the two nobody could tell apart. Brown, grey, pale steel, gold |
 
 **Gate:** pause the game, look at the map, and it is still visibly alive.
-**Status:** met for water, foliage, buildings and creatures. 16.4 (edge
-colours), 16.8 (hop locomotion), 16.11 (border fade on zoom) and 16.13
-(saturation as progress) remain — all small, none load-bearing.
+**Status:** met, and the phase is complete.
 
 ---
 
@@ -205,18 +203,18 @@ WorldBox towns looking *designed*.
 | 17.1 | **A zone grid, and two-stage placement** | ✅ done. 3×3 zones rather than their 8×8, because a whole town here is six tiles across |
 | 17.2 | **Three siting classes: cluster / solitary / border** | ✅ done. Verified live: towers on the outer ring, temple five tiles out, houses packed in the middle. Has a relaxed fallback, because a solitary building that can find nowhere fails *silently* |
 | 17.3 | **A layout per culture** — ordered, concentric, honeycomb, diagonal, scattered | ✅ done. The test compares rendered ASCII shapes, which caught `honeycomb` reducing algebraically to `diagonal` |
-| 17.4 | **Footprints grow with tier** | todo. Needs building tiers, which do not exist yet |
+| 17.4 | **Footprints grow with tier** | ✅ done. Tier 3 stands on four tiles. Every tile of a footprint is tested, not just the anchor — a hall whose corner is on good ground otherwise puts its far side in a lake — and demolition matches the whole block |
 | 17.5 | **Roads for free** | ✅ done. Two neighbours rather than one, because one gives a tree with no loops and a real village has junctions. Additive over the biome, so an abandoned site loses its roads |
 | 17.6 | **Loot → tax → money as three fields** | ✅ done |
 | 17.7 | **Buildings yield, modified by ground** | ✅ done. Fertile 1.4×, badlands 0.6×, corrupted 0.4× — siting becomes a decision |
 | 17.8 | **Eating is a purchase** | ✅ done |
 | 17.9 | **The city ledger as four one-line terms** | ✅ done. Tested including that a new three-founder village is not already in deficit |
-| 17.10 | **The tool-in-hand rule** | The labour economy readable from silhouettes. Depends on 16.14 |
+| 17.10 | **The tool-in-hand rule** | ✅ done. Driven by what a creature is *doing*, not what it is; the load decides between axe and pick. Idle hands stay empty, or the tools stop meaning anything |
 
-**Gate:** met. Towns have streets, roads and a treasury; two cultures build
-visibly different shapes. Still open: 17.4 (footprints per tier) and 17.10
-(tool-in-hand), both of which need a building-tier and an item system that do
-not exist yet.
+**Gate:** met, and the phase is complete. Towns have streets, roads, a
+treasury and a skyline with a hierarchy in it; two cultures build visibly
+different shapes; and you can read a settlement's tech level off the tools in
+its people's hands from across the map.
 
 ### A note on the map itself
 
@@ -238,14 +236,15 @@ neither is on any earlier plan.
 
 | # | Item | Notes |
 |---|---|---|
-| 18.1 | **A world-behaviour table** — one scheduler where every ambient process is a row of `{name, minInterval, maxInterval, action}` | Vegetation spread, mineral surfacing, animal spawning, road decay, disasters. Replaces our scattered ad-hoc timers with one readable table |
-| 18.2 | **A per-tile `temperature` scalar with a threshold cascade** | >5 thaw, >10 ignite, >20 strip biome, >30 soil→sand, >100 sand→lava. Melting a continent becomes emergent rather than a bespoke power. Merges with the existing Age harshness system |
-| 18.3 | **Clouds as one drifting sprite with a drop type** | Weather, plague, blessing-rain and biome seeding all become rows in one ~100-line system |
-| 18.4 | **Biome step-actions at ~5%** | Swamp −40% speed, corrupted curses you, badlands parches you. One field on the tile type, enormous character |
-| 18.5 | **Disasters that consume a building** | A disaster that needs a windmill and destroys it makes the player's own infrastructure the attack surface |
+| 18.1 | **A world-behaviour table** | ✅ done. Eight rows, one scheduler. Reading the table down is what found the three missing rows: ore surfacing, wildlife refilling a hunted-out forest, and roads fading from a settlement nobody lives in. Each row draws its own next gap, because one clock and a modulo makes every process with a common factor fire together |
+| 18.2 | **A per-tile `temperature` scalar with a threshold cascade** | ✅ done. Their ladder's *shape*, none of its numbers — theirs ignite at 10, which on our scale would put half the map permanently alight. Calibrating the fire found a real bug: a sustained source settles at ~25× its rate, and the by-eye figure settled four rungs up and turned every forest fire into a lava field |
+| 18.3 | **Clouds as one drifting sprite with a drop type** | ✅ done. Rain is the one with consequence: it is the world's only counterweight to the thermal ladder, so a fire season now ends on its own |
+| 18.4 | **Biome step-actions at ~5%** | ✅ done. Speed always on and never announced; the hazard per simulated *second*, because per frame means the world hurts more on a fast machine. Most of the map is deliberately free — if everywhere is difficult then nowhere is |
+| 18.5 | **Disasters that consume a building** | ✅ done. Eight of them. Also settles the oldest problem with random disasters — nothing to aim at in an empty world — since the targeting now falls out: no works, no attack surface |
 
-**Gate:** leave the game running untouched for five minutes and things happen
-that are worth watching.
+**Gate:** met. Leave it running and vegetation creeps, ore surfaces, wildlife
+returns, roads fade, rain puts fires out, and something a village built falls
+down.
 
 ---
 
@@ -257,12 +256,12 @@ phases 16–18.
 
 | # | Item | Notes |
 |---|---|---|
-| 19.1 | **Creature colour ramps** — one greyscale sprite + a two-stop palette per subspecies | WorldBox got its entire creature variety from 52 From→To pairs. This is the highest variety-per-byte item in the whole plan |
-| 19.2 | **Beast/uplifted pairs** — one mechanic converts between them | 56 creatures became 118 entries; 36 were free |
-| 19.3 | **Size as one float, with traits adding deltas**, plus a discrete tier gating predation | A visible food chain from one comparison |
-| 19.4 | **A joke line for every creature and every biome** | Treated as a shipping requirement, not a nice-to-have. It is most of the game's voice |
-| 19.5 | **More biomes and more disasters**, each with a step-action and a flavour line | Volume, but only once 18.4 makes it readable |
-| 19.6 | **Ten user-assignable hotkey slots** | `0`–`9`, `Ctrl`+digit to save |
+| 19.1 | **Creature colour ramps** | ✅ done. Ours are not greyscale, so this *relights*: every palette entry reduced to its brightness and read back off a two-stop ramp. Eyes are never remapped — do that and a field of wolves becomes a field of coloured smudges |
+| 19.2 | **Beast/uplifted pairs** | ✅ done. One flag. Everything downstream already keyed off one question — does this thing have an inner life — so nothing else had to change to let a wolf make a friend |
+| 19.3 | **Size as one float, plus a discrete tier gating predation** | ✅ done. The obvious rule — strictly bigger — survives every intuition and then forbids wolves from hunting deer. One band above, and a test walks every pair in FOOD_CHAIN so the next person to retune a size finds out immediately |
+| 19.4 | **A joke line for every creature and every biome** | ✅ done. Keyed off the creature's id, not `Math.random`: a line that changes each time you look is noise, and drawing from the shared stream while painting a panel would make the simulation depend on which panels are open |
+| 19.5 | **More biomes and more disasters** | ✅ done. Ash, salt flat and bloom, none of them generated — each exists because a system produces it. A biome with no provenance is a colour on a palette |
+| 19.6 | **Ten user-assignable hotkey slots** | ✅ done. An unbound digit still does exactly what it did before, and the bar shows the real binding rather than the tab position |
 
 ---
 
@@ -294,8 +293,33 @@ phases 16–18.
 7. **Write the copy as we go.** A power without a description is unfinished.
 8. **One commit per coherent change,** with the *why* in the message.
 
-## Honest estimate of scale
+## Where this ended up
 
-Phase 16 is a week of work and is the one that answers the actual complaint.
-Phases 17–19 are each larger than 16 and each leaves the game better on its own,
-so it is worth stopping after any of them.
+Phases 16 through 19 are complete, along with the two items carried over from
+earlier. What is worth recording is not the list but the four things the work
+kept teaching, because they are the ones that will come up again:
+
+**The map problem was structural, not decorative.** Three rounds of tile art
+did not fix "it looks like square boxes" because each tile was its own instance
+and a shader that can only see its own tile draws four perfectly straight
+edges. The fix was to put the whole map in a texture so a fragment can read its
+*neighbour* — and then the dithered boundaries, the per-pixel coastline and the
+grain that survives across a seam all fell out of that one change.
+
+**Numbers off a wiki are wrong here, and the way to find out is to check them
+against something.** Their ignition threshold of 10 would have set half our map
+alight. The fire heat, picked by eye, settled four rungs up the ladder and
+turned every forest fire into a lava field — visible only by asking where it
+*settles* rather than how hot it feels. The predation rule forbade wolves from
+hunting deer, visible only by walking every pair in the food chain.
+
+**Tests on emergent behaviour must be sampled, and the ones that are not will
+lie.** The colonisation test was pinned to the exact global `Math.random`
+sequence, so adding a single `THREE.Texture` — whose uuid costs four draws —
+turned it red while colonisation still happened on nine streams in twelve.
+
+**One idea, applied once, is usually worth more than the feature it replaces.**
+A drop type turned weather, plague, blessing and seeding into four rows. A
+precondition turned random disasters into a reason to think about what you
+build. One flag doubled the bestiary. A two-stop ramp turned one wolf into a
+dozen. None of those were large; all of them changed what the world *is*.
