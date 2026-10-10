@@ -43,6 +43,8 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'here-be-dragons', title: 'Here Be Dragons', description: 'Have a dragon come down on one of your towns of its own accord.' },
   { id: 'close-encounter', title: 'Close Encounter', description: 'See the lights come for the cattle.' },
   { id: 'kaiju', title: 'Kaiju', description: 'Watch the sea stand up and walk ashore.' },
+  { id: 'naturalist', title: 'Naturalist', description: 'Meet thirty different creatures. The Knowledge book remembers.' },
+  { id: 'every-creature', title: 'Every Creature', description: 'Fill the Knowledge book.' },
 ];
 
 export const ACHIEVEMENTS_BY_ID = new Map(ACHIEVEMENTS.map((entry) => [entry.id, entry]));

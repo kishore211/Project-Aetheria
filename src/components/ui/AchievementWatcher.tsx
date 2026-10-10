@@ -1,4 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { discoveredCount, subscribeKnowledge } from '../../utils/knowledge';
+import { FOOD_CHAIN } from '../../utils/entitySystemMinimal';
 import { Trophy, X } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
 import { ACHIEVEMENTS_BY_ID } from '../../utils/achievements';
@@ -42,6 +44,12 @@ const AchievementWatcher = () => {
     if (possessedId) unlock('puppeteer');
   }, [possessedId, unlock]);
 
+  const met = useSyncExternalStore(subscribeKnowledge, discoveredCount, discoveredCount);
+  useEffect(() => {
+    if (met >= 30) unlock('naturalist');
+    if (met >= Object.keys(FOOD_CHAIN).length) unlock('every-creature');
+  }, [met, unlock]);
+
   useEffect(() => {
     // Only inspect entries added since the last render
     const fresh = events.filter((event) => event.id > lastSeenEventId.current);
@@ -60,7 +68,7 @@ const AchievementWatcher = () => {
       if (message.includes('flies its banner now')) unlock('new-banner');
       if (message.includes(', a legendary ') || message.includes('earn a name')) unlock('legend');
       if (message.includes('from the body of')) unlock('heirloom');
-      if (message.includes('A dragon comes down out of the clouds')) unlock('here-be-dragons');
+      if (message.includes('a dragon comes down out of the clouds')) unlock('here-be-dragons');
       if (message.includes('come for the cattle')) unlock('close-encounter');
       if (message.includes('and it is a crab')) unlock('kaiju');
       if (message.includes('land rises out of the water')) unlock('archipelago');
