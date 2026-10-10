@@ -163,6 +163,7 @@ export class TerrainRenderer {
 
     this.painter = new MapPainter(this.mapSize);
     this.painter.setWater(this.waterPalette(season));
+    this.painter.setWinter(season === 'winter');
     this.mapTexture = new THREE.DataTexture(this.painter.data, this.painter.width, this.painter.width);
     this.mapTexture.colorSpace = THREE.SRGBColorSpace;
     // Crisp pixels up close, averaged when a pixel is smaller than a screen
@@ -489,6 +490,7 @@ export class TerrainRenderer {
   private recolorAll(season: Season): void {
     this.season = season;
     this.painter.setWater(this.waterPalette(season));
+    this.painter.setWinter(season === 'winter');
     for (let x = 0; x < this.mapSize; x++) {
       for (let y = 0; y < this.mapSize; y++) this.applyColor(this.tiles[x][y], season);
     }

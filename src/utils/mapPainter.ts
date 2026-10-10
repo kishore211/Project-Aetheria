@@ -304,6 +304,16 @@ export class MapPainter {
   }
 
   /**
+   * Winter dusts every canopy and rock with snow. The ground already turns
+   * with the season; without this the woods stayed summer-green on a white
+   * field, which read as a painting error rather than as winter.
+   */
+  setWinter(on: boolean): void {
+    this.winter = on;
+  }
+  private winter = false;
+
+  /**
    * Record what a tile is. Returns true when its land-ness changed, which is
    * the caller's cue to recompute depth (`recomputeDepth`).
    */
@@ -730,7 +740,7 @@ export class MapPainter {
     const top = ty * PX + Math.round(stamp.cy - h / 2);
     const i = ty * this.size + tx;
     const base: [number, number, number] = [this.rgb[i * 3], this.rgb[i * 3 + 1], this.rgb[i * 3 + 2]];
-    const palette = paletteFor(stamp.kind, base);
+    const palette = this.winter ? frosted(paletteFor(stamp.kind, base), stamp.kind) : paletteFor(stamp.kind, base);
 
     // The shadow first, one pixel down and to the right, so the canopy that
     // follows sits on top of it.
@@ -816,6 +826,18 @@ const paletteFor = (kind: StampKind, ground: [number, number, number]): Palette 
       return { ...fixed(m), L: mixRgb(m, [214, 232, 120], 0.32), D: scale(ground, 0.74) };
     }
   }
+};
+
+const FROST_RGB: [number, number, number] = [238, 244, 250];
+
+/** Snow on the lit side of a stamp: canopies, pines and rocks, not cacti or crystals. */
+const frosted = (palette: Palette, kind: StampKind): Palette => {
+  if (kind === 'cactus' || kind === 'crystal' || kind === 'candycane' || kind === 'toadstool') return palette;
+  return {
+    ...palette,
+    L: mixRgb(palette.L, FROST_RGB, 0.85),
+    M: mixRgb(palette.M, FROST_RGB, kind === 'pine' ? 0.25 : 0.35),
+  };
 };
 
 /** A stable 0-1 value for a tile and salt. */
