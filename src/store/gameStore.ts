@@ -13,6 +13,25 @@ import { possess } from '../utils/possession';
 
 export type Weather = 'clear' | 'rain' | 'storm';
 
+const HELP_SEEN_KEY = 'aetheria.helpSeen';
+
+/** Storage can be missing or refuse (private windows); either way, show the help. */
+const helpSeen = (): boolean => {
+  try {
+    return typeof localStorage !== 'undefined' && localStorage.getItem(HELP_SEEN_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
+
+const markHelpSeen = (): void => {
+  try {
+    localStorage.setItem(HELP_SEEN_KEY, '1');
+  } catch {
+    // Nowhere to remember it; the help will simply show again next time.
+  }
+};
+
 export interface GameEvent {
   id: number;
   message: string;
@@ -442,7 +461,9 @@ export const useGameStore = create<GameState>((set) => ({
   entityPopulationDensity: 'medium',
   population: 0,
   events: [],
-  showHelp: true,
+  // Shown on a first visit only. Someone coming back to their world wants the
+  // world, not the manual; the help button and ? still open it.
+  showHelp: !helpSeen(),
   showLaws: false,
   showMinimap: wantsMinimap,
   showUnitIcons: true,
@@ -522,7 +543,10 @@ export const useGameStore = create<GameState>((set) => ({
     ].slice(0, 80),
   })),
 
-  setShowHelp: (show: boolean) => set({ showHelp: show }),
+  setShowHelp: (show: boolean) => {
+    if (!show) markHelpSeen();
+    set({ showHelp: show });
+  },
   setShowLaws: (show: boolean) => set({ showLaws: show }),
   toggleMinimap: () => set((state) => ({ showMinimap: !state.showMinimap })),
   toggleUnitIcons: () => set((state) => ({ showUnitIcons: !state.showUnitIcons })),
