@@ -13,7 +13,7 @@ import {
   type Tile,
   type TraitId,
 } from '../types/world';
-import { getPixelSpriteTexture, getPixelSpriteFrames, WALK_FRAMES } from './pixelSprites';
+import { getPixelSpriteTexture, getPixelSpriteFrames, WALK_FRAMES, type Outfit } from './pixelSprites';
 import { groundSpeed, stepOnGround } from './biomeEffects';
 import { canPreyOn, rollSize, sizeOf } from './size';
 import {
@@ -446,7 +446,7 @@ export function updateEntityMesh(entity: Entity, deltaTime = 1 / 60, detailLevel
     const stridesPerSecond = Math.max(1.6, tilesPerSecondOf(entity) * 1.9);
     entity.walkPhase = ((entity.walkPhase ?? 0) + deltaTime * stridesPerSecond) % 1;
 
-    const frames = getPixelSpriteFrames(entity.type, entity.subspecies);
+    const frames = getPixelSpriteFrames(entity.type, entity.subspecies, outfitOf(entity));
     const frameIndex = Math.floor(entity.walkPhase * WALK_FRAMES) % frames.length;
     if (material.map !== frames[frameIndex]) {
       material.map = frames[frameIndex];
@@ -474,7 +474,7 @@ export function updateEntityMesh(entity: Entity, deltaTime = 1 / 60, detailLevel
     sprite.material.rotation = -(entity.facing ?? 1) * air * 0.07;
   } else {
     entity.walkPhase = ((entity.walkPhase ?? 0) + deltaTime * 0.35) % 1;
-    const frames = getPixelSpriteFrames(entity.type, entity.subspecies);
+    const frames = getPixelSpriteFrames(entity.type, entity.subspecies, outfitOf(entity));
     if (material.map !== frames[0]) {
       material.map = frames[0];
       material.needsUpdate = true;
@@ -563,6 +563,10 @@ function applyStatusVisuals(entity: Entity, sprite: THREE.Sprite, deltaTime: num
     entity.flashFor -= deltaTime;
   }
 }
+
+/** What a creature's job and office make it wear. */
+const outfitOf = (entity: Entity): Outfit =>
+  entity.status.includes('king') ? 'ruler' : entity.job === 'warrior' ? 'warrior' : null;
 
 /** Reused so the flash does not allocate a colour per creature per frame. */
 const WHITE_FLASH = new THREE.Color(0xffffff);

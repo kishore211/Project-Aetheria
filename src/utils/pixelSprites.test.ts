@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TEMPLATES, WALK_FRAMES, poseGrid, shadedCells } from './pixelSprites';
+import { TEMPLATES, WALK_FRAMES, getPixelSpriteFrames, poseGrid, shadedCells } from './pixelSprites';
 
 /**
  * These tests exist because of a defect that survived three rounds of "the
@@ -128,5 +128,17 @@ describe('outline and shading', () => {
     expect(cells[1][1]).not.toBe('#808080');
     expect(parseInt(cells[1][1]!.slice(1, 3), 16)).toBeGreaterThan(0x80);
     expect(parseInt(cells[2][1]!.slice(1, 3), 16)).toBeLessThan(0x80);
+  });
+});
+
+describe('outfits', () => {
+  it('dresses a warrior differently from a farmer, and leaves animals alone', () => {
+    const farmer = getPixelSpriteFrames('human', null, null);
+    const soldier = getPixelSpriteFrames('human', null, 'warrior');
+    const ruler = getPixelSpriteFrames('human', null, 'ruler');
+    expect(soldier[0]).not.toBe(farmer[0]);
+    expect(ruler[0]).not.toBe(soldier[0]);
+    // A wolf cannot wear mail: same frames whatever it is told to wear.
+    expect(getPixelSpriteFrames('wolf', null, 'warrior')[0]).toBe(getPixelSpriteFrames('wolf', null, null)[0]);
   });
 });

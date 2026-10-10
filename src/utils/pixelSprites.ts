@@ -561,15 +561,32 @@ export function getPixelSpriteTexture(
  * Frame 0 is the standing pose, so anything that wants a single still image can
  * take the first entry and be right.
  */
+/**
+ * What a person is wearing, which changes their sprite.
+ *
+ * WorldBox's soldiers wear their trade: a helmet and mail, so an army reads
+ * as an army before you read a single icon. Rulers wear a crown.
+ */
+export type Outfit = 'warrior' | 'ruler' | null;
+
+/** Colours an outfit paints over the humanoid template's hair and shirt. */
+const OUTFITS: Record<'warrior' | 'ruler', Palette> = {
+  warrior: { h: '#9aa2ad', b: '#6f7884' },
+  ruler: { h: '#f2c230' },
+};
+
 export function getPixelSpriteFrames(
-  type: EntityType, subspecies?: string | null,
+  type: EntityType, subspecies?: string | null, outfit: Outfit = null,
 ): THREE.CanvasTexture[] {
   // Keyed on the colouring as well as the kind, so a snow wolf and a sable one
   // are two cached sets of four rather than one set repainted per creature.
   // With fourteen ramps and twenty kinds the whole cache is still small enough
   // to be worth never evicting.
   const ramp = rampById(subspecies);
-  const key = ramp ? `${type}:${ramp.id}` : type;
+  const spec = SPECS[type] ?? SPECS.human;
+  // Outfits only fit the humanoid template; on anything else they are ignored.
+  const worn = outfit && spec.template === 'humanoid' ? outfit : null;
+  const key = `${ramp ? `${type}:${ramp.id}` : type}${worn ? `+${worn}` : ''}`;
 
   const cached: THREE.CanvasTexture[] = [];
   for (let frame = 0; frame < WALK_FRAMES; frame += 1) {
@@ -579,9 +596,9 @@ export function getPixelSpriteFrames(
   }
   if (cached.length === WALK_FRAMES) return cached;
 
-  const spec = SPECS[type] ?? SPECS.human;
   const grid = TEMPLATES[spec.template];
-  const palette = ramp ? applyRamp(spec.palette, ramp) : spec.palette;
+  const coloured = ramp ? applyRamp(spec.palette, ramp) : spec.palette;
+  const palette = worn ? { ...coloured, ...OUTFITS[worn] } : coloured;
 
   const frames: THREE.CanvasTexture[] = [];
   for (let frame = 0; frame < WALK_FRAMES; frame += 1) {
