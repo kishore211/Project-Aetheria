@@ -6,7 +6,8 @@
 // a town, a coast, a winter — so like the building disasters it happens to a
 // world that has grown something worth threatening, and never to an empty one.
 
-import type { EntityType, Season, Tile } from '../types/world';
+import type { Entity, EntityType, Season, Tile } from '../types/world';
+import { applyStatus } from './statusEffects';
 import { isWaterBiome } from '../types/world';
 import type { DisasterTarget } from './disasters';
 
@@ -18,6 +19,8 @@ export interface MonsterWorld {
   spawn(type: EntityType, x: number, y: number): boolean;
   announce(message: string, at?: { x: number; y: number }): void;
   random(): number;
+  /** Creatures near a point, for the events that work on the people already there. */
+  near?(x: number, y: number, radius: number): Entity[];
 }
 
 interface MonsterEvent {
@@ -122,6 +125,67 @@ export const MONSTER_EVENTS: MonsterEvent[] = [
       for (let i = 0; i < 4; i++) if (world.spawn('bandit', tile.x + (i % 2), tile.y + Math.floor(i / 2))) came++;
       if (came === 0) return false;
       world.announce(`Bandits make camp in the hills outside ${town.villageName}`, { x: tile.x, y: tile.y });
+      return true;
+    },
+  },
+  {
+    id: 'mad_thoughts',
+    weight: 2,
+    run: (world, town) => {
+      const people = (world.near?.(town.x, town.y, 6) ?? []).filter(e => ['human', 'elf', 'dwarf', 'orc'].includes(e.type));
+      if (people.length < 3) return false;
+      const struck = people.slice(0, Math.max(2, Math.floor(people.length / 3)));
+      for (const person of struck) applyStatus(person, 'enraged');
+      world.announce(`Mad thoughts pass through ${town.villageName}, and neighbours turn on neighbours`, { x: town.x, y: town.y });
+      return true;
+    },
+  },
+  {
+    id: 'snowmen',
+    weight: 1,
+    run: (world, town) => {
+      if (world.season !== 'winter') return false;
+      let made = 0;
+      for (let i = 0; i < 5; i++) {
+        const tile = approach(world, town, 3 + i);
+        if (tile && world.spawn('snowman', tile.x, tile.y)) made++;
+      }
+      if (made === 0) return false;
+      world.announce(`Snowmen stand up in the fields around ${town.villageName}. Nobody built them`, { x: town.x, y: town.y });
+      return true;
+    },
+  },
+  {
+    id: 'hellspawn',
+    weight: 1,
+    run: (world, town) => {
+      const tile = approach(world, town, 8);
+      if (!tile) return false;
+      let came = 0;
+      for (let i = 0; i < 3; i++) if (world.spawn(i === 0 ? 'demon' : 'fire_skull', tile.x + i, tile.y)) came++;
+      if (came === 0) return false;
+      world.announce(`The ground splits outside ${town.villageName}, and something climbs out`, { x: tile.x, y: tile.y });
+      return true;
+    },
+  },
+  {
+    id: 'alien_invasion',
+    weight: 1,
+    run: (world, town) => {
+      const tile = approach(world, town, 7);
+      if (!tile || !world.spawn('ufo', tile.x, tile.y)) return false;
+      for (let i = 0; i < 4; i++) world.spawn('alien', tile.x + (i % 2) - 1, tile.y + Math.floor(i / 2));
+      world.announce(`They have come in force: an invasion lands beside ${town.villageName}`, { x: tile.x, y: tile.y });
+      return true;
+    },
+  },
+  {
+    id: 'evil_mage',
+    weight: 1,
+    run: (world, town) => {
+      const tile = approach(world, town, 8);
+      if (!tile || !world.spawn('mage', tile.x, tile.y)) return false;
+      world.announce(`A mage with a grudge walks out of the woods toward ${town.villageName}`, { x: tile.x, y: tile.y });
       return true;
     },
   },

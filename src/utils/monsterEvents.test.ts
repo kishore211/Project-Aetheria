@@ -48,3 +48,26 @@ describe('monsters that come to the towns', () => {
     expect(cold.run(makeWorld(() => 'grassland', 'winter').world, town)).toBe(true);
   });
 });
+
+describe('the rest of the scripted events', () => {
+  it('turns a third of a town mad, and needs people to do it', () => {
+    const mad = MONSTER_EVENTS.find(e => e.id === 'mad_thoughts')!;
+    const town = { id: 'b', kind: 'bonfire', x: 20, y: 20, villageId: 'v', villageName: 'Ashby' };
+    const empty = makeWorld(() => 'grassland');
+    expect(mad.run(empty.world, town)).toBe(false);
+    const people = Array.from({ length: 9 }, (_, i) => ({ id: `p${i}`, type: 'human', status: [] as string[] }));
+    const busy = makeWorld(() => 'grassland');
+    busy.world.near = () => people as never;
+    expect(mad.run(busy.world, town)).toBe(true);
+    expect(people.filter(p => p.status.includes('enraged')).length).toBe(3);
+  });
+
+  it('lands an alien invasion in force', () => {
+    const invasion = MONSTER_EVENTS.find(e => e.id === 'alien_invasion')!;
+    const { world, spawned } = makeWorld(() => 'grassland');
+    const town = { id: 'b', kind: 'bonfire', x: 20, y: 20, villageId: 'v', villageName: 'Ashby' };
+    expect(invasion.run(world, town)).toBe(true);
+    expect(spawned.filter(t => t === 'alien').length).toBe(4);
+    expect(spawned).toContain('ufo');
+  });
+});

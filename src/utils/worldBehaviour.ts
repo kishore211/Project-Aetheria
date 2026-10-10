@@ -20,6 +20,7 @@
 import {
   isWaterBiome,
   type BiomeType,
+  type Entity,
   type EntityType,
   type Season,
   type Tile,
@@ -54,6 +55,8 @@ export interface WorldContext extends DisasterWorld {
   population(): number;
   announce(message: string, at?: { x: number; y: number }): void;
   random(): number;
+  /** Creatures near a point. */
+  near?(x: number, y: number, radius: number): Entity[];
 }
 
 export interface WorldProcess {
