@@ -57,6 +57,9 @@ const AchievementWatcher = () => {
       if (message.includes('old age')) unlock('elder');
       if (message.includes('set sail')) unlock('seafarers');
       if (message.includes('come ashore')) unlock('landfall');
+      if (message.includes('flies its banner now')) unlock('new-banner');
+      if (message.includes(', a legendary ') || message.includes('earn a name')) unlock('legend');
+      if (message.includes('from the body of')) unlock('heirloom');
       if (message.includes('land rises out of the water')) unlock('archipelago');
       if (message.includes('second sun')) unlock('second-sun');
       if (message.includes('no longer there')) unlock('absence');

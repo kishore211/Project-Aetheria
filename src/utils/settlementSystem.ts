@@ -67,6 +67,7 @@ import {
   type OpinionResult,
 } from './politics';
 import { speak } from './dialogue';
+import { conquestOutcome, formationSlots } from './army';
 import { emitItemEvent, equip, forgeItem, forgePriority, MATERIAL_COST } from './equipment';
 import {
   generateKingdomName,
@@ -1147,10 +1148,31 @@ export class SettlementSystem {
 
     applyStatus(captain, 'captain');
 
-    for (const warrior of warriors) {
-      if (warrior.id === captain.id) continue;
-      this.entities.setHerdAnchor(warrior, captain, 2.5);
+    // At peace the warband loafs about its captain. At war it falls in: ranks
+    // of four behind the banner, facing the nearest enemy town.
+    const front = this.warFront(village.kingdomId, captain);
+    const soldiers = warriors.filter(w => w.id !== captain!.id);
+    const slots = front ? formationSlots(soldiers.length, front.x - captain.position.x, front.y - captain.position.y) : null;
+    soldiers.forEach((warrior, i) => {
+      if (slots) this.entities.setHerdAnchor(warrior, captain!, 0.6, slots[i]);
+      else this.entities.setHerdAnchor(warrior, captain!, 2.5);
+    });
+  }
+
+  /** The nearest enemy town to a unit, if its kingdom is at war. */
+  private warFront(kingdomId: string, from: Entity): { x: number; y: number } | null {
+    const kingdom = this.kingdoms.get(kingdomId);
+    if (!kingdom || kingdom.atWar.size === 0) return null;
+    let best: Village | null = null;
+    let bestDistance = Infinity;
+    for (const enemyId of kingdom.atWar) {
+      const enemy = this.kingdoms.get(enemyId);
+      const town = enemy ? this.nearestVillage(enemy, from.position.x, from.position.y) : null;
+      if (!town) continue;
+      const d = Math.hypot(town.centerX - from.position.x, town.centerY - from.position.y);
+      if (d < bestDistance) { bestDistance = d; best = town; }
     }
+    return best ? { x: best.centerX, y: best.centerY } : null;
   }
 
   private stripStatus(entity: Entity, status: StatusId): void {
@@ -3168,11 +3190,19 @@ export class SettlementSystem {
         building.health -= 18 * attackers.length;
         if (building.health > 0) continue;
 
-        this.removeBuilding(village, building);
         if (building.kind === 'bonfire') {
-          this.destroyVillage(village, attackers[0]?.kingdomId ?? null);
+          const conqueror = this.kingdoms.get(attackers[0]?.kingdomId ?? '');
+          const residents = this.entities.getEntitiesByVillage().get(village.id)?.length ?? 0;
+          if (conqueror && conquestOutcome(conqueror.race, residents) === 'capture') {
+            building.health = building.maxHealth * 0.5;
+            this.captureVillage(village, kingdom, conqueror);
+          } else {
+            this.removeBuilding(village, building);
+            this.destroyVillage(village, conqueror?.id ?? null);
+          }
           break;
         }
+        this.removeBuilding(village, building);
         // Raiders torch what they level
         if (Math.random() < 0.5) simulation.igniteTile?.(building.x, building.y);
       }
@@ -3196,6 +3226,50 @@ export class SettlementSystem {
       }
       this.kingdoms.delete(kingdom.id);
     }
+  }
+
+  /**
+   * A town taken rather than burned: it changes flag with its people and its
+   * land, and the border on the map moves. The people stay — a conquered
+   * town is still a town — but its headman and captain lose their offices.
+   */
+  private captureVillage(village: Village, from: Kingdom, to: Kingdom): void {
+    const index = from.villageIds.indexOf(village.id);
+    if (index !== -1) from.villageIds.splice(index, 1);
+    if (village.capital) {
+      const heir = from.villageIds.map(id => this.villages.get(id)).find((v): v is Village => Boolean(v));
+      if (heir) heir.capital = true;
+    }
+    village.kingdomId = to.id;
+    village.capital = false;
+    village.restless = 0;
+    to.villageIds.push(village.id);
+    this.captains.delete(village.id);
+    this.leaders.delete(village.id);
+
+    for (const resident of this.entities.getEntitiesByVillage().get(village.id) ?? []) {
+      resident.kingdomId = to.id;
+      this.clearOffices(resident);
+      if (resident.job === 'warrior') resident.job = null;
+    }
+
+    for (const id of village.territory) {
+      const tile = this.tileFromInstanceId(id);
+      if (tile) tile.ownerId = null;
+    }
+    village.territory.clear();
+    this.claimTerritory(village);
+    // Buildings wear a wash of their kingdom's colour; repaint it.
+    const wash = new THREE.Color(0xffffff).lerp(to.color, 0.22);
+    for (const building of village.buildings) this.buildingCloud.setTint(building.slot, wash);
+
+    this.events.onEvent(
+      `${village.name} falls to ${to.name}, and flies its banner now`,
+      'war',
+      { x: village.centerX, y: village.centerY },
+    );
+    requestFlash('blood', 0.5);
+    this.publishSummaries();
   }
 
   private destroyVillage(village: Village, conquerorId: string | null): void {

@@ -742,11 +742,12 @@ export class EntityManager implements EntityIndex {
   }
 
   /** Make a creature trail another one (herd following). */
-  setHerdAnchor(entity: Entity, anchor: Entity | null, slack = 3.5): void {
+  setHerdAnchor(entity: Entity, anchor: Entity | null, slack = 3.5, offset: { x: number; y: number } | null = null): void {
     const ai = this.entityAIs.get(entity.id);
     if (!ai) return;
     ai.anchor = anchor;
     ai.anchorSlack = slack;
+    ai.anchorOffset = offset;
     if (!anchor && ai.currentState === 'following') ai.currentState = 'idle';
   }
 

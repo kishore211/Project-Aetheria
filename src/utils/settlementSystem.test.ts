@@ -134,59 +134,60 @@ describe('village founding', () => {
   });
 });
 
-describe('kingdoms at war', () => {
-  /**
-   * Founding a village organically depends on wood and stone turning up in the
-   * right place, so the diplomacy test builds two neighbouring realms directly
-   * and then lets the same code path that runs in game decide what happens.
-   */
-  const seatTwoRivals = (harness: Harness) => {
-    const kingdoms = [
-      {
-        id: 'kingdom-a', name: 'Aldreach', ruler: 'King Aldric', race: 'human' as const,
-        colorHex: '#4f7fd6', villageIds: ['village-a'], atWar: [], tension: [] as Array<[string, number]>,
-      },
-      {
-        id: 'kingdom-b', name: 'Grakhorde', ruler: 'Warchief Grak', race: 'orc' as const,
-        colorHex: '#c8483f', villageIds: ['village-b'], atWar: [], tension: [] as Array<[string, number]>,
-      },
-    ];
-    const villages = [
-      {
-        id: 'village-a', name: 'Aldford', kingdomId: 'kingdom-a', race: 'human' as const,
-        centerX: 16, centerY: 20, store: { food: 20, wood: 20, stone: 20 },
-        buildings: [
-          { id: 'b1', kind: 'bonfire' as const, x: 16, y: 20, health: 120, maxHealth: 120 },
-          { id: 'b2', kind: 'hall' as const, x: 17, y: 20, health: 260, maxHealth: 260 },
-        ],
-      },
-      {
-        id: 'village-b', name: 'Grakpit', kingdomId: 'kingdom-b', race: 'orc' as const,
-        centerX: 28, centerY: 20, store: { food: 20, wood: 20, stone: 20 },
-        buildings: [
-          { id: 'b3', kind: 'bonfire' as const, x: 28, y: 20, health: 120, maxHealth: 120 },
-          { id: 'b4', kind: 'hall' as const, x: 27, y: 20, health: 260, maxHealth: 260 },
-        ],
-      },
-    ];
-    harness.settlements.restore(kingdoms, villages);
+/**
+ * Founding a village organically depends on wood and stone turning up in the
+ * right place, so the diplomacy test builds two neighbouring realms directly
+ * and then lets the same code path that runs in game decide what happens.
+ */
+const seatTwoRivals = (harness: Harness) => {
+  const kingdoms = [
+    {
+      id: 'kingdom-a', name: 'Aldreach', ruler: 'King Aldric', race: 'human' as const,
+      colorHex: '#4f7fd6', villageIds: ['village-a'], atWar: [], tension: [] as Array<[string, number]>,
+    },
+    {
+      id: 'kingdom-b', name: 'Grakhorde', ruler: 'Warchief Grak', race: 'orc' as const,
+      colorHex: '#c8483f', villageIds: ['village-b'], atWar: [], tension: [] as Array<[string, number]>,
+    },
+  ];
+  const villages = [
+    {
+      id: 'village-a', name: 'Aldford', kingdomId: 'kingdom-a', race: 'human' as const,
+      centerX: 16, centerY: 20, store: { food: 20, wood: 20, stone: 20 },
+      buildings: [
+        { id: 'b1', kind: 'bonfire' as const, x: 16, y: 20, health: 120, maxHealth: 120 },
+        { id: 'b2', kind: 'hall' as const, x: 17, y: 20, health: 260, maxHealth: 260 },
+      ],
+    },
+    {
+      id: 'village-b', name: 'Grakpit', kingdomId: 'kingdom-b', race: 'orc' as const,
+      centerX: 28, centerY: 20, store: { food: 20, wood: 20, stone: 20 },
+      buildings: [
+        { id: 'b3', kind: 'bonfire' as const, x: 28, y: 20, health: 120, maxHealth: 120 },
+        { id: 'b4', kind: 'hall' as const, x: 27, y: 20, health: 260, maxHealth: 260 },
+      ],
+    },
+  ];
+  harness.settlements.restore(kingdoms, villages);
 
-    // Villages need residents or the decay pass will (correctly) abandon them
-    for (const village of villages) {
-      for (let i = 0; i < 6; i++) {
-        const resident = harness.entities.spawnEntity(
-          village.race,
-          village.centerX + (i % 3),
-          village.centerY + 1 + Math.floor(i / 3),
-        );
-        if (resident) {
-          resident.villageId = village.id;
-          resident.kingdomId = village.kingdomId;
-          resident.job = 'gatherer';
-        }
+  // Villages need residents or the decay pass will (correctly) abandon them
+  for (const village of villages) {
+    for (let i = 0; i < 6; i++) {
+      const resident = harness.entities.spawnEntity(
+        village.race,
+        village.centerX + (i % 3),
+        village.centerY + 1 + Math.floor(i / 3),
+      );
+      if (resident) {
+        resident.villageId = village.id;
+        resident.kingdomId = village.kingdomId;
+        resident.job = 'gatherer';
       }
     }
-  };
+  }
+};
+
+describe('kingdoms at war', () => {
 
   it('grows friction along a shared border and eventually declares war', () => {
     const harness = makeHarness();
@@ -251,6 +252,59 @@ describe('kingdoms at war', () => {
     expect(harness.events.some((message) => message.includes('razed'))).toBe(true);
     // The land is released, and the victor is free to claim it — which it does.
     expect(harness.tiles[16][20].ownerId).not.toBe('kingdom-a');
+  });
+
+  it('captures a town rather than burning it when the victors are not orcs', () => {
+    const harness = makeHarness();
+    seatTwoRivals(harness);
+    harness.settlements.kingdoms.get('kingdom-a')?.atWar.add('kingdom-b');
+    harness.settlements.kingdoms.get('kingdom-b')?.atWar.add('kingdom-a');
+
+    const raiders = [];
+    for (let i = 0; i < 4; i++) {
+      const raider = harness.entities.spawnEntity('human', 28, 20);
+      if (!raider) continue;
+      raider.kingdomId = 'kingdom-a';
+      raider.job = 'warrior';
+      raiders.push(raider);
+    }
+    for (let t = 0; t < 120; t++) {
+      // Hold them on the bonfire: this is about the siege, not the march.
+      for (const raider of raiders) raider.position = { x: 28.5, y: 20.5 };
+      harness.entities.update(1);
+      harness.settlements.update(1);
+      if (harness.settlements.villages.get('village-b')?.kingdomId === 'kingdom-a') break;
+    }
+
+    const town = harness.settlements.villages.get('village-b');
+    expect(town?.kingdomId).toBe('kingdom-a');
+    expect(harness.events.some((message) => message.includes('falls to Aldreach'))).toBe(true);
+    // The land and the people went with it.
+    expect(harness.tiles[28][20].ownerId).toBe('kingdom-a');
+    const people = harness.entities.getAllEntities().filter(e => e.villageId === 'village-b');
+    expect(people.length).toBeGreaterThan(0);
+    expect(people.every(e => e.kingdomId === 'kingdom-a')).toBe(true);
+  });
+});
+
+describe('the forge', () => {
+  it('arms the captain and the warriors first, from the town store', () => {
+    const harness = makeHarness();
+    seatTwoRivals(harness);
+    const town = harness.settlements.villages.get('village-a')!;
+    town.store.wood = 200;
+    town.store.stone = 200;
+    town.store.gold = 200;
+    const folk = harness.entities.getAllEntities().filter(e => e.villageId === 'village-a');
+    for (const f of folk.slice(0, 3)) f.job = 'warrior';
+    run(harness, 60, 1);
+    const armed = harness.entities.getAllEntities().filter(e => e.villageId === 'village-a' && e.equipment?.weapon);
+    expect(armed.length).toBeGreaterThan(0);
+    // Nobody without a martial claim is handed a sword ahead of those with one.
+    for (const e of armed) {
+      expect(e.job === 'warrior' || e.status.some(s => s === 'captain' || s === 'leader' || s === 'king')).toBe(true);
+    }
+    expect(town.store.wood).toBeLessThan(200);
   });
 });
 

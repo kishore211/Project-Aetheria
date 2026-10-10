@@ -586,6 +586,14 @@ export class EntityAI {
   /** Creature this one trails (its herd alpha), and how far behind it stays. */
   anchor: Entity | null = null;
   anchorSlack = 3.5;
+  /** A slot relative to the anchor — a soldier's place in its rank. */
+  anchorOffset: { x: number; y: number } | null = null;
+
+  /** Where this creature means to stand relative to its anchor. */
+  private anchorPoint(anchor: Entity): { x: number; y: number } {
+    const o = this.anchorOffset;
+    return o ? { x: anchor.position.x + o.x, y: anchor.position.y + o.y } : anchor.position;
+  }
   ticksSinceLastAction = 0;
   private index: EntityIndex | null;
   private repathCooldown = 0;
@@ -1045,10 +1053,8 @@ export class EntityAI {
       && this.entity.needs.hunger > 0.35
       && this.entity.needs.thirst > 0.3
     ) {
-      const gap = Math.hypot(
-        this.anchor.position.x - this.entity.position.x,
-        this.anchor.position.y - this.entity.position.y,
-      );
+      const slot = this.anchorPoint(this.anchor);
+      const gap = Math.hypot(slot.x - this.entity.position.x, slot.y - this.entity.position.y);
       if (gap > this.anchorSlack * 3) {
         this.currentState = 'following';
         this.ticksSinceLastAction = 0;
@@ -1139,10 +1145,8 @@ export class EntityAI {
     // wandering, so an animal will still break off to drink but will otherwise
     // travel with its family instead of milling about on the spot.
     if (this.anchor && this.anchor.health > 0 && this.anchor.id !== this.entity.id) {
-      const gap = Math.hypot(
-        this.anchor.position.x - this.entity.position.x,
-        this.anchor.position.y - this.entity.position.y,
-      );
+      const slot = this.anchorPoint(this.anchor);
+      const gap = Math.hypot(slot.x - this.entity.position.x, slot.y - this.entity.position.y);
       if (gap > this.anchorSlack) {
         this.currentState = 'following';
         this.ticksSinceLastAction = 0;
@@ -1464,8 +1468,9 @@ export class EntityAI {
       return;
     }
 
-    const dx = anchor.position.x - this.entity.position.x;
-    const dy = anchor.position.y - this.entity.position.y;
+    const slot = this.anchorPoint(anchor);
+    const dx = slot.x - this.entity.position.x;
+    const dy = slot.y - this.entity.position.y;
     const gap = Math.hypot(dx, dy);
 
     if (gap <= this.anchorSlack * 0.7) {

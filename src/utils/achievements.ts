@@ -37,6 +37,9 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'lethe', title: 'Lethe', description: 'Make people forget who they were.' },
   { id: 'strangers', title: 'Handsome Strangers', description: 'Welcome migrants to a struggling town.' },
   { id: 'puppeteer', title: 'Puppeteer', description: 'Possess a creature and walk around in it.' },
+  { id: 'new-banner', title: 'New Banner', description: 'Watch a town fall to another kingdom and change its flag.' },
+  { id: 'legend', title: 'The Stuff of Legend', description: 'See a smith forge a named, legendary item.' },
+  { id: 'heirloom', title: 'Heirloom', description: 'Watch a named weapon taken off the body of its last owner.' },
 ];
 
 export const ACHIEVEMENTS_BY_ID = new Map(ACHIEVEMENTS.map((entry) => [entry.id, entry]));
