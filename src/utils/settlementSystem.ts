@@ -2009,6 +2009,7 @@ export class SettlementSystem {
         leadership(civilStats(candidate)) > leadership(civilStats(best)) ? candidate : best
       ), candidates[0]);
 
+      const contested = Boolean(kingdom.kingId) && candidates.length >= 3;
       kingdom.kingId = heir.id;
       kingdom.ruler = heir.name;
       applyStatus(heir, 'king');
@@ -2018,6 +2019,27 @@ export class SettlementSystem {
         'kingdom',
         { x: Math.floor(heir.position.x), y: Math.floor(heir.position.y) },
       );
+
+      // A war of succession. When a crown passes in a big realm, the
+      // runner-up does not always bend the knee: if its claim was nearly as
+      // good, its town may go its own way, and WorldBox's great empires break
+      // up exactly like this, on a death rather than a grievance.
+      if (contested && this.laws.rebellions) {
+        const heirClaim = leadership(civilStats(heir));
+        const rival = candidates
+          .filter(c => c.id !== heir.id && c.villageId)
+          .sort((p, q) => leadership(civilStats(q)) - leadership(civilStats(p)))[0];
+        const rivalTown = rival?.villageId ? this.villages.get(rival.villageId) : null;
+        if (rival && rivalTown && !rivalTown.capital
+          && leadership(civilStats(rival)) >= heirClaim * 0.85 && Math.random() < 0.35) {
+          this.events.onEvent(
+            `${rival.name} will not kneel to ${heir.name}. ${rivalTown.name} goes to war over the crown of ${kingdom.name}`,
+            'war',
+            { x: rivalTown.centerX, y: rivalTown.centerY },
+          );
+          this.secede(rivalTown, kingdom);
+        }
+      }
     }
   }
 

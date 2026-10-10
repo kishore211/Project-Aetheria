@@ -745,3 +745,38 @@ describe('war across the water', () => {
     expect(aboard.some(e => e.position.x > 23)).toBe(true);
   });
 });
+
+describe('a war of succession', () => {
+  it('can split a big realm when its king dies and a rival claim is nearly as good', () => {
+    const harness = makeHarness(50);
+    harness.settlements.restore([
+      { id: 'k', name: 'Greatrealm', ruler: 'Old King', race: 'human', colorHex: '#4f7fd6', villageIds: ['v1', 'v2', 'v3'], atWar: [], tension: [] },
+    ], [
+      { id: 'v1', name: 'Capitol', kingdomId: 'k', race: 'human', centerX: 12, centerY: 12, store: { food: 20, wood: 20, stone: 20 }, capital: true,
+        buildings: [{ id: 'b1', kind: 'bonfire', x: 12, y: 12, health: 120, maxHealth: 120 }] },
+      { id: 'v2', name: 'Easton', kingdomId: 'k', race: 'human', centerX: 30, centerY: 12, store: { food: 20, wood: 20, stone: 20 },
+        buildings: [{ id: 'b2', kind: 'bonfire', x: 30, y: 12, health: 120, maxHealth: 120 }] },
+      { id: 'v3', name: 'Southby', kingdomId: 'k', race: 'human', centerX: 20, centerY: 32, store: { food: 20, wood: 20, stone: 20 },
+        buildings: [{ id: 'b3', kind: 'bonfire', x: 20, y: 32, health: 120, maxHealth: 120 }] },
+    ]);
+    for (const [vid, x, y] of [['v1', 12, 13], ['v2', 30, 13], ['v3', 20, 33]] as const) {
+      for (let i = 0; i < 4; i++) {
+        const p = harness.entities.spawnEntity('human', x + i % 2, y + Math.floor(i / 2))!;
+        p.villageId = vid; p.kingdomId = 'k'; p.traits = [];
+        p.attributes = { strength: 10, intelligence: 15, speed: 10, resilience: 10 };
+      }
+    }
+    const inner = harness.settlements as unknown as { manageWorkforce(): void; succession(): void };
+    inner.manageWorkforce();
+    inner.succession();
+    const kingdom = harness.settlements.kingdoms.get('k')!;
+    expect(kingdom.kingId).toBeTruthy();
+    // The king dies; the realm chooses again, with the dice on the rival's side.
+    harness.entities.getEntityById(kingdom.kingId!)!.health = 0;
+    const roll = Math.random;
+    Math.random = () => 0;
+    try { inner.succession(); } finally { Math.random = roll; }
+    expect(harness.events.some(m => m.includes('will not kneel'))).toBe(true);
+    expect(harness.settlements.kingdoms.size).toBe(2);
+  });
+});
