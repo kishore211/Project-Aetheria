@@ -620,13 +620,14 @@ export const useGameEngine = () => {
     if (tile.type === 'enchanted_forest') return ['unicorn', 'fairy', 'deer'];
     if (tile.type === 'rainforest' || tile.type === 'tropical_forest') return ['monkey', 'snake', 'frog', 'bird'];
     if (tile.type.includes('forest') || tile.type === 'taiga') return ['wolf', 'bear', 'deer', 'bird', 'fox', 'snake', 'pig'];
-    if (tile.type === 'savanna') return ['buffalo', 'hyena', 'rhino', 'snake', 'bird'];
-    if (tile.type === 'beach') return ['crab', 'turtle'];
-    if (['snow', 'tundra', 'ice', 'glacier'].includes(tile.type)) return ['penguin', 'wolf'];
-    if (tile.type === 'grassland') return ['rabbit', 'deer', 'bird', 'sheep', 'chicken', 'fox', 'cow', 'pig', 'cat', 'dog'];
-    if (tile.type === 'mountains' || tile.type === 'hills') return ['bear', 'bird', 'sheep'];
-    if (tile.type === 'desert' || tile.type === 'badlands' || tile.type === 'mesa') return ['snake', 'bird'];
-    if (tile.type === 'swamp' || tile.type === 'marsh') return ['snake', 'bird', 'frog', 'crocodile'];
+    if (tile.type === 'savanna') return ['buffalo', 'hyena', 'rhino', 'snake', 'bird', 'ostrich'];
+    if (tile.type === 'beach') return ['crab', 'turtle', 'seal'];
+    if (['snow', 'tundra', 'ice', 'glacier'].includes(tile.type)) return ['penguin', 'wolf', 'seal', 'polar_bear'];
+    if (tile.type === 'grassland') return ['rabbit', 'deer', 'bird', 'sheep', 'chicken', 'fox', 'cow', 'pig', 'cat', 'dog', 'bee', 'butterfly', 'grasshopper'];
+    if (tile.type === 'mountains' || tile.type === 'hills') return ['bear', 'bird', 'sheep', 'goat'];
+    if (tile.type === 'desert' || tile.type === 'badlands' || tile.type === 'mesa') return ['snake', 'bird', 'camel', 'beetle'];
+    if (tile.type === 'swamp' || tile.type === 'marsh') return ['snake', 'bird', 'frog', 'crocodile', 'flamingo'];
+    if (tile.type === 'candy') return ['gummy_bear', 'lil_pumpkin'];
     return ['bird', 'rabbit', 'chicken'];
   }, []);
 
@@ -826,11 +827,13 @@ export const useGameEngine = () => {
 
       case 'spawn-monster': {
         let monsterType: EntityType;
-        if (tile.type === 'volcanic') monsterType = Math.random() < 0.7 ? 'dragon' : 'demon';
-        else if (tile.type === 'corrupted') monsterType = Math.random() < 0.6 ? 'zombie' : 'skeleton';
+        if (tile.type === 'volcanic' || tile.type === 'infernal') monsterType = Math.random() < 0.5 ? 'dragon' : Math.random() < 0.5 ? 'demon' : 'fire_skull';
+        else if (tile.type === 'corrupted') monsterType = Math.random() < 0.4 ? 'zombie' : Math.random() < 0.5 ? 'skeleton' : 'necromancer';
+        else if (['snow', 'tundra', 'ice', 'glacier'].includes(tile.type)) monsterType = 'cold_one';
+        else if (tile.type === 'desert') monsterType = 'sand_spider';
         else if (tile.height > 0.7) monsterType = 'dragon';
         else {
-          const monsters: EntityType[] = ['zombie', 'skeleton', 'demon', 'bandit', 'ghost', 'mage', 'alien'];
+          const monsters: EntityType[] = ['zombie', 'skeleton', 'demon', 'bandit', 'ghost', 'mage', 'alien', 'acid_blob', 'fire_skull', 'necromancer'];
           monsterType = monsters[Math.floor(Math.random() * monsters.length)];
         }
         acted = Boolean(entityManagerRef.current?.spawnEntity(monsterType, tile.x, tile.y));
@@ -1973,10 +1976,19 @@ export const useGameEngine = () => {
       if (!inBounds(x, y)) return;
       igniteTile(tilesRef.current[x][y]);
     };
+    simulation.setBiome = (x, y, type) => {
+      if (!inBounds(x, y)) return;
+      const tile = tilesRef.current[x][y];
+      if (tile.type === type) return;
+      reshapeTile(tile, tile.height, type);
+    };
+    simulation.demolishAt = (x, y) => settlementRef.current?.demolishAt(x, y) ?? false;
     return () => {
       simulation.igniteTile = undefined;
+      simulation.setBiome = undefined;
+      simulation.demolishAt = undefined;
     };
-  }, [igniteTile, inBounds]);
+  }, [igniteTile, inBounds, reshapeTile]);
 
   // React to manual weather changes from the toolbar
   useEffect(() => {

@@ -25,6 +25,10 @@ const BASE: Partial<Record<EntityType, number>> = {
   turtle: 0.1, monkey: 0.11, rat: 0.05, crocodile: 0.2, piranha: 0.07, hyena: 0.12,
   rhino: 0.24, buffalo: 0.19, unicorn: 0.18, fairy: 0.07, ghost: 0.15, mage: 0.16,
   druid: 0.16, alien: 0.14, snowman: 0.15,
+  goat: 0.11, camel: 0.19, ostrich: 0.16, flamingo: 0.13, seal: 0.13, polar_bear: 0.21,
+  beetle: 0.05, bee: 0.04, butterfly: 0.05, grasshopper: 0.05,
+  necromancer: 0.16, plague_doctor: 0.15, fire_skull: 0.09, cold_one: 0.2, ufo: 0.2,
+  sand_spider: 0.13, acid_blob: 0.14, lil_pumpkin: 0.08, gummy_bear: 0.09, crabzilla: 0.4,
 };
 
 export const baseSizeOf = (type: EntityType): number => BASE[type] ?? 0.15;

@@ -231,6 +231,166 @@ const LONG = [
 ];
 
 /** Exported so the frame generator can be tested against every template. */
+// Insect, side on (beetle, bee, grasshopper): f=body, d=legs and stripes, e=eye, w=wing
+const INSECT = [
+  '............',
+  '............',
+  '............',
+  '....ww......',
+  '...wwww.d...',
+  '...fffff.d..',
+  '..ffffffef..',
+  '..fdfdfdff..',
+  '...d.d.d....',
+  '............',
+  '............',
+  '............',
+];
+
+// Butterfly, wings open: w=wing, d=wing spot, f=body, e=eye
+const BUTTERFLY = [
+  '............',
+  '.....ee.....',
+  '.www.ff.www.',
+  'wwdww..wwdww',
+  'wwwwwffwwwww',
+  '.wwwwffwwww.',
+  '..wwwffwww..',
+  '.wdwwffwwdw.',
+  '.www.ff.www.',
+  '............',
+  '............',
+  '............',
+];
+
+// Flaming skull: f=bone, e=socket glow, d=teeth, w=flame
+const SKULL = [
+  '....w..w....',
+  '..w.ww.ww...',
+  '..wwwwwwwww.',
+  '...ffffff...',
+  '..ffffffff..',
+  '..feeffeef..',
+  '..feeffeef..',
+  '..ffffffff..',
+  '...ffddff...',
+  '...fdfdff...',
+  '............',
+  '............',
+];
+
+// Blob (acid): f=body, d=underside, e=eye, w=shine
+const BLOB = [
+  '............',
+  '............',
+  '............',
+  '............',
+  '....ffff....',
+  '...fwffff...',
+  '..ffeffeff..',
+  '..ffffffff..',
+  '.ffffffffff.',
+  '.dddddddddd.',
+  '............',
+  '............',
+];
+
+// Spider: f=body, d=legs, e=eyes
+const SPIDER = [
+  '............',
+  '............',
+  '............',
+  '.d........d.',
+  '..d.ffff.d..',
+  'd..ffffff..d',
+  '.dffeffeffd.',
+  'd.dffffffd.d',
+  '..d.ffff.d..',
+  '.d..d..d..d.',
+  '............',
+  '............',
+];
+
+// Flying saucer: f=hull, d=underside, w=dome, e=lights
+const SAUCER = [
+  '............',
+  '............',
+  '............',
+  '....wwww....',
+  '...wwwwww...',
+  '.ffffffffff.',
+  'fefefefefefe',
+  '.dddddddddd.',
+  '...d....d...',
+  '............',
+  '............',
+  '............',
+];
+
+// Living pumpkin: f=rind, d=ridge, s=stem, e=carved glow
+const PUMPKIN = [
+  '............',
+  '.....s......',
+  '.....ss.....',
+  '...ffffff...',
+  '..fdffffdf..',
+  '.ffeffffeff.',
+  '.ffffffffff.',
+  '.fdfeeeefdf.',
+  '..ffffffff..',
+  '...f....f...',
+  '............',
+  '............',
+];
+
+// Tall wader (ostrich, flamingo): f=body, d=legs and beak, e=eye, w=wing
+const TALLBIRD = [
+  '......ff....',
+  '......fed...',
+  '......ff....',
+  '......f.....',
+  '......f.....',
+  '..wwffff....',
+  '.wwfffffff..',
+  '..ffffff....',
+  '....d.d.....',
+  '....d.d.....',
+  '....d.d.....',
+  '...dd.dd....',
+];
+
+// Camel: f=body, d=hooves, e=eye, t=tail
+const CAMEL = [
+  '............',
+  '....ff......',
+  '...ffff..ff.',
+  '..ffffff.fef',
+  '.tfffffffff.',
+  '..ffffffff..',
+  '..ff....ff..',
+  '..ff....ff..',
+  '..ff....ff..',
+  '..dd....dd..',
+  '............',
+  '............',
+];
+
+// Seal, side on: f=body, d=belly, e=eye, w=flipper
+const SEAL = [
+  '............',
+  '............',
+  '............',
+  '............',
+  '............',
+  '.........ff.',
+  '.......ffeff',
+  '..ffffffffd.',
+  '.fffffffdd..',
+  'ww.w....w...',
+  '............',
+  '............',
+];
+
 export const TEMPLATES: Record<string, string[]> = {
   humanoid: HUMANOID,
   quadruped: QUADRUPED,
@@ -246,6 +406,16 @@ export const TEMPLATES: Record<string, string[]> = {
   snowman: SNOWMAN,
   horned: HORNED,
   long: LONG,
+  insect: INSECT,
+  butterfly: BUTTERFLY,
+  skull: SKULL,
+  blob: BLOB,
+  spider: SPIDER,
+  saucer: SAUCER,
+  pumpkin: PUMPKIN,
+  tallbird: TALLBIRD,
+  camel: CAMEL,
+  seal: SEAL,
 };
 
 interface SpriteSpec {
@@ -356,6 +526,26 @@ const SPECS: Record<EntityType, SpriteSpec> = {
     template: 'dragon',
     palette: { f: '#c03a2b', w: '#7c1f16', d: '#e8b34b', e: '#ffe94d' },
   },
+  goat: { template: 'horned', palette: { f: '#d8d0c0', d: '#6a5a48', e: '#1a1a1a', t: '#6a5a48', h: '#a89878' } },
+  camel: { template: 'camel', palette: { f: '#c9a46a', d: '#7a5a32', e: '#1a1a1a', t: '#7a5a32' } },
+  ostrich: { template: 'tallbird', palette: { f: '#2a2420', d: '#e8b088', e: '#f0f0f0', w: '#f2efe8' } },
+  flamingo: { template: 'tallbird', palette: { f: '#f08aa8', d: '#d0607a', e: '#1a1a1a', w: '#e8708e' } },
+  seal: { template: 'seal', palette: { f: '#7a8490', d: '#aab2bc', e: '#101010', w: '#5a626c' } },
+  polar_bear: { template: 'quadruped', palette: { f: '#f2f4f6', d: '#b8c0c8', e: '#1a1a1a', t: '#d8dee4' } },
+  beetle: { template: 'insect', palette: { f: '#2f5a3a', d: '#16241a', e: '#d0e060', w: '#244a30' } },
+  bee: { template: 'insect', palette: { f: '#f2c230', d: '#2a2018', e: '#101010', w: '#e6f2ff' } },
+  butterfly: { template: 'butterfly', palette: { w: '#f08a2a', d: '#2a1a10', f: '#2a1a10', e: '#101010' } },
+  grasshopper: { template: 'insect', palette: { f: '#6eb43a', d: '#3e7020', e: '#101010', w: '#8ad04e' } },
+  necromancer: { template: 'humanoid', palette: { s: '#c8c0b0', h: '#2a1e38', b: '#3a2650', p: '#22182e', e: '#7affa0' } },
+  plague_doctor: { template: 'humanoid', palette: { s: '#e8e0c8', h: '#1a1a1a', b: '#2a2a2a', p: '#1a1a1a', e: '#c8a040' } },
+  fire_skull: { template: 'skull', palette: { f: '#efe8d4', e: '#ff6020', d: '#3a2a20', w: '#ff9a20' } },
+  cold_one: { template: 'humanoid', palette: { s: '#bfe6ff', h: '#e8f8ff', b: '#7ab8e0', p: '#5a90c0', e: '#ffffff' } },
+  ufo: { template: 'saucer', palette: { f: '#a8b0bc', d: '#5a6270', w: '#8ef0c8', e: '#ffe060' } },
+  sand_spider: { template: 'spider', palette: { f: '#c8a060', d: '#6a4a24', e: '#e02020' } },
+  acid_blob: { template: 'blob', palette: { f: '#8ae84a', d: '#4a9a20', e: '#102010', w: '#e8ffd0' } },
+  lil_pumpkin: { template: 'pumpkin', palette: { f: '#f0901e', d: '#b8600e', s: '#4a7a2a', e: '#ffe060' } },
+  gummy_bear: { template: 'critter', palette: { f: '#ff5a7a', e: '#801030', w: '#ff9ab0' } },
+  crabzilla: { template: 'crab', palette: { f: '#c83a2a', d: '#8a1e14', e: '#101010' } },
 };
 
 const textureCache = new Map<string, THREE.CanvasTexture>();

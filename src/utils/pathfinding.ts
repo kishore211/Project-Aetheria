@@ -4,13 +4,13 @@ import { Tile, BiomeType, EntityType, isWaterBiome } from '../types/world';
 /** Creatures that live in water and cannot leave it. */
 const AQUATIC: EntityType[] = ['fish', 'piranha'];
 /** Creatures that ignore terrain entirely. */
-const AIRBORNE: EntityType[] = ['bird', 'dragon', 'fairy', 'ghost'];
+const AIRBORNE: EntityType[] = ['bird', 'dragon', 'fairy', 'ghost', 'bee', 'butterfly', 'fire_skull', 'ufo'];
 /**
  * Creatures that will wade or swim across fresh water and shallows. Everything
  * else keeps its feet dry — a land animal standing in the sea is the bug that
  * strands whole populations.
  */
-const SWIMMERS: EntityType[] = ['bear', 'wolf', 'deer', 'orc', 'human', 'elemental', 'crocodile', 'turtle', 'frog', 'penguin', 'dog', 'buffalo'];
+const SWIMMERS: EntityType[] = ['bear', 'wolf', 'deer', 'orc', 'human', 'elemental', 'crocodile', 'turtle', 'frog', 'penguin', 'dog', 'buffalo', 'seal', 'polar_bear', 'flamingo', 'crabzilla'];
 /** Water a swimmer will cross, as opposed to open sea nobody crosses. */
 const SHALLOW: BiomeType[] = ['shallow_water', 'river', 'lake'];
 

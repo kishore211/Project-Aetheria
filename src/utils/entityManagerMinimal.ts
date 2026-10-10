@@ -1,4 +1,5 @@
 // src/utils/entityManagerMinimal.ts
+import { abilityTick, type AbilityWorld } from './creatureAbilities';
 import { cloneEquipment, reserveItemIds } from './equipment';
 import * as THREE from 'three';
 import { pickRamp } from './subspecies';
@@ -303,7 +304,25 @@ export class EntityManager implements EntityIndex {
 
   // -- lifecycle ---------------------------------------------------------
 
+  /** What a creature's aura can touch. Built on first use; the closures read live state. */
+  private abilityWorld?: AbilityWorld;
+
+  private abilities(): AbilityWorld {
+    this.abilityWorld ??= {
+      tiles: this.tiles,
+      spawn: (type, x, y) => (this.isInBounds(Math.floor(x), Math.floor(y)) ? this.spawnEntity(type, x, y) : null),
+      near: (x, y, radius) => this.query(x, y, radius),
+      ignite: (x, y) => simulation.igniteTile?.(x, y),
+      setBiome: (x, y, type) => simulation.setBiome?.(x, y, type),
+      demolishAt: (x, y) => simulation.demolishAt?.(x, y) ?? false,
+      announce: (message, at) => this.onLifeEvent?.(message, 'info', { x: Math.floor(at.x), y: Math.floor(at.y) }),
+      random: Math.random,
+    };
+    return this.abilityWorld;
+  }
+
   private processLifecycleEvents(entity: Entity, delta: number): void {
+    abilityTick(entity, delta, this.abilities());
     // A snowman somewhere warm is a snowman with a deadline.
     if (entity.type === 'snowman') {
       const ix = Math.floor(entity.position.x);
@@ -314,7 +333,7 @@ export class EntityManager implements EntityIndex {
     }
 
     // Undead do not age or breed
-    if (['skeleton', 'zombie', 'ghost'].includes(entity.type)) {
+    if (['skeleton', 'zombie', 'ghost', 'fire_skull', 'ufo'].includes(entity.type)) {
       if (entity.health <= 0) {
         this.killEntity(entity, entity.status.includes('slain') ? 'combat' : 'health');
       }
@@ -652,6 +671,10 @@ export class EntityManager implements EntityIndex {
       cat: 25, dog: 25, cow: 40, pig: 40, crab: 40, frog: 40, penguin: 40, turtle: 20,
       monkey: 30, rat: 60, crocodile: 12, piranha: 60, hyena: 25, rhino: 10, buffalo: 40,
       unicorn: 4, fairy: 15, ghost: 15, mage: 4, druid: 6, alien: 8, snowman: 20,
+      goat: 40, camel: 25, ostrich: 25, flamingo: 40, seal: 30, polar_bear: 10,
+      beetle: 40, bee: 50, butterfly: 40, grasshopper: 50,
+      necromancer: 3, plague_doctor: 6, fire_skull: 12, cold_one: 6, ufo: 3,
+      sand_spider: 20, acid_blob: 10, lil_pumpkin: 25, gummy_bear: 30, crabzilla: 1,
     };
     const baseMax = baseMaxCounts[type] ?? 50;
     switch (this.entityPopulationDensity) {

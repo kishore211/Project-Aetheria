@@ -669,6 +669,106 @@ export const POWERS: PowerEntry[] = [
     quip: 'Doomed by spring, and determined to enjoy it.',
   },
   {
+    kind: 'tool', id: 'spawn-goat', tab: 'life', label: 'Goat', icon: 'Mountain',
+    hint: 'Sure-footed grazers of hills and peaks.',
+    quip: 'Will eat the power bar if you let it.',
+  },
+  {
+    kind: 'tool', id: 'spawn-camel', tab: 'life', label: 'Camel', icon: 'Squirrel',
+    hint: 'Desert walkers that go weeks without a drink.',
+    quip: 'Two humps, no opinions.',
+  },
+  {
+    kind: 'tool', id: 'spawn-ostrich', tab: 'life', label: 'Ostrich', icon: 'Bird',
+    hint: 'Fast flightless birds of the savanna.',
+    quip: 'Faster than anything that wants to eat it.',
+  },
+  {
+    kind: 'tool', id: 'spawn-flamingo', tab: 'life', label: 'Flamingo', icon: 'Bird',
+    hint: 'Pink waders of marsh and shallows.',
+    quip: 'Stands on one leg out of pure confidence.',
+  },
+  {
+    kind: 'tool', id: 'spawn-seal', tab: 'life', label: 'Seal', icon: 'Fish',
+    hint: 'Cold-coast swimmers that fish and bask.',
+    quip: 'A dog that chose the sea.',
+  },
+  {
+    kind: 'tool', id: 'spawn-polar_bear', tab: 'life', label: 'Polar Bear', icon: 'PawPrint',
+    hint: 'The great hunter of the ice.',
+    quip: 'Cuddly from a very great distance.',
+  },
+  {
+    kind: 'tool', id: 'spawn-beetle', tab: 'life', label: 'Beetle', icon: 'Bug',
+    hint: 'Little armoured crawlers. Bird food.',
+    quip: 'Has outlived empires. Will outlive yours.',
+  },
+  {
+    kind: 'tool', id: 'spawn-bee', tab: 'life', label: 'Bee', icon: 'Flower',
+    hint: 'Pollinators: the meadow grows richer where they work.',
+    quip: 'Busy, and proud of it.',
+  },
+  {
+    kind: 'tool', id: 'spawn-butterfly', tab: 'life', label: 'Butterfly', icon: 'Sparkle',
+    hint: 'Drifts over meadows. Harmless and lovely.',
+    quip: 'It was a caterpillar once. Do not mention it.',
+  },
+  {
+    kind: 'tool', id: 'spawn-grasshopper', tab: 'life', label: 'Grasshopper', icon: 'Leaf',
+    hint: 'Meadow jumpers that birds and frogs adore.',
+    quip: 'Fiddling while the meadow burns.',
+  },
+  {
+    kind: 'tool', id: 'spawn-necromancer', tab: 'life', label: 'Necromancer', icon: 'Skull',
+    hint: 'Raises skeletons from the earth around it.',
+    quip: 'Death is a phase. It intends to help you through it.',
+  },
+  {
+    kind: 'tool', id: 'spawn-plague_doctor', tab: 'life', label: 'Plague Doctor', icon: 'FlaskConical',
+    hint: 'Walks the sick lands curing the plague.',
+    quip: 'The beak is full of herbs. The bill is full of fees.',
+  },
+  {
+    kind: 'tool', id: 'spawn-fire_skull', tab: 'life', label: 'Fire Skull', icon: 'Flame',
+    hint: 'A burning skull that sets the land alight.',
+    quip: 'Hot-headed, literally.',
+  },
+  {
+    kind: 'tool', id: 'spawn-cold_one', tab: 'life', label: 'Cold One', icon: 'Snowflake',
+    hint: 'Turns the ground to snow wherever it walks.',
+    quip: 'Brings winter with it, like a bad houseguest.',
+  },
+  {
+    kind: 'tool', id: 'spawn-ufo', tab: 'life', label: 'UFO', icon: 'Orbit',
+    hint: 'Visitors from above. They take what they like.',
+    quip: 'Probably here for the cows.',
+  },
+  {
+    kind: 'tool', id: 'spawn-sand_spider', tab: 'life', label: 'Sand Spider', icon: 'Bug',
+    hint: 'Desert ambushers that hunt in the dunes.',
+    quip: 'Eight legs. Zero chill.',
+  },
+  {
+    kind: 'tool', id: 'spawn-acid_blob', tab: 'life', label: 'Acid Blob', icon: 'Droplet',
+    hint: 'A wobbling glob of acid that dissolves the living.',
+    quip: 'Squishy, and the bad kind of squishy.',
+  },
+  {
+    kind: 'tool', id: 'spawn-lil_pumpkin', tab: 'life', label: 'Lil Pumpkin', icon: 'Sprout',
+    hint: 'A cheerful little living pumpkin.',
+    quip: 'Spooky, technically.',
+  },
+  {
+    kind: 'tool', id: 'spawn-gummy_bear', tab: 'life', label: 'Gummy Bear', icon: 'Heart',
+    hint: 'Sweet critters of the candy lands.',
+    quip: 'Do not eat. It has a family.',
+  },
+  {
+    kind: 'tool', id: 'spawn-crabzilla', tab: 'life', label: 'Crabzilla', icon: 'Shell',
+    hint: 'A titanic crab that flattens towns.',
+    quip: 'It came from the sea. It wants the land. It wants everything.',
+  },
+  {
     kind: 'tool', id: 'spawn-dragon', tab: 'life', label: 'Dragon', icon: 'Flame',
     hint: 'Flies, burns, and is very hard to kill.',
     quip: 'Regards your walls as a suggestion.',

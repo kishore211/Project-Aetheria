@@ -108,6 +108,10 @@ export const SPAWNABLE: EntityType[] = [
   'crocodile', 'piranha', 'hyena', 'rhino', 'buffalo',
   'unicorn', 'fairy', 'ghost', 'mage', 'druid', 'alien', 'snowman',
   'dragon', 'demon', 'zombie', 'skeleton', 'elemental', 'bandit',
+  'goat', 'camel', 'ostrich', 'flamingo', 'seal', 'polar_bear',
+  'beetle', 'bee', 'butterfly', 'grasshopper',
+  'necromancer', 'plague_doctor', 'fire_skull', 'cold_one', 'ufo',
+  'sand_spider', 'acid_blob', 'lil_pumpkin', 'gummy_bear', 'crabzilla',
 ];
 
 const STATUS_POWERS: Record<string, { status: StatusId; color: number; persons?: boolean; line: string }> = {

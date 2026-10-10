@@ -4,7 +4,7 @@
 // global facts (season, active world laws). Threading them through every call
 // site costs more than it buys, so the engine publishes them here once per
 // frame and the systems read them.
-import type { Entity, Season, TimeOfDay } from '../types/world';
+import type { BiomeType, Entity, Season, TimeOfDay } from '../types/world';
 import type { AIOrder } from './entitySystemMinimal';
 import { DEFAULT_WORLD_LAWS, type WorldLaws } from '../store/gameStore';
 import { AGES, type AgeDef, type AgeId } from './ages';
@@ -34,6 +34,10 @@ export interface SimulationContext {
   mapLayer: MapLayer;
   /** Set a tile alight (pyromaniac trait, raids burning buildings). */
   igniteTile?: (x: number, y: number) => void;
+  /** Repaint a tile as another biome (a Cold One's trail of snow). */
+  setBiome?: (x: number, y: number, type: BiomeType) => void;
+  /** Knock down whatever building stands on a tile (Crabzilla). */
+  demolishAt?: (x: number, y: number) => boolean;
   /** A unit reached the tile a village sent it to. */
   onOrderComplete?: (entity: Entity, order: AIOrder) => void;
   /** Where a unit's home village is, if it has one. Used to rescue strays. */

@@ -224,6 +224,86 @@ export const CREATURE_LINES: Partial<Record<EntityType, string[]>> = {
     'Somebody made it, and now it is making its own decisions.',
     'Keeps glancing at the sun.',
   ],
+  goat: [
+    'Has climbed something it should not have, and is looking at you from it.',
+    'Eats first, asks questions never.',
+  ],
+  camel: [
+    'Carries its own water and its own grudges.',
+    'Spits with an accuracy that suggests practice.',
+  ],
+  ostrich: [
+    'Could fly, it insists, if it wanted to.',
+    'Runs as if the ground owed it money.',
+  ],
+  flamingo: [
+    'Pink because of what it eats, which is a lesson for everyone.',
+    'Balanced on one leg and one principle.',
+  ],
+  seal: [
+    'Barks at the sea and the sea barks back.',
+    'Graceless on land, a poem in the water.',
+  ],
+  polar_bear: [
+    'White on white, until it is red on white.',
+    'The ice is its kingdom and everything on it is lunch.',
+  ],
+  beetle: [
+    'Small, shiny, and entirely unbothered.',
+    'Rolls on. Always rolls on.',
+  ],
+  bee: [
+    'Every flower in the meadow owes it a little.',
+    'Works itself to death and calls it a good life.',
+  ],
+  butterfly: [
+    'Flaps its wings, and somewhere a hurricane begins.',
+    'Has one week to live and spends it on beauty.',
+  ],
+  grasshopper: [
+    'Sings all summer. Has not thought about winter.',
+    'Jumps first, lands somewhere, decides later.',
+  ],
+  necromancer: [
+    'Reads the dead like books, and lends them out.',
+    'Wherever it walks the graves get restless.',
+  ],
+  plague_doctor: [
+    'Arrives where the sickness is, which is either brave or suspicious.',
+    'Breathes through a beak of herbs and hope.',
+  ],
+  fire_skull: [
+    'Lost its body, kept its temper.',
+    'Leaves a trail of smoke and regret.',
+  ],
+  cold_one: [
+    'Winter, walking, and in no hurry at all.',
+    'The frost goes where it goes.',
+  ],
+  ufo: [
+    'Not from here. Not interested in here, except the cattle.',
+    'Hums a tune nobody on this world has heard.',
+  ],
+  sand_spider: [
+    'The dune moved. That was not the dune.',
+    'Patient as sand and twice as hungry.',
+  ],
+  acid_blob: [
+    'Wobbles towards you at the speed of inevitability.',
+    'Has no face and no regrets.',
+  ],
+  lil_pumpkin: [
+    'Grinning at nothing. Possibly at you.',
+    'Will be pie by autumn, if anyone is brave.',
+  ],
+  gummy_bear: [
+    'Sticky, sweet and slightly translucent.',
+    'Bounces when it walks, as everyone should.',
+  ],
+  crabzilla: [
+    'Came up out of the sea and has not yet decided to go back.',
+    'Everything sideways, everything flattened.',
+  ],
 };
 
 /** Every biome has something to say about itself. */

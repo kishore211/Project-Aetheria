@@ -214,6 +214,16 @@ export type EntityType =
   | 'hyena'
   | 'rhino'
   | 'buffalo'
+  | 'goat'
+  | 'camel'
+  | 'ostrich'
+  | 'flamingo'
+  | 'seal'
+  | 'polar_bear'
+  | 'beetle'
+  | 'bee'
+  | 'butterfly'
+  | 'grasshopper'
   // Magical folk
   | 'unicorn'
   | 'fairy'
@@ -228,7 +238,17 @@ export type EntityType =
   | 'zombie' 
   | 'skeleton' 
   | 'elemental' 
-  | 'bandit';
+  | 'bandit'
+  | 'necromancer'
+  | 'plague_doctor'
+  | 'fire_skull'
+  | 'cold_one'
+  | 'ufo'
+  | 'sand_spider'
+  | 'acid_blob'
+  | 'lil_pumpkin'
+  | 'gummy_bear'
+  | 'crabzilla';
 
 /** Heritable unit traits. Rolled at spawn, passed to children. */
 export type TraitId =
