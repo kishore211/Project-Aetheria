@@ -75,7 +75,7 @@ const SPREADING_FORESTS: BiomeType[] = [
 ];
 
 /** What lives where, for the wildlife row. */
-const NATIVES: Partial<Record<BiomeType, EntityType[]>> = {
+export const NATIVES: Partial<Record<BiomeType, EntityType[]>> = {
   grassland: ['sheep', 'rabbit', 'chicken', 'cow', 'pig', 'grasshopper', 'butterfly', 'bee'],
   savanna: ['buffalo', 'hyena', 'rhino', 'snake', 'ostrich'],
   hills: ['sheep', 'rabbit', 'buffalo', 'goat'],

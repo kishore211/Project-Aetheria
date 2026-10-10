@@ -316,6 +316,9 @@ const DEFAULT_PROFILE: TypeProfile = {
   maxAge: 100, maxHealth: 100, strength: 10, intelligence: 10, speed: 10, resilience: 10,
 };
 
+/** A kind's base stats, for the Knowledge book. */
+export const profileOf = (type: EntityType): Readonly<TypeProfile> => PROFILES[type] ?? DEFAULT_PROFILE;
+
 /**
  * Create a new entity of the specified type
  */
@@ -650,7 +653,7 @@ function applyStatusVisuals(entity: Entity, sprite: THREE.Sprite, deltaTime: num
  * breath, a mage's bolt, a UFO's beam. WorldBox draws every one of these, and
  * a dragon that has to walk up and nibble a knight is not a dragon.
  */
-const RANGED: Partial<Record<EntityType, { reach: number; kind: ShotKind; ignite?: boolean }>> = {
+export const RANGED: Partial<Record<EntityType, { reach: number; kind: ShotKind; ignite?: boolean }>> = {
   dragon: { reach: 3.2, kind: 'fire', ignite: true },
   mage: { reach: 3.5, kind: 'magic' },
   necromancer: { reach: 3, kind: 'dark' },

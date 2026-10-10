@@ -7,7 +7,7 @@ import {
   Scissors, Skull, Sparkle, Sparkles, Sprout, Swords, Tag, TreePine, Trees,
   User, Users, Video, VideoOff, Waves, X, Zap,
   Biohazard, Bird, Bomb, Bone, Brain, Bug, Cloud, CloudSnow, Coffee, Copy, Crown, Dog, Droplet, Egg, Fish, FlaskConical, Flag, Flower, Handshake, HeartHandshake, Lightbulb, Megaphone, Moon, MountainSnow, Orbit, Palmtree, Rabbit, Radiation, Shell, Shield, Snowflake, Spline, Squirrel, Sun, Sword, ThermometerSnowflake, ThermometerSun, Tornado, TreePalm, Unlink, WandSparkles, Wheat, Wind, CircleDot,
-  PiggyBank, Banana, Wand, Cat, Rat, Gamepad2,
+  PiggyBank, Banana, Wand, Cat, Rat, Gamepad2, BookOpen,
   type LucideIcon,
 } from 'lucide-react';
 import { useGameStore, type BrushRadius } from '../../store/gameStore';
@@ -24,6 +24,7 @@ import { HOTKEY_SLOTS } from '../../utils/hotkeyBindings';
 import SavePanel from './SavePanel';
 import StatsPanel from './StatsPanel';
 import ListWindow from './ListWindow';
+import KnowledgeBook from './KnowledgeBook';
 
 /**
  * The bottom power bar.
@@ -38,6 +39,7 @@ import ListWindow from './ListWindow';
 
 /** Resolve a lucide icon by name, so the catalogue can stay plain data. */
 const ICONS: Record<string, LucideIcon> = {
+  BookOpen,
   Activity, ArrowDown, ArrowUp, Axe, BadgeCheck, BarChart3, Circle, CloudRain,
   Droplets, Eraser, Eye, EyeOff, Flame, Gem, Ghost, Globe2, Hammer,
   HardDriveDownload, Heart, HelpCircle, Leaf, ListTree, Map, Mountain,
@@ -111,6 +113,8 @@ const PowerBar = () => {
   const [showSaves, setShowSaves] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [showList, setShowList] = useState(false);
+  const showKnowledge = useGameStore((state) => state.showKnowledge);
+  const setShowKnowledge = useGameStore((state) => state.setShowKnowledge);
 
   const hasUnit = Boolean(selectedEntity);
   const tabs = useMemo(
@@ -151,6 +155,12 @@ const PowerBar = () => {
           hint: 'Population over time, and what everyone died of.',
           quip: 'Every world keeps a tally whether you look at it or not.',
           run: () => setShowStats(true),
+        },
+        {
+          key: 'knowledge', label: 'Knowledge', icon: 'BookOpen',
+          hint: 'Every creature you have met, across every world. (K)',
+          quip: 'Gotta meet them all.',
+          run: () => setShowKnowledge(true),
         },
         {
           key: 'help', label: 'Help', icon: 'HelpCircle',
@@ -222,7 +232,7 @@ const PowerBar = () => {
     return [];
   }, [
     tab, uiHidden, showMapLabels, showUnitIcons, showMinimap, selectedEntity, followEntityId,
-    setWorldSeed, setShowLaws, setShowHelp, toggleUiHidden, toggleMapLabels, toggleUnitIcons,
+    setWorldSeed, setShowLaws, setShowHelp, setShowKnowledge, toggleUiHidden, toggleMapLabels, toggleUnitIcons,
     toggleMinimap, setFollowEntity, setSelectedEntity, possessedId, setPossessed,
   ]);
 
@@ -482,6 +492,7 @@ const PowerBar = () => {
 
       <SavePanel open={showSaves} onClose={() => setShowSaves(false)} />
       <StatsPanel open={showStats} onClose={() => setShowStats(false)} />
+      <KnowledgeBook open={showKnowledge} onClose={() => setShowKnowledge(false)} />
       <ListWindow open={showList} onClose={() => setShowList(false)} />
     </>
   );

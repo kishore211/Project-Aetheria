@@ -36,6 +36,7 @@ import { heldDirection } from '../utils/possession';
 import { RelationLines } from '../utils/relationLines';
 import { advanceShots, clearShots, ShotLayer } from '../utils/shotBridge';
 import { CreatureLayer } from '../utils/creatureLayer';
+import { discover } from '../utils/knowledge';
 import { magnetDrop, magnetFollow, magnetHolding, magnetPickUp, magnetReset } from '../utils/magnet';
 import { describeItem, onItemEvent, type ItemEvent } from '../utils/equipment';
 import { clearImpacts, isShaking, requestFlash, requestShake, sampleShake } from '../utils/impactBridge';
@@ -437,6 +438,7 @@ export const useGameEngine = () => {
       soundManager.death();
     };
     manager.onEntitySpawn = (entity) => {
+      discover(entity.type);
       const ex = Math.floor(entity.position.x);
       const ey = Math.floor(entity.position.y);
       if (inBounds(ex, ey)) {
@@ -565,6 +567,9 @@ export const useGameEngine = () => {
       }
       useGameStore.getState().clearPendingSave();
     }
+
+    // Whatever the world starts with has been met, including a loaded save's.
+    for (const entity of manager.getAllEntities()) discover(entity.type);
 
     setIsInitialized(true);
     useGameStore.getState().addEvent(

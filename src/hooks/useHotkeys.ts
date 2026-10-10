@@ -127,6 +127,7 @@ export const useHotkeys = (): void => {
         case 'x': store.setMapLayer(nextLayer(store.mapLayer, 1)); break;
         case 'h': store.toggleUiHidden(); break;
         case 'l': store.setShowLaws(!store.showLaws); break;
+        case 'k': store.setShowKnowledge(!store.showKnowledge); break;
         case 'm': store.toggleMinimap(); break;
         case 'n': store.toggleMapLabels(); break;
         case 'i': store.toggleUnitIcons(); break;

@@ -321,6 +321,9 @@ interface GameState {
   population: number;
   events: GameEvent[];
   showHelp: boolean;
+  /** The Knowledge book (bestiary). */
+  showKnowledge: boolean;
+  setShowKnowledge: (show: boolean) => void;
   showLaws: boolean;
   showMinimap: boolean;
   /** Icons above creatures showing profession and current activity. */
@@ -555,6 +558,8 @@ export const useGameStore = create<GameState>((set) => ({
     ].slice(0, 80),
   })),
 
+  showKnowledge: false,
+  setShowKnowledge: (show: boolean) => set({ showKnowledge: show }),
   setShowHelp: (show: boolean) => {
     if (!show) markHelpSeen();
     set({ showHelp: show });
