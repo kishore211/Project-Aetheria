@@ -8,6 +8,8 @@
 
 import type { Entity, EntityType, Season, Tile } from '../types/world';
 import { applyStatus } from './statusEffects';
+import { emitFloater } from './floatBridge';
+import { speak } from './dialogue';
 import { isWaterBiome } from '../types/world';
 import type { DisasterTarget } from './disasters';
 
@@ -147,6 +149,7 @@ export const MONSTER_EVENTS: MonsterEvent[] = [
       const people = (world.near?.(town.x, town.y, 6) ?? []).filter(e => ['human', 'elf', 'dwarf', 'orc'].includes(e.type));
       if (people.length < 4) return false;
       for (const person of people.slice(0, 3)) applyStatus(person, 'infected');
+      emitFloater({ kind: 'speech', text: speak('sick', world.random()), x: people[0].position?.x ?? town.x, y: people[0].position?.y ?? town.y, entityId: people[0].id });
       world.announce(`Plague comes to ${town.villageName}. The first of them coughs at the well`, { x: town.x, y: town.y });
       // Sometimes help follows the sickness.
       if (world.random() < 0.5) {

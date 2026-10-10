@@ -2922,6 +2922,13 @@ export class SettlementSystem {
     village.store.gold -= cost.gold;
     equip(needy, item);
     if (item.quality === 'legendary') emitItemEvent({ kind: 'forged', item, owner: needy });
+    // Most pieces go unremarked; a legend never does.
+    if (item.quality === 'legendary' || Math.random() < 0.3) {
+      emitFloater({
+        kind: 'speech', text: speak(item.quality === 'legendary' ? 'legendary' : 'armed', Math.random()),
+        x: needy.position.x, y: needy.position.y, entityId: needy.id,
+      });
+    }
   }
 
   private residentsOf(village: Village): Entity[] {
@@ -3489,6 +3496,7 @@ export class SettlementSystem {
       return;
     }
     this.invasionCooldown.set(home.id, now + 120);
+    emitFloater({ kind: 'speech', text: speak('sailing', Math.random()), x: captain.position.x, y: captain.position.y, entityId: captain.id });
     for (const soldier of crew) {
       this.entities.setHerdAnchor(soldier, null);
       applyStatus(soldier, 'aboard');
@@ -3611,10 +3619,14 @@ export class SettlementSystem {
     this.captains.delete(village.id);
     this.leaders.delete(village.id);
 
-    for (const resident of this.entities.getEntitiesByVillage().get(village.id) ?? []) {
+    const conquered = this.entities.getEntitiesByVillage().get(village.id) ?? [];
+    for (const resident of conquered) {
       resident.kingdomId = to.id;
       this.clearOffices(resident);
       if (resident.job === 'warrior') resident.job = null;
+    }
+    if (conquered[0]) {
+      emitFloater({ kind: 'speech', text: speak('captured', Math.random()), x: conquered[0].position.x, y: conquered[0].position.y, entityId: conquered[0].id });
     }
 
     for (const id of village.territory) {

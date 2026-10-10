@@ -2001,7 +2001,9 @@ export class EntityAI {
     const killed = target.health <= 0;
     if (killed && !target.status.includes('slain')) target.status.push('slain');
     if (weapon || target.equipment?.armor) wearAfterBlow(this.entity, target, killed);
-    if (killed && target.equipment) claimSpoils(this.entity, target, wieldsGear(this.entity.type));
+    if (killed && target.equipment && claimSpoils(this.entity, target, wieldsGear(this.entity.type)).length > 0) {
+      emitFloater({ kind: 'speech', text: speak('looted', Math.random()), x: this.entity.position.x, y: this.entity.position.y, entityId: this.entity.id });
+    }
   }
 
   private handleFleeingState(tiles: Tile[][], deltaTime: number): void {

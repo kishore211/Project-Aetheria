@@ -27,9 +27,46 @@ export type Occasion =
   | 'crowned'
   | 'inLove'
   | 'grieving'
-  | 'poked';
+  | 'poked'
+  | 'armed'
+  | 'legendary'
+  | 'looted'
+  | 'sick'
+  | 'captured'
+  | 'sailing';
 
 const LINES: Record<Occasion, string[]> = {
+  armed: [
+    'Finally, something pointy.',
+    'Look at this. No, really, look at it.',
+    'I am going to name it. I am going to name it Steve.',
+    'Now I just need someone to use it on.',
+  ],
+  legendary: [
+    'It hums when I hold it.',
+    'They say it has a name. It told me so itself.',
+    'This was made for a hero. It will have to settle for me.',
+  ],
+  looted: [
+    'You will not be needing this.',
+    'Finders keepers. Fighters, rather.',
+    'Nice. Slightly used. Previous owner very used.',
+  ],
+  sick: [
+    'Does anyone else feel warm?',
+    'It is just a cough. It is just a cough.',
+    'Do not stand so close to me.',
+  ],
+  captured: [
+    'Different flag, same fields.',
+    'I suppose we pay taxes to them now.',
+    'Nobody asked us. Nobody ever asks us.',
+  ],
+  sailing: [
+    'I joined to fight, not to be seasick.',
+    'Which way is their island? Somebody knows, right?',
+    'Row faster. The war will not wait.',
+  ],
   hungry: [
     'I could eat a whole forest.',
     'Was that berry poisonous? Asking after.',
