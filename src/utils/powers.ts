@@ -434,6 +434,26 @@ export const POWERS: PowerEntry[] = [
     quip: 'Two of everything. Ask the first one how it feels.',
   },
   {
+    kind: 'tool', id: 'dust-culture', tab: 'divine', label: 'Forget Culture', icon: 'Wind',
+    hint: 'Make people forget their culture. They pick one up again by talking.',
+    quip: 'Who were we, again?',
+  },
+  {
+    kind: 'tool', id: 'dust-language', tab: 'divine', label: 'Forget Language', icon: 'Wind',
+    hint: 'Make people forget their language.',
+    quip: 'Nobody can find the word for "word".',
+  },
+  {
+    kind: 'tool', id: 'dust-religion', tab: 'divine', label: 'Forget Faith', icon: 'Wind',
+    hint: 'Make people forget their religion.',
+    quip: 'The gods are not offended. Mostly.',
+  },
+  {
+    kind: 'tool', id: 'dust-everything', tab: 'divine', label: 'Forget All', icon: 'Sparkles',
+    hint: 'Culture, language and faith, all at once.',
+    quip: 'A clean slate, and a very confused afternoon.',
+  },
+  {
     kind: 'tool', id: 'diplo-friendship', tab: 'realm', label: 'Friendship', icon: 'Handshake',
     hint: 'Click a kingdom: make peace with everyone.',
     quip: 'Nobody can remember what the quarrel was.',

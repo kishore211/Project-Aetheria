@@ -201,3 +201,20 @@ describe('the rest of the power bar', () => {
     expect(runExtraPower('spawn-human', tiles[1][1], ctx, hazards)).toBeNull();
   });
 });
+
+describe('dusts of forgetting', () => {
+  it('wipes what it says and leaves the rest, on people only', () => {
+    const { ctx, hazards, tiles, creatures } = world();
+    const person = makeCreature('human', 12, 12);
+    Object.assign(person, { cultureId: 'c1', languageId: 'l1', religionId: 'r1' });
+    const sheep = makeCreature('sheep', 12, 12.3);
+    creatures.push(person, sheep);
+    expect(runExtraPower('dust-language', tiles[12][12], ctx, hazards)).toBe(true);
+    expect(person.languageId).toBeNull();
+    expect(person.cultureId).toBe('c1');
+    expect(person.status).toContain('confused');
+    expect(sheep.status).not.toContain('confused');
+    runExtraPower('dust-everything', tiles[12][12], ctx, hazards);
+    expect([person.cultureId, person.languageId, person.religionId]).toEqual([null, null, null]);
+  });
+});

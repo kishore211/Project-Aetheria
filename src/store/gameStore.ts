@@ -216,6 +216,7 @@ export type ExtraTool =
   | 'grenade' | 'bomb' | 'napalm' | 'atomic' | 'void-bomb'
   | 'plague' | 'madness' | 'confusion'
   | 'divine-light' | 'shield' | 'coffee' | 'inspire' | 'sleep' | 'clone'
+  | 'dust-culture' | 'dust-language' | 'dust-religion' | 'dust-everything'
   | 'diplo-spite' | 'diplo-friendship' | 'diplo-whisper' | 'diplo-unity' | 'diplo-discord' | 'diplo-inspiration';
 
 /** Radius in tiles for area tools: 0 = single tile, 1 = 3x3, 2 = 5x5. */

@@ -124,6 +124,20 @@ const DIPLOMACY: Record<string, DiplomacyAct> = {
   'diplo-inspiration': 'inspiration',
 };
 
+/**
+ * WorldBox's dusts of forgetting. A creature that forgets its culture is not
+ * left blank for ever: the next conversation pulls it toward whoever it is
+ * talking to, by the same pot that spread the culture in the first place. So
+ * a dusted village does not lose its identity, it *reconverges* — sometimes on
+ * the one it had, sometimes on the neighbours'.
+ */
+const DUSTS: Record<string, Array<'cultureId' | 'languageId' | 'religionId'>> = {
+  'dust-culture': ['cultureId'],
+  'dust-language': ['languageId'],
+  'dust-religion': ['religionId'],
+  'dust-everything': ['cultureId', 'languageId', 'religionId'],
+};
+
 const CLOUDS: Record<string, DropKind> = {
   'rain-cloud': 'rain',
   'snow-cloud': 'snow',
@@ -319,6 +333,25 @@ export const runExtraPower = (
     ctx.announce(
       `${plural(touched.length, 'A creature is', 'creatures are')} ${spell.line}`,
       spell.status === 'infected' || spell.status === 'enraged' ? 'disaster' : 'divine',
+      at(tile),
+    );
+    return true;
+  }
+
+  // -- forgetting ------------------------------------------------------------
+  const dust = DUSTS[tool];
+  if (dust) {
+    const touched = ctx.query(tile.x, tile.y, 1.5 + brush).filter(c => isSapient(c));
+    if (touched.length === 0) return false;
+    for (const creature of touched) {
+      for (const field of dust) creature[field] = null;
+      applyStatus(creature, 'confused');
+    }
+    ctx.fx.aura(tile, 0xc8b8ff);
+    ctx.sound.bless();
+    ctx.announce(
+      `${plural(touched.length, 'Somebody blinks', 'people blink')} and cannot quite remember who they were`,
+      'divine',
       at(tile),
     );
     return true;
