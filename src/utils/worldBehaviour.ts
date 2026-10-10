@@ -41,7 +41,7 @@ export interface WorldContext extends DisasterWorld {
   /** Growth multiplier from the current age: Wonders nearly doubles, Ash stops. */
   growth: number;
   /** World laws the player has switched off. */
-  laws: { biomeGrowth: boolean; disasters: boolean };
+  laws: { biomeGrowth: boolean; disasters: boolean; erosion?: boolean };
   inBounds(x: number, y: number): boolean;
   /** Push a changed tile to the renderer. */
   syncTile(tile: Tile): void;
@@ -320,6 +320,29 @@ export const WORLD_PROCESSES: WorldProcess[] = [
     action: (ctx) => {
       if (!ctx.laws.disasters) return;
       strikeDisaster(ctx);
+    },
+  },
+  {
+    // Erosion, when the law allows it: the sea takes a bite out of low,
+    // soft coast now and then. Never a town, never rock.
+    name: 'erosion',
+    minInterval: 25,
+    maxInterval: 55,
+    action: (ctx) => {
+      if (!ctx.laws.erosion) return;
+      for (let i = 0; i < samplesFor(ctx, 1200); i += 1) {
+        const { tile, x, y } = sampleTile(ctx);
+        if (isWaterBiome(tile.type) || tile.villageId || tile.height > 0.32) continue;
+        if (tile.type !== 'beach' && tile.type !== 'grassland' && tile.type !== 'marsh') continue;
+        const sea = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) =>
+          ctx.inBounds(x + dx, y + dy) && ['ocean', 'shallow_water', 'deep_ocean'].includes(ctx.tiles[x + dx][y + dy].type));
+        if (!sea || ctx.random() >= 0.35) continue;
+        tile.type = 'shallow_water';
+        tile.height = 0.22;
+        tile.walkable = false;
+        tile.structure = null;
+        ctx.syncTile(tile);
+      }
     },
   },
   {

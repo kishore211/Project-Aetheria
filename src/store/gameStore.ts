@@ -151,6 +151,20 @@ export interface WorldLaws {
   warfare: boolean;
   /** The world moves through eras that change its rules. */
   ages: boolean;
+  /** Unhappy provinces may break away into kingdoms of their own. */
+  rebellions: boolean;
+  /** Kingdoms send settlers out to found new towns. */
+  colonisation: boolean;
+  /** Kings may form alliances. */
+  diplomacy: boolean;
+  /** No town grows past a hundred people. */
+  populationCap: boolean;
+  /** Small towns attract the odd stranger. */
+  migrants: boolean;
+  /** Forests slow everyone who walks through them. */
+  entanglewood: boolean;
+  /** The sea slowly eats soft, low coast. */
+  erosion: boolean;
 }
 
 export const DEFAULT_WORLD_LAWS: WorldLaws = {
@@ -163,6 +177,13 @@ export const DEFAULT_WORLD_LAWS: WorldLaws = {
   settlements: true,
   warfare: true,
   ages: true,
+  rebellions: true,
+  colonisation: true,
+  diplomacy: true,
+  populationCap: false,
+  migrants: true,
+  entanglewood: false,
+  erosion: false,
 };
 
 // Tools available to the player
@@ -547,7 +568,9 @@ export const useGameStore = create<GameState>((set) => ({
     year: save.world.year,
     day: save.world.day,
     weather: save.world.weather,
-    worldLaws: save.world.laws,
+    // Merged over the defaults: a save from before a law existed has no
+    // opinion about it, and reading that as "off" would switch it off.
+    worldLaws: { ...DEFAULT_WORLD_LAWS, ...save.world.laws },
     pendingSave: save,
     worldRevision: state.worldRevision + 1,
     selectedTile: null,

@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { pickRamp } from './subspecies';
 import { isAquatic } from './pathfinding';
+import { setEntanglewood } from './biomeEffects';
 import { TILE_SIZE, type Tile, type Entity, type EntityType } from '../types/world';
 import { createEntity, createEntityMesh, updateEntityMesh, EntityAI, type AIOrder } from './entitySystemMinimal';
 import { inheritTraits } from './traits';
@@ -70,7 +71,14 @@ export class EntityManager implements EntityIndex {
     this.bucketsPerRow = Math.max(1, Math.ceil(tiles.length / BUCKET_SIZE));
   }
 
+  private villagePopulation(villageId: string): number {
+    let count = 0;
+    for (const other of this.entities.values()) if (other.villageId === villageId) count++;
+    return count;
+  }
+
   setWorldLaws(laws: WorldLaws): void {
+    setEntanglewood(laws.entanglewood);
     this.laws = laws;
   }
 
@@ -345,6 +353,9 @@ export class EntityManager implements EntityIndex {
     const populationMultiplier = this.getPopulationDensityMultiplier();
 
     if (canReproduce && Math.random() < this.reproductionProbability * delta * populationMultiplier * fertility) {
+      // 100 People: a town that has reached its hundred stops having babies.
+      // Counted only when a birth is actually about to happen, which is rare.
+      if (this.laws.populationCap && entity.villageId && this.villagePopulation(entity.villageId) >= 100) return;
       this.reproduceEntity(entity);
     }
   }

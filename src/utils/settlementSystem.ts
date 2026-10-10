@@ -498,6 +498,7 @@ export class SettlementSystem {
   private boatSlots = new Map<string, number>();
   private freeBoatSlots: number[] = Array.from({ length: BOAT_CAPACITY }, (_, i) => BOAT_CAPACITY - 1 - i);
   private fleetTimer = 0;
+  private migrantTimer = 0;
   private boatPosition = new THREE.Vector3();
   private freeSlots: number[] = [];
   private nextSlot = 0;
@@ -625,6 +626,12 @@ export class SettlementSystem {
       this.colonyRound(this.colonyTimer);
     }
     this.ageParties(delta);
+
+    this.migrantTimer += delta;
+    if (this.migrantTimer >= 60) {
+      this.migrantTimer = 0;
+      if (this.laws.migrants) this.migrantRound();
+    }
 
     this.fleetTimer += delta;
     if (this.fleetTimer >= 6) {
@@ -1872,7 +1879,9 @@ export class SettlementSystem {
    * negative into a story: the map splits, and then the two halves fight over
    * the seam.
    */
-  private secede(village: Village, from: Kingdom): void {
+  private secede(village: Village, from: Kingdom, forced = false): void {
+    // The player's Independence power overrides the law; nothing else does.
+    if (!forced && !this.laws.rebellions) return;
     const residents = this.entities.getEntitiesByVillage().get(village.id) ?? [];
     if (residents.length === 0) return;
 
@@ -2235,7 +2244,7 @@ export class SettlementSystem {
             plotting.add(king.id);
             continue;
           }
-          if (stats.diplomacy >= 7 && Math.random() < 0.3) {
+          if (stats.diplomacy >= 7 && this.laws.diplomacy && Math.random() < 0.3) {
             this.startPlot('alliance', king, kingdom.id, neighbour.id);
             plotting.add(king.id);
             continue;
@@ -2506,6 +2515,7 @@ export class SettlementSystem {
    * watches it happen (research doc section 3).
    */
   private colonyRound(_delta: number): void {
+    if (!this.laws.colonisation) return;
     for (const kingdom of this.kingdoms.values()) {
       if (kingdom.atWar.size > 0) continue; // nobody colonises mid-war
       const king = this.kingCivilStats(kingdom);
@@ -2759,6 +2769,30 @@ export class SettlementSystem {
     if (port) port.store.gold += TRADE_PROFIT;
     if (origin) origin.store.gold += Math.ceil(TRADE_PROFIT / 2);
     emitFloater({ kind: 'gain', text: `+${TRADE_PROFIT} gold`, x: boat.x, y: boat.y });
+  }
+
+  /**
+   * WorldBox's Handsome Migrants: a struggling town now and then gets one or
+   * two strangers turning up at the bonfire. It is what stops a village of
+   * three from being a dead end, and nobody ever asks where they came from.
+   */
+  private migrantRound(): void {
+    for (const village of this.villages.values()) {
+      const residents = this.residentsOf(village).length;
+      if (residents === 0 || residents >= 12 || village.age < 30) continue;
+      if (Math.random() >= 0.35) continue;
+      const count = 1 + (Math.random() < 0.4 ? 1 : 0);
+      let arrived = 0;
+      for (let i = 0; i < count; i++) {
+        if (this.entities.spawnEntity(village.race, village.centerX, village.centerY)) arrived++;
+      }
+      if (arrived === 0) continue;
+      this.events.onEvent(
+        `${arrived === 1 ? 'A handsome stranger arrives' : 'Two handsome strangers arrive'} at ${village.name}. Nobody asks where from`,
+        'kingdom',
+        { x: village.centerX, y: village.centerY },
+      );
+    }
   }
 
   /** A fishing boat came home: the catch goes in the village store. */
@@ -3615,7 +3649,7 @@ export class SettlementSystem {
       }
       case 'inspiration': {
         if (village.capital) return null;
-        this.secede(village, kingdom);
+        this.secede(village, kingdom, true);
         return `${village.name} is struck by the idea that it could rule itself`;
       }
     }

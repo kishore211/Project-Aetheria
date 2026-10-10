@@ -220,3 +220,28 @@ describe('the world-behaviour table', () => {
     expect(abandonedLost).toBeGreaterThan(0);
   });
 });
+
+describe('erosion', () => {
+  const erosion = WORLD_PROCESSES.find(p => p.name === 'erosion')!;
+  const coastCount = (ctx: ReturnType<typeof makeContext>) =>
+    ctx.tiles.flat().filter(t => t.type === 'shallow_water').length;
+
+  it('does nothing while the law is off', () => {
+    const ctx = makeContext();
+    const before = coastCount(ctx);
+    for (let i = 0; i < 60; i++) erosion.action(ctx);
+    expect(coastCount(ctx)).toBe(before);
+    expect(ctx.synced).toHaveLength(0);
+  });
+
+  it('eats low coast, and never a town, when it is on', () => {
+    const ctx = makeContext({ laws: { biomeGrowth: true, disasters: true, erosion: true } });
+    const town = ctx.tiles.flat().find(t => t.type === 'beach')!;
+    town.villageId = 'village-1';
+    const before = coastCount(ctx);
+    for (let i = 0; i < 200; i++) erosion.action(ctx);
+    expect(coastCount(ctx)).toBeGreaterThan(before);
+    expect(town.type).toBe('beach');
+    for (const tile of ctx.synced) expect(tile.height).toBeLessThan(0.25);
+  });
+});

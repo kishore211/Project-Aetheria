@@ -76,8 +76,18 @@ export const BIOME_STEPS: Partial<Record<BiomeType, BiomeStep>> = {
 };
 
 /** Speed multiplier for the ground under a creature. */
+/** World law: woods slow everyone by a fifth. */
+let entanglewood = false;
+const WOODS = new Set<BiomeType>([
+  'deciduous_forest', 'coniferous_forest', 'rainforest', 'tropical_forest', 'taiga', 'enchanted_forest',
+]);
+
+export const setEntanglewood = (on: boolean): void => {
+  entanglewood = on;
+};
+
 export const groundSpeed = (biome: BiomeType): number =>
-  BIOME_STEPS[biome]?.speed ?? 1;
+  (BIOME_STEPS[biome]?.speed ?? 1) * (entanglewood && WOODS.has(biome) ? 0.8 : 1);
 
 /**
  * Roll whatever the ground does to a creature standing on it.

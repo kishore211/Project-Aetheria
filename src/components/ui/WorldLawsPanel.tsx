@@ -1,5 +1,6 @@
 import {
-  Baby, CloudLightning, Flame, Hourglass, Scale, Sprout, Swords, Utensils, X,
+  Baby, CloudLightning, Flag, Flame, Handshake, Hourglass, Scale, Ship, Sprout, Swords,
+  TreePine, UserPlus, Users, Utensils, Waves, X,
 } from 'lucide-react';
 import { useGameStore, DEFAULT_WORLD_LAWS, type WorldLaws } from '../../store/gameStore';
 import { soundManager } from '../../utils/soundManager';
@@ -77,6 +78,16 @@ const GROUPS: LawGroup[] = [
         description: 'Eras arrive and change the rules — drought, frost, ash, chaos.',
         without: 'One long temperate afternoon, for ever.',
       },
+      {
+        key: 'erosion', label: 'Erosion', icon: Waves,
+        description: 'The sea takes slow bites out of low, soft coast.',
+        without: 'Coastlines stay exactly where you drew them. "Patient water" is off duty.',
+      },
+      {
+        key: 'entanglewood', label: 'Entanglewood', icon: TreePine,
+        description: 'Forests slow everyone who walks through them by a fifth.',
+        without: 'A wood is just trees. The roots have stopped taking it personally.',
+      },
     ],
   },
   {
@@ -92,6 +103,31 @@ const GROUPS: LawGroup[] = [
         key: 'warfare', label: 'Warfare', icon: Swords,
         description: 'Kingdoms build tension, declare war, and raid.',
         without: 'Borders stop where they stop. Permanent, brittle peace.',
+      },
+      {
+        key: 'diplomacy', label: 'Diplomacy', icon: Handshake,
+        description: 'Kings make alliances. The game of thrones never ends.',
+        without: 'Every realm stands alone, and remembers it.',
+      },
+      {
+        key: 'rebellions', label: 'Rebellions', icon: Flag,
+        description: 'An unhappy province can break away. The people\u2019s patience has limits.',
+        without: 'Loyalty can sink as low as it likes. Nobody ever does anything about it.',
+      },
+      {
+        key: 'colonisation', label: 'Kingdom expansion', icon: Ship,
+        description: 'Kingdoms send settlers out — overland, or by boat to other islands.',
+        without: 'Every kingdom is one town for ever.',
+      },
+      {
+        key: 'populationCap', label: '100 People', icon: Users,
+        description: 'No town grows past a hundred souls.',
+        without: 'Towns grow as large as the food allows.',
+      },
+      {
+        key: 'migrants', label: 'Handsome migrants', icon: UserPlus,
+        description: 'Small towns sometimes attract strangers. Too handsome to trust.',
+        without: 'A village of three stays a village of three.',
       },
     ],
   },
@@ -124,7 +160,8 @@ const PRESETS: Array<{ label: string; blurb: string; laws: WorldLaws }> = [
     laws: {
       aging: false, hunger: false, reproduction: false, disasters: false,
       fireSpread: false, biomeGrowth: false, settlements: false, warfare: false,
-      ages: false,
+      ages: false, rebellions: false, colonisation: false, diplomacy: false,
+      populationCap: false, migrants: false, entanglewood: false, erosion: false,
     },
   },
 ];

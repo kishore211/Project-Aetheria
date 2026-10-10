@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BIOME_STEPS, groundSpeed, stepOnGround } from './biomeEffects';
+import { BIOME_STEPS, groundSpeed, setEntanglewood, stepOnGround } from './biomeEffects';
 import { clearAllStatusTimers } from './statusEffects';
 import type { BiomeType, Entity } from '../types/world';
 
@@ -92,5 +92,17 @@ describe('what the ground does to you', () => {
       expect(note.length).toBeGreaterThan(12);
       expect(note.endsWith('.')).toBe(true);
     }
+  });
+});
+
+describe('entanglewood', () => {
+  it('slows the woods by a fifth while the law holds, and nothing else', () => {
+    const wood = groundSpeed('deciduous_forest');
+    const grass = groundSpeed('grassland');
+    setEntanglewood(true);
+    expect(groundSpeed('deciduous_forest')).toBeCloseTo(wood * 0.8, 6);
+    expect(groundSpeed('grassland')).toBe(grass);
+    setEntanglewood(false);
+    expect(groundSpeed('deciduous_forest')).toBe(wood);
   });
 });

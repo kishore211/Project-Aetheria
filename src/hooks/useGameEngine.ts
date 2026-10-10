@@ -1472,6 +1472,7 @@ export const useGameEngine = () => {
       laws: {
         biomeGrowth: store.worldLaws.biomeGrowth,
         disasters: store.worldLaws.disasters,
+        erosion: store.worldLaws.erosion,
       },
       inBounds,
       syncTile,
