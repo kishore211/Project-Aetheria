@@ -60,6 +60,9 @@ const AchievementWatcher = () => {
       if (message.includes('flies its banner now')) unlock('new-banner');
       if (message.includes(', a legendary ') || message.includes('earn a name')) unlock('legend');
       if (message.includes('from the body of')) unlock('heirloom');
+      if (message.includes('A dragon comes down out of the clouds')) unlock('here-be-dragons');
+      if (message.includes('come for the cattle')) unlock('close-encounter');
+      if (message.includes('and it is a crab')) unlock('kaiju');
       if (message.includes('land rises out of the water')) unlock('archipelago');
       if (message.includes('second sun')) unlock('second-sun');
       if (message.includes('no longer there')) unlock('absence');

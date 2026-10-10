@@ -26,6 +26,7 @@ import {
 } from '../types/world';
 import { determineBiome } from './worldGenerator';
 import { strikeDisaster, type DisasterWorld } from './disasters';
+import { sendMonster } from './monsterEvents';
 import { FIRE_HEAT_PER_SECOND, addHeat, cascade, conduct, relax } from './thermal';
 
 /**
@@ -326,6 +327,18 @@ export const WORLD_PROCESSES: WorldProcess[] = [
     action: (ctx) => {
       if (!ctx.laws.disasters) return;
       strikeDisaster(ctx);
+    },
+  },
+  {
+    // Something comes to the towns: a dragon, a UFO, Crabzilla, bandits, the
+    // Cold Ones in winter. Rarer than the building disasters, and like them it
+    // needs a town to aim at, so an empty world is never visited.
+    name: 'monsters',
+    minInterval: 300,
+    maxInterval: 600,
+    action: (ctx) => {
+      if (!ctx.laws.disasters) return;
+      sendMonster(ctx);
     },
   },
   {

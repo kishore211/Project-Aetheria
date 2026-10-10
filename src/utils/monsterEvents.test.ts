@@ -1,0 +1,50 @@
+import { describe, expect, it } from 'vitest';
+import { MONSTER_EVENTS, sendMonster, type MonsterWorld } from './monsterEvents';
+import type { BiomeType, EntityType, Tile } from '../types/world';
+
+const makeWorld = (typeAt: (x: number, y: number) => BiomeType, season: MonsterWorld['season'] = 'summer') => {
+  const size = 40;
+  const tiles = Array.from({ length: size }, (_, x) => Array.from({ length: size }, (_, y) => ({
+    x, y, type: typeAt(x, y), walkable: !['ocean', 'deep_ocean', 'shallow_water'].includes(typeAt(x, y)),
+  }) as unknown as Tile));
+  const spawned: EntityType[] = [];
+  const lines: string[] = [];
+  let seed = 7;
+  const world: MonsterWorld = {
+    tiles, size, season,
+    buildings: () => [{ id: 'b', kind: 'bonfire', x: 20, y: 20, villageId: 'v', villageName: 'Ashby' }],
+    spawn: (type) => { spawned.push(type); return true; },
+    announce: (m) => { lines.push(m); },
+    random: () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; },
+  };
+  return { world, spawned, lines };
+};
+
+describe('monsters that come to the towns', () => {
+  it('needs a town to visit', () => {
+    const { world, spawned } = makeWorld(() => 'grassland');
+    world.buildings = () => [];
+    expect(sendMonster(world)).toBeNull();
+    expect(spawned).toEqual([]);
+  });
+
+  it('sends something, and says where', () => {
+    const { world, spawned, lines } = makeWorld(() => 'grassland');
+    const sent = sendMonster(world);
+    expect(sent).not.toBeNull();
+    expect(spawned.length).toBeGreaterThan(0);
+    expect(lines[0]).toContain('Ashby');
+  });
+
+  it('only raises Crabzilla where there is sea, and the Cold Ones only in winter', () => {
+    const crab = MONSTER_EVENTS.find(e => e.id === 'crabzilla')!;
+    const cold = MONSTER_EVENTS.find(e => e.id === 'cold_ones')!;
+    const town = { id: 'b', kind: 'bonfire', x: 20, y: 20, villageId: 'v', villageName: 'Ashby' };
+    expect(crab.run(makeWorld(() => 'grassland').world, town)).toBe(false);
+    const coastal = makeWorld((x) => (x > 28 ? 'ocean' : 'grassland'));
+    expect(crab.run(coastal.world, town)).toBe(true);
+    expect(coastal.spawned).toEqual(['crabzilla']);
+    expect(cold.run(makeWorld(() => 'grassland', 'summer').world, town)).toBe(false);
+    expect(cold.run(makeWorld(() => 'grassland', 'winter').world, town)).toBe(true);
+  });
+});

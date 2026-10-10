@@ -40,6 +40,9 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'new-banner', title: 'New Banner', description: 'Watch a town fall to another kingdom and change its flag.' },
   { id: 'legend', title: 'The Stuff of Legend', description: 'See a smith forge a named, legendary item.' },
   { id: 'heirloom', title: 'Heirloom', description: 'Watch a named weapon taken off the body of its last owner.' },
+  { id: 'here-be-dragons', title: 'Here Be Dragons', description: 'Have a dragon come down on one of your towns of its own accord.' },
+  { id: 'close-encounter', title: 'Close Encounter', description: 'See the lights come for the cattle.' },
+  { id: 'kaiju', title: 'Kaiju', description: 'Watch the sea stand up and walk ashore.' },
 ];
 
 export const ACHIEVEMENTS_BY_ID = new Map(ACHIEVEMENTS.map((entry) => [entry.id, entry]));
