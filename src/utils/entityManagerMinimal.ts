@@ -725,7 +725,9 @@ export class EntityManager implements EntityIndex {
     const tile = this.tiles[ix][iy];
     const worldX = (x - this.tiles.length / 2) * TILE_SIZE;
     const worldY = tile.scaledHeight;
-    const worldZ = (y - this.tiles[0].length / 2) * TILE_SIZE;
+    // Held up by the magnet: lifted up the screen, which is what height looks
+    // like from straight above.
+    const worldZ = (y - this.tiles[0].length / 2) * TILE_SIZE - (entity.status.includes('lifted') ? 0.35 : 0);
 
     if (entity.lastPosition) {
       entity.mesh.position.x = THREE.MathUtils.lerp(entity.mesh.position.x, worldX, 0.25);

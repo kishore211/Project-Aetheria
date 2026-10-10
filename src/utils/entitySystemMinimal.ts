@@ -710,6 +710,13 @@ export class EntityAI {
       this.entity.activity = 'sailing';
       return;
     }
+    // Held by the divine magnet: the hand owns the position until it lets go.
+    if (this.entity.status.includes('lifted')) {
+      this.entity.activity = 'carried';
+      this.path = [];
+      this.targetTile = null;
+      return;
+    }
 
     this.updateNeeds(deltaTime);
     // Mood shares the needs pass: it reads the same fields, needs the same

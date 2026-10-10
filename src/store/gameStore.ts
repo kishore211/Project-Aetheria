@@ -239,7 +239,11 @@ export type ExtraTool =
   | 'plague' | 'madness' | 'confusion'
   | 'divine-light' | 'shield' | 'coffee' | 'inspire' | 'sleep' | 'clone'
   | 'dust-culture' | 'dust-language' | 'dust-religion' | 'dust-everything'
-  | 'diplo-spite' | 'diplo-friendship' | 'diplo-whisper' | 'diplo-unity' | 'diplo-discord' | 'diplo-inspiration';
+  | 'diplo-spite' | 'diplo-friendship' | 'diplo-whisper' | 'diplo-unity' | 'diplo-discord' | 'diplo-inspiration'
+  | 'gift-strong' | 'gift-swift' | 'gift-tough' | 'gift-genius' | 'gift-immortal' | 'gift-regeneration'
+  | 'gift-lucky' | 'gift-giant' | 'gift-tiny' | 'gift-fireproof' | 'gift-bloodthirsty' | 'gift-peaceful'
+  | 'trait-eraser' | 'gift-arms' | 'gold-rain' | 'youth' | 'love-potion' | 'swarm' | 'cluster-bomb'
+  | 'magnet';
 
 /** Radius in tiles for area tools: 0 = single tile, 1 = 3x3, 2 = 5x5. */
 export type BrushRadius = 0 | 1 | 2;

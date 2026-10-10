@@ -95,8 +95,30 @@ export const inheritTraits = (parentTraits: TraitId[] = []): TraitId[] => {
 
 /** Apply the stat side of a trait list to a freshly created entity. */
 export const applyTraits = (entity: Entity): void => {
-  const traits = entity.traits ?? [];
-  for (const trait of traits) {
+  for (const trait of entity.traits ?? []) applyTrait(entity, trait);
+};
+
+/**
+ * Give a living creature one more trait, stats and all. Returns false when it
+ * already had it, so a power never doubles a multiplier.
+ */
+export const grantTrait = (entity: Entity, trait: TraitId): boolean => {
+  const traits = (entity.traits ??= []);
+  if (traits.includes(trait)) return false;
+  // Opposites cancel rather than stack: a giant made tiny is merely ordinary.
+  const opposite: Partial<Record<TraitId, TraitId>> = {
+    giant: 'tiny', tiny: 'giant', peaceful: 'bloodthirsty', bloodthirsty: 'peaceful', coward: 'bloodthirsty',
+  };
+  const clash = opposite[trait];
+  if (clash && traits.includes(clash)) traits.splice(traits.indexOf(clash), 1);
+  traits.push(trait);
+  applyTrait(entity, trait);
+  return true;
+};
+
+/** The stat side of one trait. */
+const applyTrait = (entity: Entity, trait: TraitId): void => {
+  {
     switch (trait) {
       case 'swift':
         entity.attributes.speed = Math.round(entity.attributes.speed * 1.6);

@@ -16,6 +16,10 @@ import { addHeat, MELT, SCORCH } from './thermal';
 import { applyStatus, clearStatus, type StatusId } from './statusEffects';
 import { isSapient } from './entitySystemMinimal';
 import { isAquatic } from './pathfinding';
+import { grantTrait, TRAITS } from './traits';
+import { equip, forgeItem, describeItem } from './equipment';
+import { wieldsGear } from './pixelSprites';
+import type { TraitId } from '../types/world';
 import type { DropKind } from './clouds';
 import type { DiplomacyAct } from './settlementSystem';
 import type { FlashTone } from './impactBridge';
@@ -99,6 +103,18 @@ export const BIOME_SEEDS: Record<string, BiomeSeed> = {
   'seed-mushroom': { type: 'mushroom', moisture: 0.85, clear: true, color: 0x9a6aaa },
   'seed-infernal': { type: 'infernal', temperature: 0.95, clear: true, color: 0xc83a1e },
   'seed-wasteland': { type: 'wasteland', moisture: 0.1, clear: true, color: 0x8a8460 },
+};
+
+/**
+ * Traits the player can hand out, one power each. WorldBox's unit window has a
+ * trait editor; a brush that blesses a whole crowd with Strong is the same
+ * idea at the scale this game is played at.
+ */
+export const TRAIT_GIFTS: Partial<Record<string, TraitId>> = {
+  'gift-strong': 'strong', 'gift-swift': 'swift', 'gift-tough': 'tough', 'gift-genius': 'genius',
+  'gift-immortal': 'immortal', 'gift-regeneration': 'regeneration', 'gift-lucky': 'lucky',
+  'gift-giant': 'giant', 'gift-tiny': 'tiny', 'gift-fireproof': 'fireproof',
+  'gift-bloodthirsty': 'bloodthirsty', 'gift-peaceful': 'peaceful',
 };
 
 /** Creatures with a spawner of their own. The four races have theirs already. */
@@ -376,6 +392,21 @@ export const runExtraPower = (
     return true;
   }
 
+  // -- traits, handed out ----------------------------------------------------
+  const gift = TRAIT_GIFTS[tool];
+  if (gift) {
+    let given = 0;
+    for (const creature of ctx.query(tile.x, tile.y, 1 + brush + 0.5)) {
+      if (grantTrait(creature, gift)) given += 1;
+    }
+    if (given === 0) return false;
+    const bad = gift === 'bloodthirsty' || gift === 'tiny';
+    ctx.fx.aura(tile, bad ? 0xd04040 : 0xffe080);
+    if (bad) ctx.sound.curse(); else ctx.sound.bless();
+    ctx.announce(`${plural(given, 'A creature is', 'creatures are')} now ${TRAITS[gift].label.toLowerCase()}`, 'divine', at(tile));
+    return true;
+  }
+
   // -- creatures, one spawner each ----------------------------------------
   if (tool.startsWith('spawn-')) {
     const type = tool.slice('spawn-'.length) as EntityType;
@@ -603,6 +634,119 @@ export const runExtraPower = (
       return true;
     }
 
+    case 'trait-eraser': {
+      let wiped = 0;
+      for (const creature of ctx.query(tile.x, tile.y, 1 + brush + 0.5)) {
+        if ((creature.traits?.length ?? 0) === 0) continue;
+        // Stats stay where the traits left them; only the nature is forgotten,
+        // so its children are born plain.
+        creature.traits = [];
+        wiped += 1;
+      }
+      if (wiped === 0) return false;
+      ctx.fx.aura(tile, 0xd8d8e8);
+      ctx.sound.click();
+      ctx.announce(`${plural(wiped, 'A creature forgets', 'creatures forget')} what made them unusual`, 'divine', at(tile));
+      return true;
+    }
+
+    case 'gift-arms': {
+      let armed = 0;
+      for (const creature of ctx.query(tile.x, tile.y, 1.5 + brush)) {
+        if (!wieldsGear(creature.type) || creature.health <= 0) continue;
+        const slot = creature.equipment?.weapon ? 'armor' : 'weapon';
+        if (creature.equipment?.weapon && creature.equipment?.armor) continue;
+        const item = forgeItem(slot, 4, creature.type, 'the heavens', ctx.random);
+        equip(creature, item);
+        armed += 1;
+        if (item.name) ctx.announce(`${creature.name} catches ${describeItem(item)} as it falls from the sky`, 'divine', at(tile));
+      }
+      if (armed === 0) return false;
+      ctx.fx.burst(tile, 0xd0d8e8, 24, 1.8);
+      ctx.sound.bless();
+      ctx.announce(`Weapons rain down on (${tile.x}, ${tile.y}): ${armed} armed`, 'divine', at(tile));
+      return true;
+    }
+
+    case 'gold-rain': {
+      const touched = ctx.query(tile.x, tile.y, 1.5 + brush).filter(c => isSapient(c));
+      if (touched.length === 0) return false;
+      for (const creature of touched) creature.coins = (creature.coins ?? 0) + 25;
+      ctx.fx.burst(tile, 0xffd040, 30, 1.6);
+      ctx.sound.bless();
+      ctx.announce(`Gold falls like rain on ${plural(touched.length, 'a lucky soul', 'lucky souls')}`, 'divine', at(tile));
+      return true;
+    }
+
+    case 'youth': {
+      let restored = 0;
+      for (const creature of ctx.query(tile.x, tile.y, 1 + brush + 0.5)) {
+        const young = creature.maxAge * 0.2;
+        if (creature.age <= young) continue;
+        creature.age = young;
+        creature.health = creature.maxHealth;
+        restored += 1;
+      }
+      if (restored === 0) return false;
+      ctx.fx.aura(tile, 0x9fffe0);
+      ctx.sound.bless();
+      ctx.announce(`${plural(restored, 'A creature wakes', 'creatures wake')} young again`, 'divine', at(tile));
+      return true;
+    }
+
+    case 'love-potion': {
+      const singles = ctx.query(tile.x, tile.y, 2 + brush).filter(c => isSapient(c) && !c.loverId && c.age > c.maxAge * 0.15);
+      let pairs = 0;
+      const taken = new Set<string>();
+      for (const a of singles) {
+        if (taken.has(a.id)) continue;
+        const b = singles.find(o => o.id !== a.id && !taken.has(o.id) && o.type === a.type);
+        if (!b) continue;
+        a.loverId = b.id;
+        b.loverId = a.id;
+        applyStatus(a, 'in_love');
+        applyStatus(b, 'in_love');
+        taken.add(a.id).add(b.id);
+        pairs += 1;
+      }
+      if (pairs === 0) return false;
+      ctx.fx.aura(tile, 0xff80b0);
+      ctx.sound.bless();
+      ctx.announce(`${plural(pairs, 'A pair falls', 'pairs fall')} in love at first sight`, 'divine', at(tile));
+      return true;
+    }
+
+    case 'swarm': {
+      if (isWaterBiome(tile.type)) return false;
+      let made = 0;
+      for (let i = 0; i < 10 + brush * 4; i++) {
+        const x = tile.x + Math.round((ctx.random() - 0.5) * 4);
+        const y = tile.y + Math.round((ctx.random() - 0.5) * 4);
+        if (!ctx.inBounds(x, y)) continue;
+        if (ctx.spawn('grasshopper', x, y)) made += 1;
+      }
+      // A swarm strips the green: farmland and meadow lose their richness.
+      ctx.forEachBrushTile(tile, 2 + brush, (target) => {
+        target.fertility = Math.max(0, target.fertility - 0.25);
+      });
+      ctx.sound.curse();
+      ctx.announce(`A cloud of locusts settles on (${tile.x}, ${tile.y})${made ? '' : ', and finds nothing to eat'}`, 'disaster', at(tile));
+      return true;
+    }
+
+    case 'cluster-bomb': {
+      const count = 5 + brush * 2;
+      for (let i = 0; i < count; i++) {
+        const x = tile.x + Math.round((ctx.random() - 0.5) * 8);
+        const y = tile.y + Math.round((ctx.random() - 0.5) * 8);
+        if (!ctx.inBounds(x, y)) continue;
+        explode(ctx.tiles[x][y], ctx, { radius: 1.2, damage: 50, crater: 0.03, fire: 1, shake: 6, label: '', quiet: true });
+      }
+      ctx.shake(18, 0.8);
+      ctx.announce(`A cluster bomb scatters fire across (${tile.x}, ${tile.y})`, 'disaster', at(tile));
+      return true;
+    }
+
     case 'clone': {
       const originals = ctx.query(tile.x, tile.y, 1 + brush).slice(0, 8);
       if (originals.length === 0) return false;
@@ -631,6 +775,8 @@ interface Blast {
   fire: number;
   shake: number;
   label: string;
+  /** Leave the chronicle alone: a cluster of blasts writes one line, not six. */
+  quiet?: boolean;
 }
 
 const explode = (tile: Tile, ctx: PowerContext, blast: Blast): boolean => {
@@ -647,6 +793,7 @@ const explode = (tile: Tile, ctx: PowerContext, blast: Blast): boolean => {
   ctx.sound.boom();
   ctx.shake(blast.shake, 0.5);
   if (blast.radius >= 3) ctx.flash('impact', 0.6);
+  if (blast.quiet) return true;
   ctx.announce(`${blast.label} at (${tile.x}, ${tile.y})${kills ? ` — ${kills} killed` : ''}`, 'disaster', at(tile));
   return true;
 };

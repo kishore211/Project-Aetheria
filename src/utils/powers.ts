@@ -394,6 +394,21 @@ export const POWERS: PowerEntry[] = [
     quip: 'It sticks. That is rather the point.',
   },
   {
+    kind: 'tool', id: 'gift-bloodthirsty', tab: 'ruin', label: 'Bloodlust', icon: 'Swords',
+    hint: 'Makes creatures Bloodthirsty.',
+    quip: 'Something has changed in its eyes.',
+  },
+  {
+    kind: 'tool', id: 'cluster-bomb', tab: 'ruin', label: 'Cluster Bomb', icon: 'Bomb',
+    hint: 'Scatters a handful of small blasts over a wide area.',
+    quip: 'Why have one explosion when you can have seven.',
+  },
+  {
+    kind: 'tool', id: 'swarm', tab: 'ruin', label: 'Locust Swarm', icon: 'Bug',
+    hint: 'Releases a swarm that strips the land bare.',
+    quip: 'Biblical, in the bad way.',
+  },
+  {
     kind: 'tool', id: 'atomic', tab: 'ruin', label: 'Atomic', icon: 'Radiation',
     hint: 'A blast that wipes out everything for miles and leaves ash.',
     quip: 'A second sun, briefly. Then nothing.',
@@ -457,6 +472,91 @@ export const POWERS: PowerEntry[] = [
     kind: 'tool', id: 'clone', tab: 'divine', label: 'Clone', icon: 'Copy',
     hint: 'Make a copy of every creature here.',
     quip: 'Two of everything. Ask the first one how it feels.',
+  },
+  {
+    kind: 'tool', id: 'magnet', tab: 'divine', label: 'Magnet', icon: 'Orbit',
+    hint: 'Click to pick up the creatures here; click again to put them down somewhere else.',
+    quip: 'Everyone is portable if you believe in yourself.',
+  },
+  {
+    kind: 'tool', id: 'gift-arms', tab: 'divine', label: 'Rain of Arms', icon: 'Sword',
+    hint: 'Drops fine weapons and armour on the people here.',
+    quip: 'Swords from heaven. What could go wrong.',
+  },
+  {
+    kind: 'tool', id: 'gold-rain', tab: 'divine', label: 'Gold Rain', icon: 'Gem',
+    hint: 'Showers the people here with coin.',
+    quip: 'Economists hate this one trick.',
+  },
+  {
+    kind: 'tool', id: 'youth', tab: 'divine', label: 'Fountain of Youth', icon: 'Sprout',
+    hint: 'Makes the old young again.',
+    quip: 'Wrinkles, cancelled.',
+  },
+  {
+    kind: 'tool', id: 'love-potion', tab: 'divine', label: 'Love Potion', icon: 'Heart',
+    hint: 'Makes the single people here fall in love in pairs.',
+    quip: 'Chemistry, literally.',
+  },
+  {
+    kind: 'tool', id: 'gift-strong', tab: 'divine', label: 'Strength', icon: 'Hammer',
+    hint: 'Gives the Strong trait to every creature here.',
+    quip: 'Lifts more, thinks the same.',
+  },
+  {
+    kind: 'tool', id: 'gift-swift', tab: 'divine', label: 'Swiftness', icon: 'Wind',
+    hint: 'Gives the Swift trait.',
+    quip: 'Late for nothing, ever again.',
+  },
+  {
+    kind: 'tool', id: 'gift-tough', tab: 'divine', label: 'Toughness', icon: 'Shield',
+    hint: 'Gives the Tough trait.',
+    quip: 'Hard to hurt and harder to argue with.',
+  },
+  {
+    kind: 'tool', id: 'gift-genius', tab: 'divine', label: 'Genius', icon: 'Brain',
+    hint: 'Gives the Genius trait.',
+    quip: 'Now it knows things. Some of them are about you.',
+  },
+  {
+    kind: 'tool', id: 'gift-immortal', tab: 'divine', label: 'Immortality', icon: 'Crown',
+    hint: 'Makes creatures stop ageing.',
+    quip: 'Forever is a long time to be a chicken.',
+  },
+  {
+    kind: 'tool', id: 'gift-regeneration', tab: 'divine', label: 'Regeneration', icon: 'Heart',
+    hint: 'Gives the Regeneration trait: wounds close by themselves.',
+    quip: 'Walk it off, permanently.',
+  },
+  {
+    kind: 'tool', id: 'gift-lucky', tab: 'divine', label: 'Luck', icon: 'Sparkle',
+    hint: 'Gives the Lucky trait.',
+    quip: 'The dice like this one.',
+  },
+  {
+    kind: 'tool', id: 'gift-giant', tab: 'divine', label: 'Giant', icon: 'ArrowUp',
+    hint: 'Makes creatures Giant.',
+    quip: 'Mind your head.',
+  },
+  {
+    kind: 'tool', id: 'gift-tiny', tab: 'divine', label: 'Tiny', icon: 'ArrowDown',
+    hint: 'Makes creatures Tiny.',
+    quip: 'Fun size.',
+  },
+  {
+    kind: 'tool', id: 'gift-fireproof', tab: 'divine', label: 'Fireproof', icon: 'Flame',
+    hint: 'Makes creatures Fireproof.',
+    quip: 'It is fine. Everything is fine.',
+  },
+  {
+    kind: 'tool', id: 'gift-peaceful', tab: 'divine', label: 'Peace', icon: 'Handshake',
+    hint: 'Makes creatures Peaceful: they stop hunting.',
+    quip: 'Vegetarian by decree.',
+  },
+  {
+    kind: 'tool', id: 'trait-eraser', tab: 'divine', label: 'Trait Eraser', icon: 'Eraser',
+    hint: 'Strips every trait from the creatures here.',
+    quip: 'Back to factory settings.',
   },
   {
     kind: 'tool', id: 'dust-culture', tab: 'divine', label: 'Forget Culture', icon: 'Wind',

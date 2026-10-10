@@ -35,6 +35,7 @@ import { runExtraPower, PowerHazards, type PowerContext } from '../utils/extraPo
 import { heldDirection } from '../utils/possession';
 import { RelationLines } from '../utils/relationLines';
 import { advanceShots, clearShots, ShotLayer } from '../utils/shotBridge';
+import { magnetDrop, magnetFollow, magnetHolding, magnetPickUp, magnetReset } from '../utils/magnet';
 import { describeItem, onItemEvent, type ItemEvent } from '../utils/equipment';
 import { clearImpacts, isShaking, requestFlash, requestShake, sampleShake } from '../utils/impactBridge';
 import { chronicle, toll } from '../utils/chronicle';
@@ -115,6 +116,9 @@ const BRUSH_TOOLS = new Set([
  * The chronicle line for an item, or null for the ones nobody would care
  * about. A copper sword changing hands is not news; a named one is.
  */
+/** The map's ground, for turning the cursor into a tile without a pick. */
+const GROUND_PLANE = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.2);
+
 const itemEventLine = (event: ItemEvent): string | null => {
   const { item, owner } = event;
   const notable = item.name !== null || item.quality === 'masterwork';
@@ -155,6 +159,7 @@ export const useGameEngine = () => {
   const selectionIndicatorRef = useRef<THREE.Mesh | null>(null);
   const relationLinesRef = useRef<RelationLines | null>(null);
   const shotLayerRef = useRef<ShotLayer | null>(null);
+  const magnetPointRef = useRef(new THREE.Vector3());
   const lightsRef = useRef<THREE.Light[]>([]);
   const tickTimerRef = useRef<number>(0);
   const entityManagerRef = useRef<EntityManager | null>(null);
@@ -295,6 +300,7 @@ export const useGameEngine = () => {
     shotLayerRef.current?.dispose();
     shotLayerRef.current = null;
     clearShots();
+    magnetReset();
     onItemEvent(null);
     if (selectionIndicatorRef.current) {
       scene.remove(selectionIndicatorRef.current);
@@ -1088,6 +1094,23 @@ export const useGameEngine = () => {
           'disaster',
           { x: tile.x, y: tile.y },
         );
+        break;
+      }
+      case 'magnet': {
+        const manager = entityManagerRef.current;
+        if (!manager) break;
+        if (magnetHolding().length === 0) {
+          const lifted = magnetPickUp(manager.query(tile.x + 0.5, tile.y + 0.5, 1.5 + store.brushRadius));
+          acted = lifted > 0;
+          if (acted) soundManager.uiClick();
+        } else {
+          const dropped = magnetDrop(tile.x + 0.5, tile.y + 0.5, (id) => manager.getEntityById(id), inBounds);
+          acted = dropped.length > 0;
+          if (acted) {
+            effectsManagerRef.current?.spawnBurst(tileWorldPosition(tile), 0xe8e0ff, 10, 1);
+            soundManager.uiClick();
+          }
+        }
         break;
       }
       default: {
@@ -2043,6 +2066,19 @@ export const useGameEngine = () => {
           (y - tilesRef.current.length / 2 + 0.5) * TILE_SIZE,
         ),
       });
+    }
+
+    // The magnet's crowd rides the cursor. Raycast to the ground plane rather
+    // than reading the hover tile, because the hover pass hits the held units
+    // themselves and reports no tile at all.
+    if (magnetHolding().length > 0 && entityManagerRef.current) {
+      const manager = entityManagerRef.current;
+      raycasterRef.current.setFromCamera(new THREE.Vector2(mousePositionRef.current.x, mousePositionRef.current.y), camera);
+      const ground = raycasterRef.current.ray.intersectPlane(GROUND_PLANE, magnetPointRef.current);
+      if (ground) {
+        const half = tilesRef.current.length / 2;
+        magnetFollow(ground.x / TILE_SIZE + half, ground.z / TILE_SIZE + half, (id) => manager.getEntityById(id));
+      }
     }
 
     shotLayerRef.current?.update((x, y, out) => out.set(

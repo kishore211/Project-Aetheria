@@ -98,7 +98,7 @@ describe('the rest of the power bar', () => {
       'select', 'raise-terrain', 'lower-terrain', 'place-water', 'place-mountain', 'place-forest',
       'spawn-human', 'spawn-elf', 'spawn-dwarf', 'spawn-orc', 'uplift', 'spawn-animal', 'spawn-monster',
       'plant-trees', 'unearth-minerals', 'summon-rain', 'earthquake', 'meteor', 'lightning', 'fire',
-      'blessing', 'curse', 'poke', 'erase-forest', 'erase-life', 'erase-buildings', 'douse',
+      'blessing', 'curse', 'poke', 'erase-forest', 'erase-life', 'erase-buildings', 'douse', 'magnet',
     ]);
     for (const power of POWERS) {
       if (handledByEngine.has(power.id)) continue;
@@ -216,5 +216,69 @@ describe('dusts of forgetting', () => {
     expect(sheep.status).not.toContain('confused');
     runExtraPower('dust-everything', tiles[12][12], ctx, hazards);
     expect([person.cultureId, person.languageId, person.religionId]).toEqual([null, null, null]);
+  });
+});
+
+describe('gifts and their opposites', () => {
+  it('hands out a trait once, with its stats, and never doubles it', () => {
+    const { ctx, hazards, tiles, creatures } = world();
+    const a = makeCreature('human', 12, 12);
+    creatures.push(a);
+    expect(runExtraPower('gift-strong', tiles[12][12], ctx, hazards)).toBe(true);
+    const strength = a.attributes.strength;
+    expect(a.traits).toContain('strong');
+    expect(strength).toBeGreaterThan(5);
+    // A second blessing finds nobody new to bless.
+    expect(runExtraPower('gift-strong', tiles[12][12], ctx, hazards)).toBe(false);
+    expect(a.attributes.strength).toBe(strength);
+  });
+
+  it('lets a giant made tiny be merely ordinary', () => {
+    const { ctx, hazards, tiles, creatures } = world();
+    const a = makeCreature('human', 12, 12);
+    creatures.push(a);
+    runExtraPower('gift-giant', tiles[12][12], ctx, hazards);
+    runExtraPower('gift-tiny', tiles[12][12], ctx, hazards);
+    expect(a.traits).toEqual(['tiny']);
+  });
+
+  it('wipes traits with the eraser', () => {
+    const { ctx, hazards, tiles, creatures } = world();
+    const a = makeCreature('human', 12, 12);
+    a.traits = ['lucky', 'swift'];
+    creatures.push(a);
+    expect(runExtraPower('trait-eraser', tiles[12][12], ctx, hazards)).toBe(true);
+    expect(a.traits).toEqual([]);
+  });
+
+  it('arms people from the sky, and leaves the sheep unarmed', () => {
+    const { ctx, hazards, tiles, creatures } = world();
+    const person = makeCreature('human', 12, 12);
+    const sheep = makeCreature('sheep', 12.4, 12);
+    creatures.push(person, sheep);
+    expect(runExtraPower('gift-arms', tiles[12][12], ctx, hazards)).toBe(true);
+    expect(person.equipment?.weapon).toBeTruthy();
+    expect(sheep.equipment).toBeUndefined();
+  });
+
+  it('makes the old young and pairs the lonely', () => {
+    const { ctx, hazards, tiles, creatures } = world();
+    const a = makeCreature('elf', 12, 12);
+    const b = makeCreature('elf', 12.5, 12);
+    a.age = 90;
+    b.age = 50;
+    creatures.push(a, b);
+    expect(runExtraPower('youth', tiles[12][12], ctx, hazards)).toBe(true);
+    expect(a.age).toBeLessThan(25);
+    expect(runExtraPower('love-potion', tiles[12][12], ctx, hazards)).toBe(true);
+    expect(a.loverId).toBe(b.id);
+    expect(b.loverId).toBe(a.id);
+  });
+
+  it('writes one chronicle line for a whole cluster bomb', () => {
+    const { ctx, hazards, tiles, events } = world();
+    runExtraPower('cluster-bomb', tiles[12][12], ctx, hazards);
+    expect(events.filter(e => /cluster/i.test(e))).toHaveLength(1);
+    expect(events.some(e => /bomblet/i.test(e))).toBe(false);
   });
 });
