@@ -63,6 +63,8 @@ const KEYS: Array<[string, string]> = [
   ['Tab', 'Next tab of powers (Shift+Tab back)'],
   ['Z / X', 'Cycle how the map is painted'],
   ['F', 'Follow whatever is under the cursor'],
+  ['G', 'Possess it: WASD walks, Space strikes, Esc lets go'],
+  ['WASD / arrows', 'Pan the map'],
   ['H', 'Hide the whole interface'],
   ['N', 'Kingdom and village names'],
   ['M', 'Minimap'],

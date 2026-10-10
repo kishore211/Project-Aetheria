@@ -29,6 +29,7 @@ import { simulation } from './simulation';
 import { emitDamage, emitFloater } from './floatBridge';
 import { applyStatus, clearStatus, FLASH_SECONDS, type StatusId } from './statusEffects';
 import { updateMood } from './mood';
+import { heldDirection, possession } from './possession';
 import { DAYLIGHT } from './daylight';
 import { applyScenario } from './scenarios';
 import { bookAt, converse, readBook } from './identity';
@@ -652,6 +653,12 @@ export class EntityAI {
         this.handleDyingState();
         return;
       }
+    }
+
+    // Worn by the player: the keys walk it and its own mind steps aside.
+    if (possession.id === this.entity.id) {
+      this.possessedStep(tiles, deltaTime);
+      return;
     }
 
     // Whatever the player has laid on it. The list is almost always empty, so
@@ -1651,6 +1658,50 @@ export class EntityAI {
       x: this.entity.position.x + (dx / distance) * step,
       y: this.entity.position.y + (dy / distance) * step,
     };
+  }
+
+  /**
+   * One frame of being worn by the player.
+   *
+   * A little quicker than the creature walks on its own, because a possessed
+   * unit that dawdles feels like steering a boat. Refuses ground the creature
+   * could not stand on, so you cannot march a wolf into the sea.
+   */
+  private possessedStep(tiles: Tile[][], deltaTime: number): void {
+    this.path = [];
+    this.targetTile = null;
+    const { dx, dy } = heldDirection();
+    if (dx !== 0 || dy !== 0) {
+      const step = this.tilesPerSecond(tiles) * 1.35 * deltaTime;
+      const nx = this.entity.position.x + dx * step;
+      const ny = this.entity.position.y + dy * step;
+      const tile = tiles[Math.floor(nx)]?.[Math.floor(ny)];
+      if (tile && isWalkableForEntity(tile, this.entity.type)) {
+        this.entity.lastPosition = { ...this.entity.position };
+        this.entity.position = { x: nx, y: ny };
+      }
+      this.addStatus('moving');
+      this.entity.activity = 'travelling';
+    } else {
+      this.removeStatus('moving');
+      this.entity.activity = 'idle';
+    }
+    if (possession.attackQueued) {
+      possession.attackQueued = false;
+      // Whoever is closest and in reach. No target is a swing at the air.
+      let nearest: Entity | null = null;
+      let best = 1.6 * 1.6;
+      for (const other of this.index?.query(this.entity.position.x, this.entity.position.y, 1.6) ?? []) {
+        if (other.id === this.entity.id || other.health <= 0) continue;
+        const d = (other.position.x - this.entity.position.x) ** 2 + (other.position.y - this.entity.position.y) ** 2;
+        if (d < best) { best = d; nearest = other; }
+      }
+      if (nearest) {
+        this.attackCooldown = 0;
+        this.strike(nearest);
+        if (nearest.health <= 0) this.entity.kills = (this.entity.kills ?? 0) + 1;
+      }
+    }
   }
 
   /**

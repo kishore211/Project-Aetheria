@@ -7,7 +7,7 @@ import {
   Scissors, Skull, Sparkle, Sparkles, Sprout, Swords, Tag, TreePine, Trees,
   User, Users, Video, VideoOff, Waves, X, Zap,
   Biohazard, Bird, Bomb, Bone, Brain, Bug, Cloud, CloudSnow, Coffee, Copy, Crown, Dog, Droplet, Egg, Fish, FlaskConical, Flag, Flower, Handshake, HeartHandshake, Lightbulb, Megaphone, Moon, MountainSnow, Orbit, Palmtree, Rabbit, Radiation, Shell, Shield, Snowflake, Spline, Squirrel, Sun, Sword, ThermometerSnowflake, ThermometerSun, Tornado, TreePalm, Unlink, WandSparkles, Wheat, Wind, CircleDot,
-  PiggyBank, Banana, Wand, Cat, Rat,
+  PiggyBank, Banana, Wand, Cat, Rat, Gamepad2,
   type LucideIcon,
 } from 'lucide-react';
 import { useGameStore, type BrushRadius } from '../../store/gameStore';
@@ -44,7 +44,7 @@ const ICONS: Record<string, LucideIcon> = {
   MousePointer2, PawPrint, Pointer, Rocket, Scale, Scissors, Skull, Sparkle,
   Sparkles, Sprout, Swords, Tag, TreePine, Trees, User, Users, Video, VideoOff,
   Waves, X, Zap,
-  PiggyBank, Banana, Wand, Cat, Rat,
+  PiggyBank, Banana, Wand, Cat, Rat, Gamepad2,
   Biohazard, Bird, Bomb, Bone, Brain, Bug, Cloud, CloudSnow, Coffee, Copy, Crown, Dog, Droplet, Egg, Fish, FlaskConical, Flag, Flower, Handshake, HeartHandshake, Lightbulb, Megaphone, Moon, MountainSnow, Orbit, Palmtree, Rabbit, Radiation, Shell, Shield, Snowflake, Spline, Squirrel, Sun, Sword, ThermometerSnowflake, ThermometerSun, Tornado, TreePalm, Unlink, WandSparkles, Wheat, Wind, CircleDot,
 };
 
@@ -103,6 +103,7 @@ const PowerBar = () => {
     gameSpeed, setGameSpeed,
     selectedEntity, setSelectedEntity,
     followEntityId, setFollowEntity,
+    possessedId, setPossessed,
     hotkeySlots,
   } = useGameStore();
 
@@ -204,6 +205,13 @@ const PowerBar = () => {
           run: () => setFollowEntity(following ? null : selectedEntity.id),
         },
         {
+          key: 'possess', label: possessedId === selectedEntity.id ? 'Let go' : 'Possess', icon: 'Gamepad2',
+          hint: 'Take control: WASD to walk, Space to strike, Esc to let go. (G)',
+          quip: 'It will not remember this. Probably.',
+          on: possessedId === selectedEntity.id,
+          run: () => setPossessed(possessedId === selectedEntity.id ? null : selectedEntity.id),
+        },
+        {
           key: 'deselect', label: 'Release', icon: 'X',
           hint: 'Stop watching this one. (Esc)',
           quip: 'Go on, live your life.',
@@ -215,7 +223,7 @@ const PowerBar = () => {
   }, [
     tab, uiHidden, showMapLabels, showUnitIcons, showMinimap, selectedEntity, followEntityId,
     setWorldSeed, setShowLaws, setShowHelp, toggleUiHidden, toggleMapLabels, toggleUnitIcons,
-    toggleMinimap, setFollowEntity, setSelectedEntity,
+    toggleMinimap, setFollowEntity, setSelectedEntity, possessedId, setPossessed,
   ]);
 
   if (uiHidden) {

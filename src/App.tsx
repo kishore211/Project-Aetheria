@@ -12,6 +12,7 @@ import FloatingText from './components/ui/FloatingText';
 import ScreenFlash from './components/ui/ScreenFlash';
 import MapLayerBadge from './components/ui/MapLayerBadge';
 import AgeOverlay from './components/ui/AgeOverlay';
+import PossessionBanner from './components/ui/PossessionBanner';
 import { useGameStore } from './store/gameStore';
 import { useHotkeys } from './hooks/useHotkeys';
 
@@ -60,6 +61,7 @@ function App() {
               <TopBar />
               <RightRail />
               <MapLayerBadge />
+              <PossessionBanner />
               <HoverTooltip />
             </>
           )}

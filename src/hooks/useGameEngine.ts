@@ -32,6 +32,7 @@ import { buildSave } from '../utils/saveSystem';
 import { publishSimulationContext, simulation } from '../utils/simulation';
 import { advanceFloaters, clearFloaters, floatBridge } from '../utils/floatBridge';
 import { runExtraPower, PowerHazards, type PowerContext } from '../utils/extraPowers';
+import { heldDirection } from '../utils/possession';
 import { clearImpacts, isShaking, requestFlash, requestShake, sampleShake } from '../utils/impactBridge';
 import { chronicle, toll } from '../utils/chronicle';
 import { applyScenario, type Scenario } from '../utils/scenarios';
@@ -1525,11 +1526,32 @@ export const useGameEngine = () => {
       orbit.update?.();
     }
 
+    // WASD and the arrows pan the map — unless they are walking a possessed
+    // creature, in which case the camera is already riding along with it.
+    // Wall-clock, so you can look around a paused world.
+    const held = heldDirection();
+    if ((held.dx !== 0 || held.dy !== 0) && !store.possessedId) {
+      if (store.followEntityId) store.setFollowEntity(null);
+      const ortho = camera as THREE.OrthographicCamera;
+      const viewWidth = ortho.isOrthographicCamera ? (ortho.right - ortho.left) / ortho.zoom : 20;
+      const step = viewWidth * 0.7 * delta;
+      const half = (tilesRef.current.length * TILE_SIZE) / 2;
+      const nextX = Math.max(-half, Math.min(half, orbit.target.x + held.dx * step));
+      const nextZ = Math.max(-half, Math.min(half, orbit.target.z + held.dy * step));
+      camera.position.x += nextX - orbit.target.x;
+      camera.position.z += nextZ - orbit.target.z;
+      orbit.target.x = nextX;
+      orbit.target.z = nextZ;
+      orbit.update?.();
+    }
+
     // Spectate mode
     if (store.followEntityId) {
       const entity = entityManagerRef.current?.getEntityById(store.followEntityId);
       if (!entity) {
-        store.setFollowEntity(null);
+        // A possessed creature that dies lets go of you, too.
+        if (store.possessedId) store.setPossessed(null);
+        else store.setFollowEntity(null);
       } else {
         const ex = Math.floor(entity.position.x);
         const ey = Math.floor(entity.position.y);

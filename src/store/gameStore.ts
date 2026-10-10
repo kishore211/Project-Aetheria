@@ -9,6 +9,7 @@ import type { MapLayer } from '../utils/mapLayers';
 import type { AgeId } from '../utils/ages';
 import { loadUnlocked, persistUnlocked } from '../utils/achievements';
 import { loadHotkeys, persistHotkeys } from '../utils/hotkeyBindings';
+import { possess } from '../utils/possession';
 
 export type Weather = 'clear' | 'rain' | 'storm';
 
@@ -281,6 +282,8 @@ interface GameState {
   opinions: OpinionRow[];
   /** Entity the camera is following (spectate mode). */
   followEntityId: string | null;
+  /** Creature the player is controlling directly, if any. */
+  possessedId: string | null;
   /** Set by the minimap and chronicle to fly the camera somewhere. */
   cameraTarget: { x: number; y: number; nonce: number } | null;
   /** What the cursor is over right now, for the hover tooltip. */
@@ -336,6 +339,7 @@ interface GameState {
   setIdentities: (identities: IdentityRow[]) => void;
   setOpinions: (opinions: OpinionRow[]) => void;
   setFollowEntity: (id: string | null) => void;
+  setPossessed: (id: string | null) => void;
   focusTile: (x: number, y: number) => void;
   setHoverTarget: (target: HoverTarget | null) => void;
   bumpWorldRevision: () => void;
@@ -417,6 +421,7 @@ export const useGameStore = create<GameState>((set) => ({
   identities: [],
   opinions: [],
   followEntityId: null,
+  possessedId: null,
   cameraTarget: null,
   hoverTarget: null,
   zoomRequest: null,
@@ -516,6 +521,12 @@ export const useGameStore = create<GameState>((set) => ({
   setOpinions: (opinions: OpinionRow[]) => set({ opinions }),
 
   setFollowEntity: (followEntityId: string | null) => set({ followEntityId }),
+  setPossessed: (possessedId: string | null) => {
+    possess(possessedId);
+    // Wearing a creature means riding along with it; letting go leaves the
+    // camera where it is rather than snapping off somewhere.
+    set(possessedId ? { possessedId, followEntityId: possessedId } : { possessedId: null, followEntityId: null });
+  },
 
   focusTile: (x: number, y: number) => set({
     cameraTarget: { x, y, nonce: nextCameraNonce++ },

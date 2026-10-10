@@ -1177,3 +1177,42 @@ canvas {
   font-variant-numeric: tabular-nums;
   color: rgb(148 163 184 / 0.8);
 }
+
+/* -- possession: who you are wearing, and the keys that drive them -- */
+.possession-banner {
+  position: fixed;
+  top: 4.4rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 26;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: calc(100vw - 2rem);
+  padding: 0.4rem 0.75rem;
+  border: 1px solid rgb(250 204 21 / 0.45);
+  border-radius: 999px;
+  background: rgb(15 23 42 / 0.92);
+  color: rgb(253 230 138);
+  font-size: 0.78rem;
+  backdrop-filter: blur(8px);
+  white-space: nowrap;
+}
+.possession-name {
+  font-weight: 700;
+  color: rgb(254 243 199);
+}
+.possession-keys {
+  color: rgb(203 213 225);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.possession-keys kbd {
+  margin: 0 0.15rem 0 0.35rem;
+  padding: 0 0.3rem;
+  border: 1px solid rgb(148 163 184 / 0.4);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 0.7rem;
+  color: rgb(241 245 249);
+}

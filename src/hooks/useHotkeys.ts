@@ -4,6 +4,7 @@ import { POWERS_BY_TAB, POWER_TABS, type PowerTabId } from '../utils/powers';
 import { nextLayer } from '../utils/mapLayers';
 import { soundManager } from '../utils/soundManager';
 import { slotForKey } from '../utils/hotkeyBindings';
+import { isDirectionKey, possession, pressKey, releaseAllKeys, releaseKey } from '../utils/possession';
 
 /**
  * Keyboard control.
@@ -51,10 +52,20 @@ export const useHotkeys = (): void => {
       }
       if (event.metaKey || event.ctrlKey || event.altKey) return;
 
+      // WASD and the arrows are *held*, not pressed: they pan the map, or
+      // walk the creature you are wearing. Tracked here, read every frame.
+      if (isDirectionKey(event.key)) {
+        event.preventDefault();
+        pressKey(event.key);
+        return;
+      }
+
       switch (event.key) {
         case ' ': {
           event.preventDefault();
-          store.togglePause();
+          // While you are wearing a creature, Space is its fist.
+          if (store.possessedId) possession.attackQueued = true;
+          else store.togglePause();
           return;
         }
         case 'Tab': {
@@ -69,6 +80,7 @@ export const useHotkeys = (): void => {
         case 'Escape': {
           // One key, one step back out of wherever you are.
           if (store.showHelp) store.setShowHelp(false);
+          else if (store.possessedId) store.setPossessed(null);
           else if (store.showLaws) store.setShowLaws(false);
           else if (store.followEntityId) store.setFollowEntity(null);
           else if (store.selectedEntity || store.selectedTile) {
@@ -118,6 +130,15 @@ export const useHotkeys = (): void => {
         case 'm': store.toggleMinimap(); break;
         case 'n': store.toggleMapLabels(); break;
         case 'i': store.toggleUnitIcons(); break;
+        case 'g': {
+          // Possess what the pointer is over, or the selected creature; again
+          // to let go.
+          if (store.possessedId) { store.setPossessed(null); break; }
+          const hover = store.hoverTarget;
+          const id = hover?.kind === 'unit' ? hover.id : store.selectedEntity?.id;
+          if (id) { soundManager.uiClick(); store.setPossessed(id); }
+          break;
+        }
         case 'f': {
           // Follow what the pointer is over — no need to click it first.
           const hover = store.hoverTarget;
@@ -132,7 +153,17 @@ export const useHotkeys = (): void => {
       }
     };
 
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (isDirectionKey(event.key)) releaseKey(event.key);
+    };
     window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', releaseAllKeys);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', releaseAllKeys);
+      releaseAllKeys();
+    };
   }, []);
 };
