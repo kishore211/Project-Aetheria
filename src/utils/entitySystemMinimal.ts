@@ -963,7 +963,8 @@ export class EntityAI {
       return;
     }
 
-    const rate = 0.0075 * deltaTime * simulation.needsMultiplier;
+    const rate = 0.0075 * deltaTime * simulation.needsMultiplier
+      * (this.entity.traits?.includes('glutton') ? 1.5 : 1);
     const needs = this.entity.needs;
     needs.hunger = Math.max(0, needs.hunger - rate);
     needs.thirst = Math.max(0, needs.thirst - rate * 1.5);
@@ -1768,8 +1769,17 @@ export class EntityAI {
       this.addTimedStatus('attacking');
       return;
     }
+    const targetTraits = target.traits ?? [];
+    // Checked before the roll, so a creature without the trait spends none
+    // of the shared random stream on it.
+    if (targetTraits.includes('nimble') && Math.random() < 0.25) {
+      this.addTimedStatus('attacking');
+      return;
+    }
     const fury = this.entity.status.includes('inspired') || this.entity.status.includes('enraged') ? 1.4 : 1;
-    const blow = this.entity.attributes.strength * 0.6 * fury;
+    const venom = this.entity.traits?.includes('venomous') ? 1.35 : 1;
+    const hide = targetTraits.includes('armored') ? 0.67 : 1;
+    const blow = this.entity.attributes.strength * 0.6 * fury * venom * hide;
     target.health -= blow;
     emitDamage(target.position.x, target.position.y, blow, target.id);
     this.addTimedStatus('attacking');
@@ -1904,6 +1914,8 @@ export class EntityAI {
 
   private findNearbyPrey(): Entity | null {
     if (!this.index) return null;
+    // A peaceful creature leaves the others alone until hunger forces it.
+    if (this.entity.traits?.includes('peaceful') && this.entity.needs.hunger > 0.2) return null;
     const preyTypes = FOOD_CHAIN[this.entity.type] ?? [];
     if (preyTypes.length === 0) return null;
 

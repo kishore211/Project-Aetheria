@@ -333,8 +333,11 @@ export class EntityManager implements EntityIndex {
     }
 
     if (Math.random() < this.deathProbability * delta) {
-      this.killEntity(entity, 'random');
-      return;
+      // Lucky: half of the accidents that would have happened, do not.
+      if (!(traits.includes('lucky') && Math.random() < 0.5)) {
+        this.killEntity(entity, 'random');
+        return;
+      }
     }
 
     if (entity.health <= 0) {
@@ -554,8 +557,11 @@ export class EntityManager implements EntityIndex {
     let kills = 0;
     for (const victim of this.query(centerX, centerY, radius)) {
       if (victim.status.includes('shielded')) continue;
-      victim.health -= damage;
-      emitDamage(victim.position.x, victim.position.y, damage, victim.id);
+      const traits = victim.traits ?? [];
+      if (cause === 'burned' && traits.includes('fireproof')) continue;
+      const dealt = traits.includes('armored') ? damage * 0.67 : damage;
+      victim.health -= dealt;
+      emitDamage(victim.position.x, victim.position.y, dealt, victim.id);
       applyStatus(victim, 'wounded');
       if (victim.health <= 0) {
         this.killEntity(victim, cause);

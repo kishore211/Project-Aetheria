@@ -241,7 +241,16 @@ export type TraitId =
   | 'regeneration'
   | 'pyromaniac'
   | 'coward'
-  | 'bloodthirsty';
+  | 'bloodthirsty'
+  | 'fireproof'
+  | 'giant'
+  | 'tiny'
+  | 'venomous'
+  | 'peaceful'
+  | 'lucky'
+  | 'nimble'
+  | 'glutton'
+  | 'armored';
 
 // Race types for civilizations
 export type Race = 'human' | 'elf' | 'dwarf' | 'orc';

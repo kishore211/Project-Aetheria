@@ -115,6 +115,8 @@ export const stepOnGround = (
   // The dead and the swimming are exempt: drowning is its own system, and a
   // corpse cannot be made more exhausted.
   if (entity.health <= 0 || isWaterBiome(biome)) return 0;
+  // Fireproof walks over burning ground as if it were grass.
+  if ((biome === 'volcanic' || biome === 'infernal') && entity.traits?.includes('fireproof')) return 0;
   if (random() >= ground.hazard * delta) return 0;
 
   if (ground.status) applyStatus(entity, ground.status);

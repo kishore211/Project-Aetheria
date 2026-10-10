@@ -44,6 +44,8 @@ const TRAIT_SCALE: Partial<Record<TraitId, number>> = {
   immortal: 1.1,
   regeneration: 1.05,
   coward: 0.96,
+  giant: 1.18,
+  tiny: 0.85,
 };
 
 /** How much two creatures of a kind may differ, either side. */

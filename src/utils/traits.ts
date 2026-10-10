@@ -21,6 +21,15 @@ export const TRAITS: Record<TraitId, TraitInfo> = {
   pyromaniac: { id: 'pyromaniac', label: 'Pyromaniac', description: 'Sets the ground alight as it wanders.', tone: 'text-orange-400' },
   coward: { id: 'coward', label: 'Coward', description: 'Flees from threats much earlier.', tone: 'text-slate-300' },
   bloodthirsty: { id: 'bloodthirsty', label: 'Bloodthirsty', description: 'Hunts even when well fed.', tone: 'text-rose-400' },
+  fireproof: { id: 'fireproof', label: 'Fireproof', description: 'Fire and burning ground cannot touch it.', tone: 'text-amber-400' },
+  giant: { id: 'giant', label: 'Giant', description: 'Bigger and hardier than the rest of its kind.', tone: 'text-orange-300' },
+  tiny: { id: 'tiny', label: 'Tiny', description: 'Small, quick, and easy to overlook.', tone: 'text-sky-200' },
+  venomous: { id: 'venomous', label: 'Venomous', description: 'Its bite does far more than it should.', tone: 'text-lime-400' },
+  peaceful: { id: 'peaceful', label: 'Peaceful', description: 'Will not hunt unless it is starving.', tone: 'text-teal-300' },
+  lucky: { id: 'lucky', label: 'Lucky', description: 'Accidents tend to happen to somebody else.', tone: 'text-yellow-300' },
+  nimble: { id: 'nimble', label: 'Nimble', description: 'Dodges one blow in four.', tone: 'text-cyan-300' },
+  glutton: { id: 'glutton', label: 'Glutton', description: 'Always hungry, and it shows.', tone: 'text-orange-200' },
+  armored: { id: 'armored', label: 'Thick-skinned', description: 'Shrugs off a third of every wound.', tone: 'text-stone-300' },
 };
 
 const ALL_TRAITS = Object.keys(TRAITS) as TraitId[];
@@ -38,6 +47,15 @@ const WEIGHTS: Record<TraitId, number> = {
   bloodthirsty: 5,
   pyromaniac: 2,
   immortal: 1,
+  fireproof: 3,
+  giant: 4,
+  tiny: 4,
+  venomous: 3,
+  peaceful: 5,
+  lucky: 4,
+  nimble: 5,
+  glutton: 6,
+  armored: 4,
 };
 
 const pickWeighted = (): TraitId => {
@@ -96,6 +114,16 @@ export const applyTraits = (entity: Entity): void => {
         break;
       case 'longevity':
         entity.maxAge = Math.round(entity.maxAge * 1.5);
+        break;
+      case 'giant':
+        entity.maxHealth = Math.round(entity.maxHealth * 1.3);
+        entity.health = entity.maxHealth;
+        entity.attributes.strength = Math.round(entity.attributes.strength * 1.2);
+        break;
+      case 'tiny':
+        entity.maxHealth = Math.round(entity.maxHealth * 0.8);
+        entity.health = entity.maxHealth;
+        entity.attributes.speed = Math.round(entity.attributes.speed * 1.2);
         break;
       default:
         break;

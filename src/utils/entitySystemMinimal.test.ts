@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { EntityAI, FOOD_CHAIN, createEntity, isSentient } from './entitySystemMinimal';
 import { EntityManager } from './entityManagerMinimal';
+import { rollSize } from './size';
 import { DEFAULT_WORLD_LAWS } from '../store/gameStore';
 import { publishSimulationContext, simulation } from './simulation';
 import type { Tile } from '../types/world';
@@ -228,5 +229,28 @@ describe('spells the player lays on', () => {
     const { x, y } = sleeper.position;
     for (let i = 0; i < 30; i++) manager.update(0.1);
     expect(sleeper.position).toEqual({ x, y });
+  });
+});
+
+describe('traits with teeth', () => {
+  it('lets fire pass over the fireproof and blunts every wound on the thick-skinned', () => {
+    const manager = new EntityManager(makeGrid(16), new THREE.Scene());
+    const salamander = manager.spawnEntity('human', 5, 5)!;
+    const tank = manager.spawnEntity('human', 5.2, 5)!;
+    const plain = manager.spawnEntity('human', 5.4, 5)!;
+    salamander.traits = ['fireproof'];
+    tank.traits = ['armored'];
+    plain.traits = [];
+    for (const c of [salamander, tank, plain]) c.health = c.maxHealth = 100;
+    manager.damageArea(5, 5, 2, 30, 'burned');
+    expect(salamander.health).toBe(100);
+    expect(tank.health).toBeCloseTo(100 - 30 * 0.67, 5);
+    expect(plain.health).toBe(70);
+  });
+
+  it('keeps a giant bigger and a tiny one smaller than the plain of their kind', () => {
+    const fixed = () => 0.5;
+    expect(rollSize('wolf', ['giant'], fixed)).toBeGreaterThan(rollSize('wolf', [], fixed));
+    expect(rollSize('wolf', ['tiny'], fixed)).toBeLessThan(rollSize('wolf', [], fixed));
   });
 });
