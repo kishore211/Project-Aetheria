@@ -129,6 +129,8 @@ export const SPAWNABLE: EntityType[] = [
   'necromancer', 'plague_doctor', 'fire_skull', 'cold_one', 'ufo',
   'sand_spider', 'acid_blob', 'lil_pumpkin', 'gummy_bear', 'crabzilla',
   'flame_tower', 'ice_tower',
+  'white_mage', 'angel', 'sandworm', 'langton_ant', 'tumor', 'treant',
+  'candy_man', 'jumpy_skull', 'robot_santa', 'yeti',
 ];
 
 const STATUS_POWERS: Record<string, { status: StatusId; color: number; persons?: boolean; line: string }> = {

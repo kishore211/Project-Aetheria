@@ -98,3 +98,39 @@ describe('hostile towers', () => {
     expect(tiles.flat().some(t => t.type === 'snow')).toBe(true);
   });
 });
+
+describe('the long tail', () => {
+  it('heals people near a white mage', () => {
+    const { w, crowd } = world();
+    const hurt = creature('human', 6.5, 5.5);
+    hurt.health = 40;
+    crowd.push(hurt);
+    live(creature('white_mage'), w, 9);
+    expect(hurt.health).toBeGreaterThan(40);
+  });
+
+  it('lets Langton’s ant flip the ground it walks and keep walking', () => {
+    const { w, tiles } = world();
+    const ant = creature('langton_ant', 6.5, 6.5);
+    const start = { ...ant.position };
+    live(ant, w, 12);
+    expect(tiles.flat().some(t => t.type === 'desert')).toBe(true);
+    expect(ant.position).not.toEqual(start);
+  });
+
+  it('spreads corruption from a tumor, and plants forest around a treant', () => {
+    const { w, tiles } = world();
+    live(creature('tumor', 4.5, 4.5), w, 30);
+    expect(tiles.flat().some(t => t.type === 'corrupted')).toBe(true);
+    live(creature('treant', 8.5, 8.5), w, 40);
+    expect(tiles.flat().some(t => t.type === 'deciduous_forest' || t.type === 'coniferous_forest')).toBe(true);
+  });
+
+  it('has Robot Santa hand an unarmed person a present', () => {
+    const { w, crowd } = world();
+    const person = creature('human', 6, 5.5);
+    crowd.push(person);
+    live(creature('robot_santa'), w, 20);
+    expect(person.equipment?.weapon).toBeTruthy();
+  });
+});

@@ -251,7 +251,18 @@ export type EntityType =
   | 'crabzilla'
   // Structures that fight: placed, never move, never eat
   | 'flame_tower'
-  | 'ice_tower';
+  | 'ice_tower'
+  // The long tail
+  | 'white_mage'
+  | 'angel'
+  | 'sandworm'
+  | 'langton_ant'
+  | 'tumor'
+  | 'treant'
+  | 'candy_man'
+  | 'jumpy_skull'
+  | 'robot_santa'
+  | 'yeti';
 
 /** Heritable unit traits. Rolled at spawn, passed to children. */
 export type TraitId =

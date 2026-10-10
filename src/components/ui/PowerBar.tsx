@@ -7,7 +7,7 @@ import {
   Scissors, Skull, Sparkle, Sparkles, Sprout, Swords, Tag, TreePine, Trees,
   User, Users, Video, VideoOff, Waves, X, Zap,
   Biohazard, Bird, Bomb, Bone, Brain, Bug, Cloud, CloudSnow, Coffee, Copy, Crown, Dog, Droplet, Egg, Fish, FlaskConical, Flag, Flower, Handshake, HeartHandshake, Lightbulb, Megaphone, Moon, MountainSnow, Orbit, Palmtree, Rabbit, Radiation, Shell, Shield, Snowflake, Spline, Squirrel, Sun, Sword, ThermometerSnowflake, ThermometerSun, Tornado, TreePalm, Unlink, WandSparkles, Wheat, Wind, CircleDot,
-  PiggyBank, Banana, Wand, Cat, Rat, Gamepad2, BookOpen,
+  PiggyBank, Banana, Wand, Cat, Rat, Gamepad2, BookOpen, Bot,
   type LucideIcon,
 } from 'lucide-react';
 import { useGameStore, type BrushRadius } from '../../store/gameStore';
@@ -40,6 +40,7 @@ import KnowledgeBook from './KnowledgeBook';
 /** Resolve a lucide icon by name, so the catalogue can stay plain data. */
 const ICONS: Record<string, LucideIcon> = {
   BookOpen,
+  Bot,
   Activity, ArrowDown, ArrowUp, Axe, BadgeCheck, BarChart3, Circle, CloudRain,
   Droplets, Eraser, Eye, EyeOff, Flame, Gem, Ghost, Globe2, Hammer,
   HardDriveDownload, Heart, HelpCircle, Leaf, ListTree, Map, Mountain,

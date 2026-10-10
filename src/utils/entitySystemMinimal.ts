@@ -148,6 +148,16 @@ export const FOOD_CHAIN: Record<EntityType, EntityType[]> = {
   crabzilla: ['human', 'elf', 'dwarf', 'orc', 'cow', 'buffalo', 'rhino'],
   flame_tower: [],
   ice_tower: [],
+  white_mage: ['zombie', 'skeleton', 'demon', 'ghost'],
+  angel: ['demon', 'zombie', 'skeleton', 'ghost', 'necromancer'],
+  sandworm: ['camel', 'human', 'elf', 'dwarf', 'orc', 'goat', 'ostrich'],
+  langton_ant: [],
+  tumor: [],
+  treant: [],
+  candy_man: [],
+  jumpy_skull: ['human', 'elf', 'dwarf', 'rabbit', 'chicken'],
+  robot_santa: [],
+  yeti: ['human', 'elf', 'dwarf', 'orc', 'penguin', 'seal', 'goat'],
 };
 
 /**
@@ -155,7 +165,7 @@ export const FOOD_CHAIN: Record<EntityType, EntityType[]> = {
  * not eat or sleep or wander, and act only through their aura
  * (creatureAbilities.ts) — but they have health and can be torn down.
  */
-export const STRUCTURES = new Set<EntityType>(['flame_tower', 'ice_tower']);
+export const STRUCTURES = new Set<EntityType>(['flame_tower', 'ice_tower', 'tumor', 'langton_ant']);
 
 /** Reverse of FOOD_CHAIN, built once at module load. */
 const PREDATORS_OF: Partial<Record<EntityType, EntityType[]>> = {};
@@ -171,7 +181,7 @@ const SENTIENT: EntityType[] = ['human', 'elf', 'dwarf', 'orc'];
 export const MONSTERS = new Set<EntityType>([
   'dragon', 'demon', 'zombie', 'skeleton', 'elemental', 'bandit', 'ghost', 'mage', 'alien',
   'necromancer', 'fire_skull', 'cold_one', 'ufo', 'sand_spider', 'acid_blob', 'crabzilla',
-  'flame_tower', 'ice_tower',
+  'flame_tower', 'ice_tower', 'sandworm', 'jumpy_skull', 'tumor', 'yeti',
 ]);
 export const isSentient = (type: EntityType): boolean => SENTIENT.includes(type);
 
@@ -244,6 +254,16 @@ function generateEntityName(type: EntityType): string {
     crabzilla: ['Crabzilla', 'King Claw', 'The Tide', 'Shellshock', 'Colossus', 'Big Pinch', 'Leviathan', 'Snapjaw', 'Titan', 'Reefbreaker'],
     flame_tower: ['Pyre Spire', 'The Brazier', 'Emberwatch', 'Cinder Keep', 'Hellbeacon'],
     ice_tower: ['Rime Spire', 'The Icicle', 'Frostwatch', 'Glacier Keep', 'Winterbeacon'],
+    white_mage: ['Aldwyn', 'Seraphel', 'Lumen', 'Ilyria', 'Caelum', 'Mirabel', 'Solace', 'Halvard', 'Pellam', 'Elowen'],
+    angel: ['Auriel', 'Cassiel', 'Zadkiel', 'Raziel', 'Haniel', 'Seraph', 'Ophan', 'Lumiel', 'Sariel', 'Eloa'],
+    sandworm: ['Shai', 'The Maker', 'Dune Eater', 'Old Man of the Desert', 'Grit', 'Sandmaw', 'Burrower', 'Quake', 'Deepmouth', 'Tunneler'],
+    langton_ant: ['Langton', 'Turmite', 'Rule One', 'The Highway', 'Flipflop', 'Ant Zero', 'Chirality', 'Cell', 'Step', 'Automaton'],
+    tumor: ['Growth', 'The Mass', 'Swell', 'Lump', 'Spore', 'Blight', 'Bulge', 'Pustule', 'Node', 'Knot'],
+    treant: ['Oakenshield', 'Barkbeard', 'Rootfather', 'Elderbough', 'Mossheart', 'Greywood', 'Thornwise', 'Leafwarden', 'Hollowtrunk', 'Old Ring'],
+    candy_man: ['Gumdrop', 'Licorice', 'Toffee', 'Marzipan', 'Fudge', 'Jellybean', 'Caramel', 'Nougat', 'Sherbet', 'Taffy'],
+    jumpy_skull: ['Boing', 'Hopper', 'Clack', 'Bounce', 'Skip', 'Rattle', 'Jitter', 'Spring', 'Pogo', 'Knock'],
+    robot_santa: ['SANTA-9000', 'Unit Noel', 'Claus Prime', 'Gift Protocol', 'Ho-Ho-Bot', 'Jingle.exe', 'Kringle Mk II', 'Sleighframe', 'Elfware', 'Present Tense'],
+    yeti: ['Bigfoot', 'Abominable', 'Frostfang', 'Snowshoe', 'Hairy', 'Whiteout', 'Glacier', 'Tundra', 'Avalanche', 'Mountain Uncle'],
   };
 
   const nameList = names[type] ?? ['Unknown'];
@@ -324,6 +344,16 @@ const PROFILES: Partial<Record<EntityType, TypeProfile>> = {
   crabzilla: { maxAge: 400, maxHealth: 900, strength: 50, intelligence: 6, speed: 7, resilience: 40 },
   flame_tower: { maxAge: 9999, maxHealth: 500, strength: 0, intelligence: 0, speed: 0, resilience: 30 },
   ice_tower: { maxAge: 9999, maxHealth: 500, strength: 0, intelligence: 0, speed: 0, resilience: 30 },
+  white_mage: { maxAge: 220, maxHealth: 120, strength: 14, intelligence: 24, speed: 9, resilience: 12 },
+  angel: { maxAge: 9999, maxHealth: 260, strength: 26, intelligence: 22, speed: 15, resilience: 24 },
+  sandworm: { maxAge: 300, maxHealth: 700, strength: 40, intelligence: 4, speed: 9, resilience: 30 },
+  langton_ant: { maxAge: 9999, maxHealth: 40, strength: 0, intelligence: 1, speed: 0, resilience: 6 },
+  tumor: { maxAge: 9999, maxHealth: 160, strength: 0, intelligence: 0, speed: 0, resilience: 18 },
+  treant: { maxAge: 2000, maxHealth: 420, strength: 24, intelligence: 14, speed: 5, resilience: 32 },
+  candy_man: { maxAge: 40, maxHealth: 60, strength: 5, intelligence: 6, speed: 9, resilience: 6 },
+  jumpy_skull: { maxAge: 9999, maxHealth: 35, strength: 9, intelligence: 3, speed: 19, resilience: 6 },
+  robot_santa: { maxAge: 9999, maxHealth: 300, strength: 10, intelligence: 20, speed: 10, resilience: 30 },
+  yeti: { maxAge: 120, maxHealth: 320, strength: 30, intelligence: 8, speed: 10, resilience: 22 },
 };
 
 const DEFAULT_PROFILE: TypeProfile = {
@@ -672,6 +702,8 @@ export const RANGED: Partial<Record<EntityType, { reach: number; kind: ShotKind;
   mage: { reach: 3.5, kind: 'magic' },
   necromancer: { reach: 3, kind: 'dark' },
   ufo: { reach: 3.5, kind: 'laser' },
+  white_mage: { reach: 3.5, kind: 'magic' },
+  angel: { reach: 3, kind: 'magic' },
   demon: { reach: 2.4, kind: 'fire', ignite: true },
   elemental: { reach: 2.6, kind: 'magic' },
 };

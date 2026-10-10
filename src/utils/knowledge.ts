@@ -71,6 +71,13 @@ const AURA_TEXT: Partial<Record<EntityType, string>> = {
   crabzilla: 'Flattens any building it treads on.',
   flame_tower: 'Burns whatever comes within five tiles, and the ground it stands on.',
   ice_tower: 'Shoots whatever comes near and spreads a winter around itself.',
+  white_mage: 'Heals the people around it.',
+  angel: 'Blesses the people it passes over.',
+  treant: 'Plants forest as it walks.',
+  candy_man: 'Turns the ground it walks on to candy.',
+  robot_santa: 'Hands out weapons and armour to whoever it meets.',
+  tumor: 'Spreads corruption around itself, and buds new tumors.',
+  langton_ant: 'Rewrites the land by one rule, and builds a highway out of chaos.',
 };
 
 const RANGED_TEXT: Record<string, string> = {

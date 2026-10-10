@@ -879,6 +879,56 @@ export const POWERS: PowerEntry[] = [
     quip: 'Winter, on a plinth.',
   },
   {
+    kind: 'tool', id: 'spawn-white_mage', tab: 'divine', label: 'White Mage', icon: 'WandSparkles',
+    hint: 'A healer who mends the people around it and smites the undead.',
+    quip: 'Light, with a bedside manner.',
+  },
+  {
+    kind: 'tool', id: 'spawn-angel', tab: 'divine', label: 'Angel', icon: 'Sparkles',
+    hint: 'A flying guardian that hunts demons and the dead.',
+    quip: 'Not here for the humans. Just here.',
+  },
+  {
+    kind: 'tool', id: 'spawn-treant', tab: 'nature', label: 'Treant', icon: 'TreePine',
+    hint: 'A walking tree that plants forest wherever it goes.',
+    quip: 'Slow, patient, and keeping score.',
+  },
+  {
+    kind: 'tool', id: 'spawn-robot_santa', tab: 'divine', label: 'Robot Santa', icon: 'Bot',
+    hint: 'Hands out gifts to whoever it meets. Mostly weapons.',
+    quip: 'HAVE YOU BEEN GOOD. PLEASE CONFIRM.',
+  },
+  {
+    kind: 'tool', id: 'spawn-candy_man', tab: 'life', label: 'Candy Man', icon: 'Heart',
+    hint: 'A sweet little man who leaves sugar where he walks.',
+    quip: 'Mostly harmless. Mostly sugar.',
+  },
+  {
+    kind: 'tool', id: 'spawn-sandworm', tab: 'ruin', label: 'Sandworm', icon: 'Spline',
+    hint: 'A colossal worm of the deep desert. Eats caravans.',
+    quip: 'Walk without rhythm.',
+  },
+  {
+    kind: 'tool', id: 'spawn-yeti', tab: 'ruin', label: 'Yeti', icon: 'Snowflake',
+    hint: 'A great white hunter of the snows.',
+    quip: 'Abominable, and aware of it.',
+  },
+  {
+    kind: 'tool', id: 'spawn-jumpy_skull', tab: 'ruin', label: 'Jumpy Skull', icon: 'Skull',
+    hint: 'A skull that will not stop bouncing, or biting.',
+    quip: 'It has no legs and still moves faster than you.',
+  },
+  {
+    kind: 'tool', id: 'spawn-tumor', tab: 'ruin', label: 'Tumor', icon: 'Biohazard',
+    hint: 'A growth that spreads corruption around it and buds new tumors.',
+    quip: 'It is getting bigger.',
+  },
+  {
+    kind: 'tool', id: 'spawn-langton_ant', tab: 'nature', label: 'Langton\'s Ant', icon: 'Bug',
+    hint: 'An ant that rewrites the land by one simple rule. Watch the highway emerge.',
+    quip: 'Simple rules, very complicated afternoon.',
+  },
+  {
     kind: 'tool', id: 'spawn-dragon', tab: 'life', label: 'Dragon', icon: 'Flame',
     hint: 'Flies, burns, and is very hard to kill.',
     quip: 'Regards your walls as a suggestion.',

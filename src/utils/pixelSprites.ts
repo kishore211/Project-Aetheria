@@ -407,6 +407,22 @@ const SPIRE = [
   '.ddddddddd..',
 ];
 
+// Walking tree: g=leaves, d=dark leaves, t=bark, e=eyes
+const TREANT = [
+  '...gggggg...',
+  '..gggggggg..',
+  '.gggdggdggg.',
+  '..gggggggg..',
+  '....tttt....',
+  '...tettet...',
+  '...tttttt...',
+  '..tt.tt.tt..',
+  '..t..tt..t..',
+  '....tttt....',
+  '...tt..tt...',
+  '..tt....tt..',
+];
+
 export const TEMPLATES: Record<string, string[]> = {
   humanoid: HUMANOID,
   quadruped: QUADRUPED,
@@ -433,6 +449,7 @@ export const TEMPLATES: Record<string, string[]> = {
   camel: CAMEL,
   seal: SEAL,
   spire: SPIRE,
+  treant: TREANT,
 };
 
 interface SpriteSpec {
@@ -565,6 +582,16 @@ const SPECS: Record<EntityType, SpriteSpec> = {
   crabzilla: { template: 'crab', palette: { f: '#c83a2a', d: '#8a1e14', e: '#101010' } },
   flame_tower: { template: 'spire', palette: { s: '#6a5a52', d: '#3e322c', c: '#ff7a1e', w: '#ffd060', k: '#2a1e18' } },
   ice_tower: { template: 'spire', palette: { s: '#8aa4b8', d: '#566c80', c: '#9fe8ff', w: '#e8fbff', k: '#2a3a48' } },
+  white_mage: { template: 'humanoid', palette: { s: '#f0d8b8', h: '#f4f4f0', b: '#e8ecf4', p: '#b8c4d8', e: '#3a6ad0' } },
+  angel: { template: 'fairy', palette: { w: '#fffbe8', h: '#f2c230', s: '#f8e0c0', e: '#3a5ab0', b: '#f8f4ec' } },
+  sandworm: { template: 'serpent', palette: { f: '#c9a06a', d: '#8a6638', e: '#2a1a10' } },
+  langton_ant: { template: 'insect', palette: { f: '#c83a2a', d: '#3a1410', e: '#101010', w: '#e05a3a' } },
+  tumor: { template: 'blob', palette: { f: '#b8507a', d: '#6a2440', e: '#f0e060', w: '#e8a0c0' } },
+  treant: { template: 'treant', palette: { g: '#4f9a3c', d: '#2f6a28', t: '#6a4628', e: '#e8d040' } },
+  candy_man: { template: 'humanoid', palette: { s: '#ffb0c8', h: '#ff6aa0', b: '#8ae0d8', p: '#f0e060', e: '#3a1020' } },
+  jumpy_skull: { template: 'skull', palette: { f: '#efe8d4', e: '#3a2a20', d: '#3a2a20', w: '#efe8d4' } },
+  robot_santa: { template: 'humanoid', palette: { s: '#b8c0c8', h: '#d02a2a', b: '#d02a2a', p: '#2a2a2a', e: '#40f0ff' } },
+  yeti: { template: 'humanoid', palette: { s: '#d8e4ec', h: '#f4f8fc', b: '#e4ecf2', p: '#c4d0dc', e: '#2a4a8a' } },
 };
 
 const textureCache = new Map<string, THREE.CanvasTexture>();

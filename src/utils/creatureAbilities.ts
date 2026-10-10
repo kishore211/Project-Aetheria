@@ -11,7 +11,15 @@ import type { BiomeType, Entity, EntityType, Tile } from '../types/world';
 import { isWaterBiome } from '../types/world';
 import { clearStatus } from './statusEffects';
 import { emitShot, type ShotKind } from './shotBridge';
-import { emitDamage } from './floatBridge';
+import { emitDamage, emitFloater } from './floatBridge';
+import { applyStatus } from './statusEffects';
+import { equip, forgeItem } from './equipment';
+import { wieldsGear } from './pixelSprites';
+
+/** Which way each Langton's ant is facing: 0 north, 1 east, 2 south, 3 west. */
+const antHeading = new WeakMap<Entity, number>();
+const ANT_STEP: Array<[number, number]> = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+const PEOPLE = new Set<string>(['human', 'elf', 'dwarf', 'orc']);
 
 /** Towers do not fight each other, or anything that is not alive. */
 const TOWER_TYPES = new Set<string>(['flame_tower', 'ice_tower']);
@@ -115,6 +123,92 @@ export const ABILITIES: Partial<Record<EntityType, Ability>> = {
       if (ground && !isWaterBiome(ground.type) && !FROZEN.has(ground.type) && ground.type !== 'mountains') {
         ground.temperature = Math.min(ground.temperature, 0.1);
         world.setBiome?.(x, y, 'snow');
+      }
+    },
+  },
+  white_mage: {
+    every: 4,
+    use: (_self, tile, world) => {
+      for (const other of world.near(tile.x + 0.5, tile.y + 0.5, 3)) {
+        if (!PEOPLE.has(other.type) || other.health >= other.maxHealth) continue;
+        const mend = Math.min(20, other.maxHealth - other.health);
+        other.health += mend;
+        emitFloater({ kind: 'heal', text: `+${Math.round(mend)}`, x: other.position.x, y: other.position.y, entityId: other.id });
+      }
+    },
+  },
+  angel: {
+    every: 10,
+    use: (_self, tile, world) => {
+      for (const other of world.near(tile.x + 0.5, tile.y + 0.5, 2.5)) {
+        if (PEOPLE.has(other.type)) applyStatus(other, 'blessed');
+      }
+    },
+  },
+  treant: {
+    every: 6,
+    use: (_self, tile, world) => {
+      const x = tile.x + Math.round((world.random() - 0.5) * 4);
+      const y = tile.y + Math.round((world.random() - 0.5) * 4);
+      const ground = world.tiles[x]?.[y];
+      if (!ground || isWaterBiome(ground.type) || ground.villageId || ground.type === 'mountains') return;
+      ground.structure = { type: 'mature_tree', health: 100, level: 2 };
+      if (!ground.resources.some(r => r.type === 'wood')) ground.resources.push({ type: 'wood', quantity: 6, discovered: true });
+      world.setBiome?.(x, y, ground.temperature < 0.32 ? 'coniferous_forest' : 'deciduous_forest');
+    },
+  },
+  candy_man: {
+    every: 8,
+    use: (_self, tile, world) => {
+      if (!isWaterBiome(tile.type) && !tile.villageId && tile.type !== 'candy') world.setBiome?.(tile.x, tile.y, 'candy');
+    },
+  },
+  robot_santa: {
+    every: 15,
+    use: (self, tile, world) => {
+      const lucky = world.near(tile.x + 0.5, tile.y + 0.5, 3)
+        .filter(o => o.id !== self.id && wieldsGear(o.type) && (!o.equipment?.weapon || !o.equipment?.armor));
+      const pick = lucky[Math.floor(world.random() * lucky.length)];
+      if (!pick) return;
+      const item = forgeItem(pick.equipment?.weapon ? 'armor' : 'weapon', 3, pick.type, 'the North Pole', world.random);
+      equip(pick, item);
+      emitFloater({ kind: 'emote', text: '\u{1F381}', x: pick.position.x, y: pick.position.y, entityId: pick.id });
+    },
+  },
+  tumor: {
+    every: 3,
+    use: (_self, tile, world) => {
+      const x = tile.x + Math.round((world.random() - 0.5) * 4);
+      const y = tile.y + Math.round((world.random() - 0.5) * 4);
+      const ground = world.tiles[x]?.[y];
+      if (ground && !isWaterBiome(ground.type) && !ground.villageId && ground.type !== 'corrupted') {
+        world.setBiome?.(x, y, 'corrupted');
+      }
+      // Now and then it buds.
+      if (world.random() < 0.025) world.spawn('tumor', tile.x + (world.random() < 0.5 ? -1 : 1), tile.y + (world.random() < 0.5 ? -1 : 1));
+    },
+  },
+  langton_ant: {
+    every: 0.4,
+    use: (self, tile, world) => {
+      // The rule: on light ground turn right, on dark turn left; flip the
+      // ground; step forward. From that alone, after a few thousand steps of
+      // chaos, comes the famous highway.
+      let heading = antHeading.get(self) ?? 0;
+      const dark = tile.type === 'desert';
+      heading = (heading + (dark ? 3 : 1)) % 4;
+      if (!tile.villageId && !isWaterBiome(tile.type)) world.setBiome?.(tile.x, tile.y, dark ? 'grassland' : 'desert');
+      let [dx, dy] = ANT_STEP[heading];
+      let next = world.tiles[tile.x + dx]?.[tile.y + dy];
+      if (!next || isWaterBiome(next.type)) {
+        heading = (heading + 2) % 4;
+        [dx, dy] = ANT_STEP[heading];
+        next = world.tiles[tile.x + dx]?.[tile.y + dy];
+      }
+      antHeading.set(self, heading);
+      if (next && !isWaterBiome(next.type)) {
+        self.lastPosition = { ...self.position };
+        self.position = { x: next.x + 0.5, y: next.y + 0.5 };
       }
     },
   },

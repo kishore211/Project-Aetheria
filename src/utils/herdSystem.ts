@@ -64,10 +64,12 @@ const HERD_SIZE: Partial<Record<EntityType, number>> = {
   gummy_bear: 4,
   lil_pumpkin: 3,
   sand_spider: 2,
+  candy_man: 3,
+  jumpy_skull: 3,
 };
 
 /** Species that head toward creatures rather than toward pasture. */
-const PREDATORS: EntityType[] = ['wolf', 'fox', 'bear', 'snake', 'hyena', 'crocodile', 'cat', 'dog', 'piranha', 'polar_bear', 'sand_spider'];
+const PREDATORS: EntityType[] = ['wolf', 'fox', 'bear', 'snake', 'hyena', 'crocodile', 'cat', 'dog', 'piranha', 'polar_bear', 'sand_spider', 'yeti', 'sandworm'];
 
 // WorldBox's cooldowns are 60/200/5/20/60 seconds, but its days are far longer
 // than ours: a full Aetheria year is about 320 seconds, so its 200-second

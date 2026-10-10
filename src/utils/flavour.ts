@@ -312,6 +312,46 @@ export const CREATURE_LINES: Partial<Record<EntityType, string[]>> = {
     'The cold comes off it in waves you can see.',
     'Spreads its own little winter and defends it.',
   ],
+  white_mage: [
+    'Has never met a wound it did not want to close.',
+    'Walks where the sick are, and leaves fewer of them.',
+  ],
+  angel: [
+    'Came down to deal with the dead, and means to finish.',
+    'Its wings make no sound, which is worse.',
+  ],
+  sandworm: [
+    'The desert has a heartbeat, and this is it.',
+    'Swallows caravans whole and leaves the camels for later.',
+  ],
+  langton_ant: [
+    'Turns right on light, left on dark, and changes the world either way.',
+    'After ten thousand steps it builds a road, and nobody knows why.',
+  ],
+  tumor: [
+    'Pulses slightly, as if it is listening.',
+    'Every day there is more of it, and the ground around it is worse.',
+  ],
+  treant: [
+    'Older than the kingdom and likely to outlast it.',
+    'Plants a forest by walking through a field.',
+  ],
+  candy_man: [
+    'Smells of caramel and bad decisions.',
+    'Leaves a trail of sugar that the ground never forgets.',
+  ],
+  jumpy_skull: [
+    'Bounces everywhere, bites everything.',
+    'Nobody has ever seen it hold still.',
+  ],
+  robot_santa: [
+    'Delivers gifts at a rate no chimney was designed for.',
+    'Its list has only one column, and everyone is on it.',
+  ],
+  yeti: [
+    'The snow moved, and then it had teeth.',
+    'Leaves footprints the size of a door.',
+  ],
 };
 
 /** Every biome has something to say about itself. */
