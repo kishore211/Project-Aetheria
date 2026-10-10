@@ -680,3 +680,28 @@ describe('a well', () => {
     expect(harness.settlements.isWell(16, 21)).toBe(false);
   });
 });
+
+describe('a dock', () => {
+  it('is only built where there is sea, and boats then put out beside it', () => {
+    const harness = makeHarness();
+    seatTwoRivals(harness);
+    const town = harness.settlements.villages.get('village-a')!;
+    const inner = harness.settlements as unknown as {
+      findShoreSpot(v: unknown): { x: number; y: number } | null;
+      harbourOf(v: unknown, reach: number): { x: number; y: number } | null;
+      placeBuilding(v: unknown, k: string, x: number, y: number): void;
+    };
+    // The harness flattens the middle into farmland: no coast in reach.
+    expect(inner.findShoreSpot(town)).toBeNull();
+    // Dig a pond beside the town and there is.
+    for (const [x, y] of [[20, 20], [20, 21], [21, 20], [21, 21]]) {
+      harness.tiles[x][y].type = 'shallow_water';
+      harness.tiles[x][y].height = 0.2;
+    }
+    const spot = inner.findShoreSpot(town);
+    expect(spot).not.toBeNull();
+    inner.placeBuilding(town, 'dock', spot!.x, spot!.y);
+    const harbour = inner.harbourOf(town, 6)!;
+    expect(Math.hypot(harbour.x - spot!.x, harbour.y - spot!.y)).toBeLessThanOrEqual(2.9);
+  });
+});

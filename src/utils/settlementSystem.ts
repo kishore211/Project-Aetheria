@@ -98,7 +98,8 @@ export type BuildingKind =
   | 'smithy'
   | 'library'
   | 'well'
-  | 'market';
+  | 'market'
+  | 'dock';
 
 export interface Building {
   id: string;
@@ -216,6 +217,7 @@ const RECIPES: BuildingRecipe[] = [
   { kind: 'library', wood: 10, stone: 6, requires: 10, limit: 1, size: 0.78, priority: 40 },
   { kind: 'well', wood: 2, stone: 5, requires: 4, limit: 2, size: 0.5, priority: 52 },
   { kind: 'market', wood: 9, stone: 4, requires: 8, limit: 1, size: 0.78, priority: 48 },
+  { kind: 'dock', wood: 8, stone: 0, requires: 5, limit: 1, size: 0.7, priority: 58 },
   { kind: 'mine', wood: 4, stone: 6, requires: 7, limit: 2, size: 0.6, priority: 60 },
   { kind: 'house', wood: 7, stone: 1, requires: 2, limit: 10, size: 0.62, priority: 50 },
   { kind: 'farm', wood: 5, stone: 0, requires: 3, limit: 4, size: 0.55, priority: 45 },
@@ -226,7 +228,7 @@ const RECIPES: BuildingRecipe[] = [
 const BUILDING_HEALTH: Record<BuildingKind, number> = {
   bonfire: 120, tent: 60, house: 140, hall: 260,
   farm: 90, tower: 240, temple: 220, statue: 180, mine: 160,
-  windmill: 120, barracks: 220, smithy: 160, library: 170, well: 90, market: 140,
+  windmill: 120, barracks: 220, smithy: 160, library: 170, well: 90, market: 140, dock: 110,
 };
 
 /**
@@ -239,7 +241,7 @@ const BUILDING_HEALTH: Record<BuildingKind, number> = {
 const CLAIM_RADIUS: Record<BuildingKind, number> = {
   bonfire: 7, tent: 3, house: 4, hall: 9,
   farm: 3, tower: 7, temple: 7, statue: 5, mine: 3,
-  windmill: 3, barracks: 5, smithy: 3, library: 5, well: 2, market: 4,
+  windmill: 3, barracks: 5, smithy: 3, library: 5, well: 2, market: 4, dock: 3,
 };
 
 /**
@@ -299,7 +301,7 @@ const adjacentZonesFilled = (
  * them they produce a dense core, a green belt and frontier towers with no
  * authoring at all — which is the whole trick.
  */
-type Siting = 'cluster' | 'solitary' | 'border' | 'anchor';
+type Siting = 'cluster' | 'solitary' | 'border' | 'anchor' | 'shore';
 
 /**
  * What a building *is*, in one number, and how much ground that takes.
@@ -334,6 +336,7 @@ const TIERS: Record<string, BuildingTier> = {
   library: { tier: 3, footprint: 1 },
   well: { tier: 1, footprint: 1 },
   market: { tier: 2, footprint: 1 },
+  dock: { tier: 1, footprint: 1 },
 };
 
 /** Tiles on a side. Derived from the kind, so no save has to carry it. */
@@ -357,6 +360,7 @@ const SITING: Record<string, Siting> = {
   library: 'solitary',
   well: 'cluster',
   market: 'cluster',
+  dock: 'shore',
 };
 
 /**
@@ -421,6 +425,7 @@ const BUILDING_YIELD: Record<string, number> = {
   well: 0,
   // A market is where the town's money changes hands, and some of it stays.
   market: 5,
+  dock: 2,
 };
 
 /** How far a watchtower's archers reach, and how hard an arrow hits. */
@@ -476,6 +481,7 @@ const PULSE_BY_BUILDING: Record<string, number> = {
   library: 0.3,
   well: 0.2,
   market: 0.45,
+  dock: 0.15,
 };
 
 /** Claimed land whose village has no identity yet, on an identity layer. */
@@ -1525,6 +1531,9 @@ export class SettlementSystem {
       if (village.store.wood < recipe.wood || village.store.stone < recipe.stone) continue;
       // Mines only make sense on or beside stone
       if (recipe.kind === 'mine' && !this.hasRockNearby(village)) continue;
+      // ...and docks beside the sea. Without this an inland town would pick a
+      // dock every round, find nowhere for it, and never build anything else.
+      if (recipe.kind === 'dock' && !this.findShoreSpot(village)) continue;
       return recipe;
     }
     return null;
@@ -1554,6 +1563,7 @@ export class SettlementSystem {
    * for every culture.
    */
   private findBuildSpot(village: Village, kind: BuildingKind): { x: number; y: number } | null {
+    if (SITING[kind] === 'shore') return this.findShoreSpot(village);
     const reach = kind === 'farm' ? 7 : 6;
     const occupied = this.occupiedTiles(village);
     const siting = SITING[kind] ?? 'cluster';
@@ -1604,6 +1614,44 @@ export class SettlementSystem {
       return this.findBuildSpotRelaxed(village, kind, occupied);
     }
     return null;
+  }
+
+  /**
+   * Land with sea beside it, nearest the centre: where a dock goes. Street
+   * patterns do not apply — the coast decides where a harbour can be.
+   */
+  private findShoreSpot(village: Village): { x: number; y: number } | null {
+    const occupied = this.occupiedTiles(village);
+    let best: { x: number; y: number } | null = null;
+    let bestScore = Infinity;
+    for (let dx = -7; dx <= 7; dx += 1) {
+      for (let dy = -7; dy <= 7; dy += 1) {
+        const x = village.centerX + dx;
+        const y = village.centerY + dy;
+        if (!this.footprintFits(x, y, 'dock', occupied)) continue;
+        const wet = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([ox, oy]) => {
+          const tile = this.tileAt(x + ox, y + oy);
+          return tile ? isWaterBiome(tile.type) : false;
+        });
+        if (!wet) continue;
+        const score = Math.abs(dx) + Math.abs(dy);
+        if (score < bestScore) { bestScore = score; best = { x, y }; }
+      }
+    }
+    return best;
+  }
+
+  /**
+   * Where a town's boats put out from: the water beside its dock if it has
+   * one, otherwise whatever water is nearest its centre.
+   */
+  private harbourOf(village: Village, reach: number): Point | null {
+    const dock = village.buildings.find(b => b.kind === 'dock');
+    if (dock) {
+      const water = nearestWater(this.tiles, { x: dock.x, y: dock.y }, 2);
+      if (water) return water;
+    }
+    return nearestWater(this.tiles, { x: village.centerX, y: village.centerY }, reach + village.claimBonus);
   }
 
   /** Any legal tile at all, ignoring zone and layout rules. */
@@ -2914,7 +2962,7 @@ export class SettlementSystem {
   ): { site: Point; departure: Point; landing: Point } | null {
     const size = this.tiles.length;
     const home = masses.label[source.centerY * size + source.centerX];
-    const departure = nearestWater(this.tiles, { x: source.centerX, y: source.centerY }, 10 + source.claimBonus);
+    const departure = this.harbourOf(source, 10);
     if (!departure) return null;
 
     const candidates: Array<{ site: Point; score: number }> = [];
@@ -3078,7 +3126,7 @@ export class SettlementSystem {
       if (residents < FISHING_MIN_POPULATION) continue;
       const wanted = residents >= 14 ? 2 : 1;
       if (this.boats.fishingBoatsOf(village.id) >= wanted) continue;
-      const dock = nearestWater(this.tiles, { x: village.centerX, y: village.centerY }, 6 + village.claimBonus);
+      const dock = this.harbourOf(village, 6);
       if (dock) this.boats.launchFishing(village.id, village.kingdomId, dock);
     }
     this.tradeRound();
@@ -3095,7 +3143,7 @@ export class SettlementSystem {
       if (!village.kingdomId) continue;
       if (this.residentsOf(village).length < TRADE_MIN_POPULATION) continue;
       if (this.boats.tradersOf(village.id) > 0) continue;
-      const dock = nearestWater(this.tiles, { x: village.centerX, y: village.centerY }, 6 + village.claimBonus);
+      const dock = this.harbourOf(village, 6);
       if (dock) ports.push({ village, dock });
     }
     for (let i = 0; i < ports.length; i++) {

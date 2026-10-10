@@ -554,6 +554,23 @@ const BUILDING_ART: Record<string, AtlasEntry> = {
       '............',
     ],
   },
+  dock: {
+    palette: { r: '#9a6a3c', d: '#6a4628', p: '#4a3020', k: OUTLINE },
+    grid: [
+      '............',
+      '............',
+      '.kkkkkkkkkk.',
+      '.krrrrrrrrk.',
+      '.kddddddddk.',
+      '.krrrrrrrrk.',
+      '.kddddddddk.',
+      '.krrrrrrrrk.',
+      '.kkkkkkkkkk.',
+      '..kp....pk..',
+      '..kp....pk..',
+      '............',
+    ],
+  },
   windmill: {
     palette: MILL,
     grid: [
