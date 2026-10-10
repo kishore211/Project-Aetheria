@@ -397,6 +397,10 @@ export interface Entity {
   kills?: number;
   /** What it carries into a fight. See utils/equipment.ts. */
   equipment?: Equipment;
+  /** Family name, carried down the generations. See utils/families.ts. */
+  clan?: string | null;
+  /** Mother and father, or the one parent of a creature that needs none. */
+  parentIds?: string[];
 }
 
 // Weather and environmental effects

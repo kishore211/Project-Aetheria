@@ -1,4 +1,5 @@
 // src/utils/entityManagerMinimal.ts
+import { bornInto, foundClan } from './families';
 import { abilityTick, type AbilityWorld } from './creatureAbilities';
 import { cloneEquipment, reserveItemIds } from './equipment';
 import * as THREE from 'three';
@@ -165,6 +166,8 @@ export class EntityManager implements EntityIndex {
     if (!this.isSuitableTileForEntity(type, tile)) return null;
 
     const entity = createEntity(type, ix + 0.5, iy + 0.5, options.traits);
+    // Arrivals found their own clan; the born are given one by reproduceEntity.
+    foundClan(entity);
     // Colouring comes from where it is born, not from what it is: a white coat
     // is a cold choice. Passed in when a parent has one, so a litter looks like
     // its mother rather than like the field it happened to be dropped in.
@@ -225,6 +228,8 @@ export class EntityManager implements EntityIndex {
       size: saved.size,
       uplifted: saved.uplifted,
       equipment: cloneEquipment(saved.equipment),
+      clan: saved.clan ?? null,
+      parentIds: saved.parentIds ? [...saved.parentIds] : undefined,
       carrying: null,
       job: saved.job,
     };
@@ -417,6 +422,7 @@ export class EntityManager implements EntityIndex {
       subspecies: entity.subspecies ?? null,
     });
     if (child) {
+      bornInto(child, entity, entity.loverId ? this.entities.get(entity.loverId) ?? null : null);
       recordBirth();
       child.kingdomId = entity.kingdomId ?? null;
       child.villageId = entity.villageId ?? null;

@@ -128,6 +128,21 @@ const InfoPanel = () => {
             {selectedEntity.uplifted ? ' · uplifted' : ''}
             {selectedEntity.job ? ` · ${selectedEntity.job}` : ''}
           </p>
+          {(selectedEntity.clan || selectedEntity.parentIds?.length) && (
+            <p className="text-xs text-muted-foreground -mt-2 mb-3">
+              {selectedEntity.clan && <>Of the {selectedEntity.clan} clan</>}
+              {(() => {
+                const parents = (selectedEntity.parentIds ?? [])
+                  .map(id => worldAccess.current?.entities().find(e => e.id === id)?.name)
+                  .filter(Boolean);
+                if (!selectedEntity.parentIds?.length) return null;
+                const lead = selectedEntity.clan ? ' · ' : '';
+                return parents.length > 0
+                  ? `${lead}child of ${parents.join(' and ')}`
+                  : `${lead}an orphan`;
+              })()}
+            </p>
+          )}
           {/* What it would say for itself. Keyed on its id, so the same
               creature always says the same thing and two of a kind standing
               together say different things. */}

@@ -64,6 +64,9 @@ export interface SavedEntity {
   uplifted?: boolean;
   /** Weapon and armour. Absent in older saves, which load unarmed. */
   equipment?: Equipment;
+  /** Family name and parents. Absent in older saves. */
+  clan?: string | null;
+  parentIds?: string[];
 }
 
 export interface SavedBuilding {
@@ -203,6 +206,8 @@ export const buildSave = (options: {
       size: entity.size,
       uplifted: entity.uplifted,
       equipment: cloneEquipment(entity.equipment),
+      clan: entity.clan ?? null,
+      parentIds: entity.parentIds,
     })),
     villages: options.villages.map(village => ({
       id: village.id,
