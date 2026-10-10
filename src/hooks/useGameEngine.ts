@@ -35,6 +35,7 @@ import { runExtraPower, PowerHazards, type PowerContext } from '../utils/extraPo
 import { heldDirection } from '../utils/possession';
 import { RelationLines } from '../utils/relationLines';
 import { advanceShots, clearShots, ShotLayer } from '../utils/shotBridge';
+import { CreatureLayer } from '../utils/creatureLayer';
 import { magnetDrop, magnetFollow, magnetHolding, magnetPickUp, magnetReset } from '../utils/magnet';
 import { describeItem, onItemEvent, type ItemEvent } from '../utils/equipment';
 import { clearImpacts, isShaking, requestFlash, requestShake, sampleShake } from '../utils/impactBridge';
@@ -159,6 +160,7 @@ export const useGameEngine = () => {
   const selectionIndicatorRef = useRef<THREE.Mesh | null>(null);
   const relationLinesRef = useRef<RelationLines | null>(null);
   const shotLayerRef = useRef<ShotLayer | null>(null);
+  const creatureLayerRef = useRef<CreatureLayer | null>(null);
   const magnetPointRef = useRef(new THREE.Vector3());
   const lightsRef = useRef<THREE.Light[]>([]);
   const tickTimerRef = useRef<number>(0);
@@ -296,6 +298,9 @@ export const useGameEngine = () => {
     resetIdentity();
     relationLinesRef.current?.dispose();
     relationLinesRef.current = null;
+    if (creatureLayerRef.current) scene.remove(creatureLayerRef.current.mesh);
+    creatureLayerRef.current?.dispose();
+    creatureLayerRef.current = null;
     if (shotLayerRef.current) scene.remove(shotLayerRef.current.lines);
     shotLayerRef.current?.dispose();
     shotLayerRef.current = null;
@@ -355,6 +360,8 @@ export const useGameEngine = () => {
     scene.add(relationLinesRef.current.lines);
     shotLayerRef.current = new ShotLayer();
     scene.add(shotLayerRef.current.lines);
+    creatureLayerRef.current = new CreatureLayer();
+    scene.add(creatureLayerRef.current.mesh);
     onItemEvent((event) => {
       const line = itemEventLine(event);
       if (line) useGameStore.getState().addEvent(line, 'info', { ...event.owner.position });
@@ -1142,6 +1149,7 @@ export const useGameEngine = () => {
     const manager = entityManagerRef.current;
     if (manager) {
       const entities = manager.getAllEntities().filter(e => e.mesh);
+      manager.prepareForPicking();
       const entityIntersects = raycasterRef.current.intersectObjects(entities.map(e => e.mesh!), true);
       if (entityIntersects.length > 0) {
         const hit = entityIntersects[0].object;
@@ -1218,6 +1226,7 @@ export const useGameEngine = () => {
     // Units first — they are what the player is usually asking about
     if (manager) {
       const entities = manager.getAllEntities().filter(entity => entity.mesh);
+      manager.prepareForPicking();
       const hits = raycasterRef.current.intersectObjects(entities.map(entity => entity.mesh!), true);
       if (hits.length > 0) {
         const hit = hits[0].object;
@@ -2085,6 +2094,8 @@ export const useGameEngine = () => {
       }
     }
 
+    if (entityManagerRef.current) creatureLayerRef.current?.update(entityManagerRef.current.getAllEntities());
+
     shotLayerRef.current?.update((x, y, out) => out.set(
       (x - tilesRef.current.length / 2) * TILE_SIZE,
       0.2,
@@ -2138,6 +2149,8 @@ export const useGameEngine = () => {
       get tiles() { return tilesRef.current; },
       get entities() { return entityManagerRef.current?.getAllEntities() ?? []; },
       get camera() { return camera; },
+      get gl() { return gl; },
+      get scene() { return scene; },
       get terrain() { return terrainRef.current; },
       spawn: (type: EntityType, x: number, y: number) =>
         entityManagerRef.current?.spawnEntity(type, x, y) ?? null,
@@ -2197,7 +2210,7 @@ export const useGameEngine = () => {
       store: useGameStore,
     };
     (window as unknown as { __aetheria?: typeof bridge }).__aetheria = bridge;
-  }, [isInitialized, camera, controls, inBounds, applyToolEffect, tileWorldPosition]);
+  }, [isInitialized, camera, controls, inBounds, applyToolEffect, tileWorldPosition, gl, scene]);
 
   return {
     tilesRef,

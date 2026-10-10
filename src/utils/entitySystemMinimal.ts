@@ -16,6 +16,7 @@ import {
 import { getPixelSpriteTexture, getPixelSpriteFrames, WALK_FRAMES, gearLook, wieldsGear, type Outfit } from './pixelSprites';
 import { armorBlock, claimSpoils, gearSpeed, wearAfterBlow, weaponCooldown, weaponDamage, weaponReach } from './equipment';
 import { emitShot, type ShotKind } from './shotBridge';
+import { handOverToLayer } from './creatureLayer';
 import { groundSpeed, stepOnGround } from './biomeEffects';
 import { canPreyOn, rollSize, sizeOf } from './size';
 import {
@@ -380,6 +381,8 @@ export function createEntityMesh(entity: Entity): THREE.Object3D {
   healthBar.position.y = size * 3.4;
   container.add(healthBar);
 
+  // Drawn by the creature layer in one batch; these objects keep the state.
+  handOverToLayer(container);
   return container;
 }
 

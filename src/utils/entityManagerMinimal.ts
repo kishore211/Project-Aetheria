@@ -47,7 +47,13 @@ export class EntityManager implements EntityIndex {
   private entities: Map<string, Entity> = new Map();
   private entityAIs: Map<string, EntityAI> = new Map();
   private tiles: Tile[][];
-  private scene: THREE.Scene;
+  /**
+   * Where the per-creature objects live. Deliberately *not* in the scene: the
+   * creature layer draws them in one batch, so the renderer has no reason to
+   * walk thousands of hidden sprites every frame. They are kept for their
+   * state and for picking — see `prepareForPicking`.
+   */
+  private scene: THREE.Group;
   private camera: THREE.Camera | null;
   /** bucketKey -> entities currently inside that bucket. */
   private buckets: Map<number, Set<Entity>> = new Map();
@@ -69,7 +75,9 @@ export class EntityManager implements EntityIndex {
 
   constructor(tiles: Tile[][], scene: THREE.Scene, camera?: THREE.Camera) {
     this.tiles = tiles;
-    this.scene = scene;
+    void scene;
+    this.scene = new THREE.Group();
+    this.scene.name = 'creature-proxies';
     this.camera = camera ?? null;
     this.bucketsPerRow = Math.max(1, Math.ceil(tiles.length / BUCKET_SIZE));
   }
@@ -559,6 +567,15 @@ export class EntityManager implements EntityIndex {
       if (witness.id === entity.loverId || witness.id === entity.friendId) continue;
       if (Math.random() < 0.25) applyScenario(witness, 'sawDeath');
     }
+  }
+
+  /**
+   * Bring the creature objects' world matrices up to date so a raycast can hit
+   * them. They are outside the scene, so the renderer no longer does it for
+   * free; picking is a few times a second, so doing it here is cheap.
+   */
+  prepareForPicking(): void {
+    this.scene.updateMatrixWorld(true);
   }
 
   private disposeMesh(entity: Entity): void {
