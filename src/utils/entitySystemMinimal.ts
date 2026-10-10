@@ -15,7 +15,7 @@ import {
 } from '../types/world';
 import { getPixelSpriteTexture, getPixelSpriteFrames, WALK_FRAMES, gearLook, wieldsGear, type Outfit } from './pixelSprites';
 import { armorBlock, claimSpoils, gearSpeed, wearAfterBlow, weaponCooldown, weaponDamage, weaponReach } from './equipment';
-import { emitShot } from './shotBridge';
+import { emitShot, type ShotKind } from './shotBridge';
 import { groundSpeed, stepOnGround } from './biomeEffects';
 import { canPreyOn, rollSize, sizeOf } from './size';
 import {
@@ -625,6 +625,28 @@ function applyStatusVisuals(entity: Entity, sprite: THREE.Sprite, deltaTime: num
     entity.flashFor -= deltaTime;
   }
 }
+
+/**
+ * Creatures that fight at a distance without needing a bow: the dragon's
+ * breath, a mage's bolt, a UFO's beam. WorldBox draws every one of these, and
+ * a dragon that has to walk up and nibble a knight is not a dragon.
+ */
+const RANGED: Partial<Record<EntityType, { reach: number; kind: ShotKind; ignite?: boolean }>> = {
+  dragon: { reach: 3.2, kind: 'fire', ignite: true },
+  mage: { reach: 3.5, kind: 'magic' },
+  necromancer: { reach: 3, kind: 'dark' },
+  ufo: { reach: 3.5, kind: 'laser' },
+  demon: { reach: 2.4, kind: 'fire', ignite: true },
+  elemental: { reach: 2.6, kind: 'magic' },
+};
+
+/**
+ * Experience, from kills. WorldBox units level up as they fight and a
+ * veteran is visibly harder to kill; a square root keeps the tenth level
+ * reserved for the creature that has actually been through a war.
+ */
+export const levelOf = (entity: Pick<Entity, 'kills'>): number =>
+  Math.min(10, 1 + Math.floor(Math.sqrt((entity.kills ?? 0) * 1.5)));
 
 /** What a creature's job and office make it wear. */
 const outfitOf = (entity: Entity): Outfit =>
@@ -1669,7 +1691,9 @@ export class EntityAI {
       return;
     }
 
-    if (distance < 0.6) {
+    const ranged = RANGED[this.entity.type];
+    if (distance < 0.6 || (ranged && distance < ranged.reach)) {
+      if (distance >= 0.6 && this.attackCooldown <= 0) this.shoot(target);
       this.strike(target);
       if (target.health <= 0) {
         this.entity.needs.hunger = 1.0;
@@ -1713,9 +1737,9 @@ export class EntityAI {
     const dy = target.position.y - this.entity.position.y;
     const distance = Math.hypot(dx, dy);
 
-    if (distance < weaponReach(this.entity.equipment?.weapon)) {
+    if (distance < this.reach()) {
       this.addStatus('fighting');
-      if (distance > 1 && this.attackCooldown <= 0) emitShot(this.entity, target);
+      if (distance > 1 && this.attackCooldown <= 0) this.shoot(target);
       this.strike(target);
       if (target.health <= 0) {
         this.entity.kills = (this.entity.kills ?? 0) + 1;
@@ -1840,6 +1864,20 @@ export class EntityAI {
     return false;
   }
 
+  /** How far this creature's blow reaches: its weapon, or its own breath. */
+  private reach(): number {
+    return Math.max(weaponReach(this.entity.equipment?.weapon), RANGED[this.entity.type]?.reach ?? 0);
+  }
+
+  /** Something visible crosses the gap. Fire sets the ground it lands on alight. */
+  private shoot(target: Entity): void {
+    const ranged = RANGED[this.entity.type];
+    emitShot(this.entity, target, ranged?.kind ?? 'arrow');
+    if (ranged?.ignite && Math.random() < 0.35) {
+      simulation.igniteTile?.(Math.floor(target.position.x), Math.floor(target.position.y));
+    }
+  }
+
   /** Deal one blow, respecting the attack cooldown. */
   private strike(target: Entity): void {
     if (this.attackCooldown > 0) return;
@@ -1862,7 +1900,8 @@ export class EntityAI {
     const hide = targetTraits.includes('armored') ? 0.67 : 1;
     // The arm and the blade, then whatever the other side is wearing.
     const flame = weapon?.modifier === 'flaming' ? 3 : 0;
-    const raw = (this.entity.attributes.strength * 0.6 * venom + weaponDamage(weapon) + flame) * fury * hide;
+    const veteran = 1 + (levelOf(this.entity) - 1) * 0.06;
+    const raw = (this.entity.attributes.strength * 0.6 * venom + weaponDamage(weapon) + flame) * fury * hide * veteran;
     const blow = raw * (1 - armorBlock(target.equipment?.armor));
     target.health -= blow;
     emitDamage(target.position.x, target.position.y, blow, target.id);

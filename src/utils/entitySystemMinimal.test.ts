@@ -254,3 +254,35 @@ describe('traits with teeth', () => {
     expect(rollSize('wolf', ['tiny'], fixed)).toBeLessThan(rollSize('wolf', [], fixed));
   });
 });
+
+describe('veterans', () => {
+  it('levels up with kills, slowly, and stops at ten', async () => {
+    const { levelOf } = await import('./entitySystemMinimal');
+    expect(levelOf({ kills: 0 })).toBe(1);
+    expect(levelOf({ kills: 3 })).toBe(3);
+    expect(levelOf({ kills: 20 })).toBeGreaterThan(levelOf({ kills: 5 }));
+    expect(levelOf({ kills: 10_000 })).toBe(10);
+  });
+});
+
+describe('fighting at a distance', () => {
+  it('lets a dragon breathe on a knight from three tiles off, and draws the fire', async () => {
+    const { shotsInFlight, clearShots } = await import('./shotBridge');
+    clearShots();
+    const manager = new EntityManager(makeGrid(16), new THREE.Scene());
+    const dragon = manager.spawnEntity('dragon', 5, 8)!;
+    const knight = manager.spawnEntity('human', 8, 8)!;
+    const before = knight.health;
+    manager.engage(dragon, knight);
+    let sawFire = false;
+    for (let i = 0; i < 20 && knight.health > 0; i++) {
+      // Hold the knight still: this is about reach, not the chase.
+      knight.position = { x: 8.2, y: 8.2 };
+      manager.update(0.25);
+      if (shotsInFlight() > 0) sawFire = true;
+    }
+    expect(knight.health).toBeLessThan(before);
+    expect(sawFire).toBe(true);
+    clearShots();
+  });
+});

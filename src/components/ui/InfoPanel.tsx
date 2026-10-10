@@ -10,6 +10,7 @@ import { describeSize, sizeOf } from '../../utils/size';
 import { biomeLine, creatureLine } from '../../utils/flavour';
 import { CULTURE_TRAITS, type CultureTraitId } from '../../utils/identity';
 import { worldAccess } from '../../utils/worldAccess';
+import { levelOf } from '../../utils/entitySystemMinimal';
 import { describeItem, MATERIAL_COLOR, type Equipment, type Item } from '../../utils/equipment';
 
 const NeedBar = ({ label, value, tone }: { label: string; value: number; tone: string }) => (
@@ -205,6 +206,11 @@ const InfoPanel = () => {
               {(selectedEntity.kills ?? 0) > 0 && (
                 <span className="ml-2 inline-flex items-center gap-1 text-rose-300">
                   <Skull size={11} /> {selectedEntity.kills} kills
+                </span>
+              )}
+              {levelOf(selectedEntity) > 1 && (
+                <span className="ml-2 text-amber-300" title="Veterans hit harder: +6% a level">
+                  Level {levelOf(selectedEntity)}
                 </span>
               )}
             </div>
