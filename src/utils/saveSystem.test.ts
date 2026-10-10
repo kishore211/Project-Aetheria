@@ -95,3 +95,31 @@ describe('parseSaveFile', () => {
     expect(parseSaveFile(JSON.stringify({ version: SAVE_VERSION }))).toBeNull();
   });
 });
+
+describe('everything phase 21 added to a creature', () => {
+  it('goes into the save and comes back out of a fresh manager intact', async () => {
+    const THREE = await import('three');
+    const { EntityManager } = await import('./entityManagerMinimal');
+    const { equip, forgeItem } = await import('./equipment');
+    const { live, pristine } = twoWorlds();
+    const knight = createEntity('human', 5.5, 5.5);
+    equip(knight, forgeItem('weapon', 4, 'human', 'Ashby', () => 0.001));
+    knight.clan = 'Oakwood';
+    knight.parentIds = ['mum', 'dad'];
+    knight.mind = { sleep: false };
+    knight.favourite = true;
+    const save = parseSaveFile(JSON.stringify(buildSave({
+      label: 'knight', world: world(), liveTiles: live, pristineTiles: pristine,
+      entities: [knight], villages: [], kingdoms: [],
+    })))!;
+    const manager = new EntityManager(generateWorld({ seed: 777, mapSize: 24 }).tilesData, new THREE.Scene());
+    const back = manager.restoreEntity(save.entities[0])!;
+    expect(back.equipment?.weapon?.material).toBe(knight.equipment?.weapon?.material);
+    expect(back.equipment?.weapon?.name).toBe(knight.equipment?.weapon?.name);
+    expect(back.equipment?.weapon).not.toBe(knight.equipment?.weapon);
+    expect(back.clan).toBe('Oakwood');
+    expect(back.parentIds).toEqual(['mum', 'dad']);
+    expect(back.mind).toEqual({ sleep: false });
+    expect(back.favourite).toBe(true);
+  });
+});
