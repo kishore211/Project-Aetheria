@@ -5,6 +5,9 @@ export const MAP_SIZES = {
   small: 64,
   medium: 128,
   large: 256,
+  // WorldBox's big worlds. Nine times the default; the painted map holds up
+  // because it repaints by neighbourhood, not by frame.
+  huge: 384,
 };
 
 export const TILE_SIZE = 0.5;

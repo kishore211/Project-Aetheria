@@ -224,7 +224,7 @@ export interface WaterPalette {
  * Alpha byte per surface. The shader animates water by it: land is opaque,
  * foam winks, shallows sparkle, the deep stays still.
  */
-export const SURFACE = { land: 255, foam: 230, shallow: 180, mid: 130, ocean: 80, deep: 20 } as const;
+export const SURFACE = { land: 255, fire: 245, foam: 230, shallow: 180, mid: 130, ocean: 80, deep: 20 } as const;
 
 const clampByte = (v: number): number => (v < 0 ? 0 : v > 255 ? 255 : v);
 
@@ -591,9 +591,11 @@ export class MapPainter {
       r = ROAD_RGB[0] * k; g = ROAD_RGB[1] * k; b = ROAD_RGB[2] * k;
     }
     if (this.fire[own]) {
+      // Flame pixels are tagged so the shader can make them flicker; the
+      // charred ground between them stays still.
       const f = hash(X, Y, 27);
-      if (f < 0.22) [r, g, b] = EMBER_RGB;
-      else if (f < 0.55) [r, g, b] = FIRE_RGB;
+      if (f < 0.22) { [r, g, b] = EMBER_RGB; alpha = SURFACE.fire; }
+      else if (f < 0.55) { [r, g, b] = FIRE_RGB; alpha = SURFACE.fire; }
       else { r *= 0.35; g *= 0.3; b *= 0.28; }
     }
 

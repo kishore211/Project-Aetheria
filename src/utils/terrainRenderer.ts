@@ -68,7 +68,14 @@ const FRAGMENT = /* glsl */ `
     float surface = texel.a;
     vec2 pix = floor(vTile * ${PX.toFixed(1)});
 
-    if (surface < 0.97) {
+    if (surface > 0.94 && surface < 0.98) {
+      // Fire. Each flame pixel flickers on its own beat, between ember yellow
+      // and a dark red, which is what makes a burning wood read as burning
+      // rather than as an orange patch.
+      float flick = fract(sin(dot(pix, vec2(12.9898, 78.233))) * 43758.5453);
+      float beat = 0.5 + 0.5 * sin(uTime * (7.0 + flick * 6.0) + flick * 40.0);
+      col = mix(col * vec3(0.55, 0.25, 0.12), col * 1.25 + vec3(0.12, 0.08, 0.0), beat);
+    } else if (surface < 0.93) {
       // The sea moves. Two crossed waves, sampled per map pixel, cut to a
       // threshold so the highlights are pixels that wink on and off rather
       // than an airbrushed shimmer. Strongest in the shallows, absent in the
@@ -103,7 +110,9 @@ const FRAGMENT = /* glsl */ `
     // Dawn and dusk lean the world warm. Applied at full strength to blue
     // water it lerps navy toward orange and the sea turns lavender, so water
     // takes half of it.
-    col = mix(col, col * uTintK + uTintO, surface < 0.97 ? 0.5 : 1.0);
+    // Fire is its own light: it does not darken at night.
+    float tintAmount = surface < 0.93 ? 0.5 : (surface < 0.98 ? 0.0 : 1.0);
+    col = mix(col, col * uTintK + uTintO, tintAmount);
     gl_FragColor = vec4(col, 1.0);
     #include <colorspace_fragment>
   }

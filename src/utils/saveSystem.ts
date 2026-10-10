@@ -109,7 +109,7 @@ export interface SaveGame {
   label: string;
   world: {
     seed: number;
-    size: 'small' | 'medium' | 'large' | 'custom';
+    size: 'small' | 'medium' | 'large' | 'huge' | 'custom';
     customSize: number;
     template: WorldTemplate;
     timeOfDay: TimeOfDay;

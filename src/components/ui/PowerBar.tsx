@@ -63,6 +63,7 @@ const SIZES = [
   { id: 'small', label: 'Small' },
   { id: 'medium', label: 'Medium' },
   { id: 'large', label: 'Large' },
+  { id: 'huge', label: 'Huge' },
 ] as const;
 
 /** A non-tool button that lives on the bar: a toggle or a one-shot action. */

@@ -224,7 +224,7 @@ export type BrushRadius = 0 | 1 | 2;
 interface GameState {
   // World parameters
   worldSeed: number;
-  worldSize: 'small' | 'medium' | 'large' | 'custom';
+  worldSize: 'small' | 'medium' | 'large' | 'huge' | 'custom';
   customWorldSize: number;
   worldTemplate: WorldTemplate;
   timeOfDay: TimeOfDay;
@@ -301,7 +301,7 @@ interface GameState {
   setBrushRadius: (radius: BrushRadius) => void;
   setSelectedRace: (race: Race | null) => void;
   setWorldSeed: (seed: number) => void;
-  setWorldSize: (size: 'small' | 'medium' | 'large' | 'custom') => void;
+  setWorldSize: (size: 'small' | 'medium' | 'large' | 'huge' | 'custom') => void;
   setCustomWorldSize: (size: number) => void;
   setWorldTemplate: (template: WorldTemplate) => void;
   setTimeOfDay: (time: TimeOfDay) => void;
@@ -355,7 +355,7 @@ interface GameState {
   /** Apply a loaded save's world metadata in one shot. */
   applyLoadedWorld: (state: {
     worldSeed: number;
-    worldSize: 'small' | 'medium' | 'large' | 'custom';
+    worldSize: 'small' | 'medium' | 'large' | 'huge' | 'custom';
     customWorldSize: number;
     worldTemplate: WorldTemplate;
     timeOfDay: TimeOfDay;
@@ -432,7 +432,7 @@ export const useGameStore = create<GameState>((set) => ({
 
   setWorldSeed: (seed: number) => set({ worldSeed: seed, selectedTile: null, selectedEntity: null }),
 
-  setWorldSize: (size: 'small' | 'medium' | 'large' | 'custom') => set({ worldSize: size }),
+  setWorldSize: (size: 'small' | 'medium' | 'large' | 'huge' | 'custom') => set({ worldSize: size }),
   setCustomWorldSize: (size: number) => set({ customWorldSize: size }),
   setWorldTemplate: (worldTemplate: WorldTemplate) => set({ worldTemplate }),
 
