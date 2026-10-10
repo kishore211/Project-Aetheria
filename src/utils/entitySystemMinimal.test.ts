@@ -327,3 +327,23 @@ describe('the Peaceful Monsters law', () => {
     expect(hunt(true, 'sheep')).toBe(true);
   });
 });
+
+describe('drinking at the well', () => {
+  it('sends a thirsty villager to its well rather than the river, and slakes it there', () => {
+    const before = { wellFor: simulation.wellFor, isWell: simulation.isWell };
+    simulation.wellFor = () => ({ x: 9, y: 5 });
+    simulation.isWell = (x, y) => x === 9 && y === 5;
+    try {
+      const manager = new EntityManager(makeGrid(16), new THREE.Scene());
+      const villager = manager.spawnEntity('human', 5, 5)!;
+      villager.villageId = 'v1';
+      villager.needs.thirst = 0.2;
+      for (let i = 0; i < 80 && villager.needs.thirst < 0.9; i++) manager.update(0.25);
+      expect(villager.needs.thirst).toBeGreaterThan(0.9);
+      expect(Math.floor(villager.position.x)).toBe(9);
+    } finally {
+      simulation.wellFor = before.wellFor;
+      simulation.isWell = before.isWell;
+    }
+  });
+});

@@ -38,6 +38,10 @@ export interface SimulationContext {
   setBiome?: (x: number, y: number, type: BiomeType) => void;
   /** Knock down whatever building stands on a tile (Crabzilla). */
   demolishAt?: (x: number, y: number) => boolean;
+  /** The well in a unit's home village, if it has one. */
+  wellFor?: (entity: Entity) => { x: number; y: number } | null;
+  /** Is there a well on this tile? */
+  isWell?: (x: number, y: number) => boolean;
   /** A unit reached the tile a village sent it to. */
   onOrderComplete?: (entity: Entity, order: AIOrder) => void;
   /** Where a unit's home village is, if it has one. Used to rescue strays. */

@@ -96,7 +96,9 @@ export type BuildingKind =
   | 'windmill'
   | 'barracks'
   | 'smithy'
-  | 'library';
+  | 'library'
+  | 'well'
+  | 'market';
 
 export interface Building {
   id: string;
@@ -212,6 +214,8 @@ const RECIPES: BuildingRecipe[] = [
   { kind: 'smithy', wood: 6, stone: 6, requires: 6, limit: 1, size: 0.72, priority: 62 },
   { kind: 'windmill', wood: 8, stone: 2, requires: 5, limit: 1, size: 0.78, priority: 55 },
   { kind: 'library', wood: 10, stone: 6, requires: 10, limit: 1, size: 0.78, priority: 40 },
+  { kind: 'well', wood: 2, stone: 5, requires: 4, limit: 2, size: 0.5, priority: 52 },
+  { kind: 'market', wood: 9, stone: 4, requires: 8, limit: 1, size: 0.78, priority: 48 },
   { kind: 'mine', wood: 4, stone: 6, requires: 7, limit: 2, size: 0.6, priority: 60 },
   { kind: 'house', wood: 7, stone: 1, requires: 2, limit: 10, size: 0.62, priority: 50 },
   { kind: 'farm', wood: 5, stone: 0, requires: 3, limit: 4, size: 0.55, priority: 45 },
@@ -222,7 +226,7 @@ const RECIPES: BuildingRecipe[] = [
 const BUILDING_HEALTH: Record<BuildingKind, number> = {
   bonfire: 120, tent: 60, house: 140, hall: 260,
   farm: 90, tower: 240, temple: 220, statue: 180, mine: 160,
-  windmill: 120, barracks: 220, smithy: 160, library: 170,
+  windmill: 120, barracks: 220, smithy: 160, library: 170, well: 90, market: 140,
 };
 
 /**
@@ -235,7 +239,7 @@ const BUILDING_HEALTH: Record<BuildingKind, number> = {
 const CLAIM_RADIUS: Record<BuildingKind, number> = {
   bonfire: 7, tent: 3, house: 4, hall: 9,
   farm: 3, tower: 7, temple: 7, statue: 5, mine: 3,
-  windmill: 3, barracks: 5, smithy: 3, library: 5,
+  windmill: 3, barracks: 5, smithy: 3, library: 5, well: 2, market: 4,
 };
 
 /**
@@ -328,6 +332,8 @@ const TIERS: Record<string, BuildingTier> = {
   barracks: { tier: 2, footprint: 1 },
   smithy: { tier: 2, footprint: 1 },
   library: { tier: 3, footprint: 1 },
+  well: { tier: 1, footprint: 1 },
+  market: { tier: 2, footprint: 1 },
 };
 
 /** Tiles on a side. Derived from the kind, so no save has to carry it. */
@@ -349,6 +355,8 @@ const SITING: Record<string, Siting> = {
   barracks: 'border',
   smithy: 'cluster',
   library: 'solitary',
+  well: 'cluster',
+  market: 'cluster',
 };
 
 /**
@@ -410,6 +418,9 @@ const BUILDING_YIELD: Record<string, number> = {
   barracks: 0,
   smithy: 3,
   library: 2,
+  well: 0,
+  // A market is where the town's money changes hands, and some of it stays.
+  market: 5,
 };
 
 /** How far a watchtower's archers reach, and how hard an arrow hits. */
@@ -463,6 +474,8 @@ const PULSE_BY_BUILDING: Record<string, number> = {
   barracks: 0.25,
   smithy: 0.5,
   library: 0.3,
+  well: 0.2,
+  market: 0.45,
 };
 
 /** Claimed land whose village has no identity yet, on an identity layer. */
@@ -1249,6 +1262,19 @@ export class SettlementSystem {
         if (target.health <= 0 && !target.status.includes('slain')) target.status.push('slain');
       }
     }
+  }
+
+  /** Where a unit's village keeps its well, if it has one. */
+  wellFor(entity: Entity): { x: number; y: number } | null {
+    const village = entity.villageId ? this.villages.get(entity.villageId) : null;
+    const well = village?.buildings.find(b => b.kind === 'well');
+    return well ? { x: well.x, y: well.y } : null;
+  }
+
+  isWell(x: number, y: number): boolean {
+    const tile = this.tileAt(x, y);
+    const village = tile?.villageId ? this.villages.get(tile.villageId) : null;
+    return Boolean(village?.buildings.some(b => b.kind === 'well' && b.x === x && b.y === y));
   }
 
   /** The nearest enemy town to a unit, if its kingdom is at war. */
@@ -2986,7 +3012,7 @@ export class SettlementSystem {
   private landTrade(boat: Boat): void {
     const port = boat.payload ? this.villages.get(boat.payload) : undefined;
     const origin = boat.villageId ? this.villages.get(boat.villageId) : undefined;
-    if (port) port.store.gold += TRADE_PROFIT;
+    if (port) port.store.gold += TRADE_PROFIT * (port.buildings.some(b => b.kind === 'market') ? 2 : 1);
     if (origin) origin.store.gold += Math.ceil(TRADE_PROFIT / 2);
     emitFloater({ kind: 'gain', text: `+${TRADE_PROFIT} gold`, x: boat.x, y: boat.y });
   }

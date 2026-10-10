@@ -2028,10 +2028,14 @@ export const useGameEngine = () => {
       reshapeTile(tile, tile.height, type);
     };
     simulation.demolishAt = (x, y) => settlementRef.current?.demolishAt(x, y) ?? false;
+    simulation.wellFor = (entity) => settlementRef.current?.wellFor(entity) ?? null;
+    simulation.isWell = (x, y) => settlementRef.current?.isWell(x, y) ?? false;
     return () => {
       simulation.igniteTile = undefined;
       simulation.setBiome = undefined;
       simulation.demolishAt = undefined;
+      simulation.wellFor = undefined;
+      simulation.isWell = undefined;
     };
   }, [igniteTile, inBounds, reshapeTile]);
 

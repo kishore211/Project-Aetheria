@@ -1195,6 +1195,17 @@ export class EntityAI {
     // Thirst. Land animals drink from the bank; only swimmers wade in, which
     // is what stops the whole population ending up in the water.
     if (this.entity.needs.thirst <= 0.35) {
+      // A town with a well drinks at home. It is most of why a well is worth
+      // building: nobody walks to the river and back between errands.
+      const well = this.entity.villageId ? simulation.wellFor?.(this.entity) : null;
+      const wellTile = well ? this.tileAt(tiles, well.x, well.y) : null;
+      if (wellTile && Math.hypot(well!.x - this.entity.position.x, well!.y - this.entity.position.y) < 14) {
+        this.targetTile = wellTile;
+        this.path = [];
+        this.currentState = 'moving';
+        this.ticksSinceLastAction = 0;
+        return;
+      }
       const water = this.findNearbyTile(tiles, 14, (tile) => (
         isDrinkableBiome(tile.type)
           ? canSwim(this.entity.type) || isAirborne(this.entity.type)
@@ -1652,7 +1663,7 @@ export class EntityAI {
       return;
     }
 
-    if (isDrinkableBiome(tile.type) || isShoreTile(tile, tiles)) {
+    if (isDrinkableBiome(tile.type) || isShoreTile(tile, tiles) || simulation.isWell?.(tile.x, tile.y)) {
       this.entity.needs.thirst = 1.0;
       this.addTimedStatus('drinking');
     } else if (this.hasHarvestableResource(tile)) {

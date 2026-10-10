@@ -666,3 +666,17 @@ describe('watchtowers', () => {
     expect(local.health).toBe(localStart);
   });
 });
+
+describe('a well', () => {
+  it('is where a thirsty villager goes to drink', () => {
+    const harness = makeHarness();
+    seatTwoRivals(harness);
+    const town = harness.settlements.villages.get('village-a')!;
+    (harness.settlements as unknown as { placeBuilding(v: unknown, k: string, x: number, y: number): void })
+      .placeBuilding(town, 'well', 15, 21);
+    expect(harness.settlements.wellFor(harness.entities.getAllEntities().find(e => e.villageId === 'village-a')!))
+      .toEqual({ x: 15, y: 21 });
+    expect(harness.settlements.isWell(15, 21)).toBe(true);
+    expect(harness.settlements.isWell(16, 21)).toBe(false);
+  });
+});
