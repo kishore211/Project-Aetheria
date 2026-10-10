@@ -146,7 +146,16 @@ export const FOOD_CHAIN: Record<EntityType, EntityType[]> = {
   lil_pumpkin: [],
   gummy_bear: [],
   crabzilla: ['human', 'elf', 'dwarf', 'orc', 'cow', 'buffalo', 'rhino'],
+  flame_tower: [],
+  ice_tower: [],
 };
+
+/**
+ * Things that are built rather than born. They stand where they were put, do
+ * not eat or sleep or wander, and act only through their aura
+ * (creatureAbilities.ts) — but they have health and can be torn down.
+ */
+export const STRUCTURES = new Set<EntityType>(['flame_tower', 'ice_tower']);
 
 /** Reverse of FOOD_CHAIN, built once at module load. */
 const PREDATORS_OF: Partial<Record<EntityType, EntityType[]>> = {};
@@ -162,6 +171,7 @@ const SENTIENT: EntityType[] = ['human', 'elf', 'dwarf', 'orc'];
 export const MONSTERS = new Set<EntityType>([
   'dragon', 'demon', 'zombie', 'skeleton', 'elemental', 'bandit', 'ghost', 'mage', 'alien',
   'necromancer', 'fire_skull', 'cold_one', 'ufo', 'sand_spider', 'acid_blob', 'crabzilla',
+  'flame_tower', 'ice_tower',
 ]);
 export const isSentient = (type: EntityType): boolean => SENTIENT.includes(type);
 
@@ -232,6 +242,8 @@ function generateEntityName(type: EntityType): string {
     lil_pumpkin: ['Jack', 'Gourd', 'Squash', 'Patch', 'Lantern', 'Pie', 'Spooky', 'Orange', 'Seedy', 'Hollow'],
     gummy_bear: ['Gummy', 'Jelly', 'Chewy', 'Sugarpaw', 'Sticky', 'Cherry', 'Lime', 'Squish', 'Bouncy', 'Sweetie'],
     crabzilla: ['Crabzilla', 'King Claw', 'The Tide', 'Shellshock', 'Colossus', 'Big Pinch', 'Leviathan', 'Snapjaw', 'Titan', 'Reefbreaker'],
+    flame_tower: ['Pyre Spire', 'The Brazier', 'Emberwatch', 'Cinder Keep', 'Hellbeacon'],
+    ice_tower: ['Rime Spire', 'The Icicle', 'Frostwatch', 'Glacier Keep', 'Winterbeacon'],
   };
 
   const nameList = names[type] ?? ['Unknown'];
@@ -310,6 +322,8 @@ const PROFILES: Partial<Record<EntityType, TypeProfile>> = {
   lil_pumpkin: { maxAge: 10, maxHealth: 25, strength: 3, intelligence: 3, speed: 9, resilience: 4 },
   gummy_bear: { maxAge: 12, maxHealth: 40, strength: 4, intelligence: 4, speed: 10, resilience: 6 },
   crabzilla: { maxAge: 400, maxHealth: 900, strength: 50, intelligence: 6, speed: 7, resilience: 40 },
+  flame_tower: { maxAge: 9999, maxHealth: 500, strength: 0, intelligence: 0, speed: 0, resilience: 30 },
+  ice_tower: { maxAge: 9999, maxHealth: 500, strength: 0, intelligence: 0, speed: 0, resilience: 30 },
 };
 
 const DEFAULT_PROFILE: TypeProfile = {
@@ -752,6 +766,11 @@ export class EntityAI {
     // gets hungry, drowns or wanders off on the way.
     if (this.entity.status.includes('aboard')) {
       this.entity.activity = 'sailing';
+      return;
+    }
+    // A tower does nothing a creature does; its aura is all of it.
+    if (STRUCTURES.has(this.entity.type)) {
+      this.entity.activity = 'standing guard';
       return;
     }
     // Held by the divine magnet: the hand owns the position until it lets go.

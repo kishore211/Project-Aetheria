@@ -128,6 +128,7 @@ export const SPAWNABLE: EntityType[] = [
   'beetle', 'bee', 'butterfly', 'grasshopper',
   'necromancer', 'plague_doctor', 'fire_skull', 'cold_one', 'ufo',
   'sand_spider', 'acid_blob', 'lil_pumpkin', 'gummy_bear', 'crabzilla',
+  'flame_tower', 'ice_tower',
 ];
 
 const STATUS_POWERS: Record<string, { status: StatusId; color: number; persons?: boolean; line: string }> = {

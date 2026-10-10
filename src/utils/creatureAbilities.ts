@@ -10,6 +10,32 @@
 import type { BiomeType, Entity, EntityType, Tile } from '../types/world';
 import { isWaterBiome } from '../types/world';
 import { clearStatus } from './statusEffects';
+import { emitShot, type ShotKind } from './shotBridge';
+import { emitDamage } from './floatBridge';
+
+/** Towers do not fight each other, or anything that is not alive. */
+const TOWER_TYPES = new Set<string>(['flame_tower', 'ice_tower']);
+
+/**
+ * A tower's volley: the nearest living thing in range takes a bolt. Hostile
+ * towers are indiscriminate on purpose — WorldBox's flame and ice towers are
+ * hazards you place, not allies.
+ */
+const towerShot = (self: Entity, world: AbilityWorld, kind: ShotKind, damage: number): Entity | null => {
+  let target: Entity | null = null;
+  let best = 25;
+  for (const other of world.near(self.position.x, self.position.y, 5)) {
+    if (other.health <= 0 || TOWER_TYPES.has(other.type)) continue;
+    const d = (other.position.x - self.position.x) ** 2 + (other.position.y - self.position.y) ** 2;
+    if (d < best) { best = d; target = other; }
+  }
+  if (!target) return null;
+  emitShot({ position: { x: self.position.x, y: self.position.y - 0.4 } }, target, kind);
+  target.health -= damage;
+  emitDamage(target.position.x, target.position.y, damage, target.id);
+  if (target.health <= 0 && !target.status.includes('slain')) target.status.push('slain');
+  return target;
+};
 
 export interface AbilityWorld {
   tiles: Tile[][];
@@ -69,6 +95,27 @@ export const ABILITIES: Partial<Record<EntityType, Ability>> = {
       // Pollination: the meadow it works grows richer, which is what the
       // farms and the forests downstream feed on.
       if (!isWaterBiome(tile.type)) tile.fertility = Math.min(1, tile.fertility + 0.04);
+    },
+  },
+  flame_tower: {
+    every: 1.3,
+    use: (self, _tile, world) => {
+      const hit = towerShot(self, world, 'fire', 14);
+      if (hit && world.random() < 0.3) world.ignite?.(Math.floor(hit.position.x), Math.floor(hit.position.y));
+    },
+  },
+  ice_tower: {
+    every: 1.3,
+    use: (self, tile, world) => {
+      towerShot(self, world, 'magic', 10);
+      // And a ring of frost that spreads a little each volley.
+      const x = tile.x + Math.round((world.random() - 0.5) * 6);
+      const y = tile.y + Math.round((world.random() - 0.5) * 6);
+      const ground = world.tiles[x]?.[y];
+      if (ground && !isWaterBiome(ground.type) && !FROZEN.has(ground.type) && ground.type !== 'mountains') {
+        ground.temperature = Math.min(ground.temperature, 0.1);
+        world.setBiome?.(x, y, 'snow');
+      }
     },
   },
   crabzilla: {

@@ -304,6 +304,14 @@ export const CREATURE_LINES: Partial<Record<EntityType, string[]>> = {
     'Came up out of the sea and has not yet decided to go back.',
     'Everything sideways, everything flattened.',
   ],
+  flame_tower: [
+    'Nobody remembers building it, and nobody is going near it to ask.',
+    'Burns anything that comes close, on principle.',
+  ],
+  ice_tower: [
+    'The cold comes off it in waves you can see.',
+    'Spreads its own little winter and defends it.',
+  ],
 };
 
 /** Every biome has something to say about itself. */

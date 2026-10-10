@@ -84,3 +84,17 @@ describe('creature auras', () => {
     expect(spawned.length).toBe(short * 2);
   });
 });
+
+describe('hostile towers', () => {
+  it('shoot the nearest living thing, never each other, and the ice tower spreads frost', () => {
+    const { w, tiles, crowd } = world();
+    const victim = creature('human', 7.5, 5.5);
+    const other = creature('ice_tower', 5.5, 6.5);
+    crowd.push(victim, other);
+    const tower = creature('ice_tower', 5.5, 5.5);
+    live(tower, w, 12);
+    expect(victim.health).toBeLessThan(100);
+    expect(other.health).toBe(100);
+    expect(tiles.flat().some(t => t.type === 'snow')).toBe(true);
+  });
+});

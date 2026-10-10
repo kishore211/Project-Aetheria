@@ -869,6 +869,16 @@ export const POWERS: PowerEntry[] = [
     quip: 'It came from the sea. It wants the land. It wants everything.',
   },
   {
+    kind: 'tool', id: 'spawn-flame_tower', tab: 'ruin', label: 'Flame Tower', icon: 'Flame',
+    hint: 'Raises a tower that burns whatever comes near it. Anything at all.',
+    quip: 'A lighthouse for arsonists.',
+  },
+  {
+    kind: 'tool', id: 'spawn-ice_tower', tab: 'ruin', label: 'Ice Tower', icon: 'Snowflake',
+    hint: 'Raises a tower that freezes the land around it and shoots whatever comes near.',
+    quip: 'Winter, on a plinth.',
+  },
+  {
     kind: 'tool', id: 'spawn-dragon', tab: 'life', label: 'Dragon', icon: 'Flame',
     hint: 'Flies, burns, and is very hard to kill.',
     quip: 'Regards your walls as a suggestion.',

@@ -356,7 +356,7 @@ export class EntityManager implements EntityIndex {
     }
 
     // Undead do not age or breed
-    if (['skeleton', 'zombie', 'ghost', 'fire_skull', 'ufo'].includes(entity.type)) {
+    if (['skeleton', 'zombie', 'ghost', 'fire_skull', 'ufo', 'flame_tower', 'ice_tower'].includes(entity.type)) {
       if (entity.health <= 0) {
         this.killEntity(entity, entity.status.includes('slain') ? 'combat' : 'health');
       }
@@ -719,6 +719,7 @@ export class EntityManager implements EntityIndex {
       beetle: 40, bee: 50, butterfly: 40, grasshopper: 50,
       necromancer: 3, plague_doctor: 6, fire_skull: 12, cold_one: 6, ufo: 3,
       sand_spider: 20, acid_blob: 10, lil_pumpkin: 25, gummy_bear: 30, crabzilla: 1,
+      flame_tower: 12, ice_tower: 12,
     };
     const baseMax = baseMaxCounts[type] ?? 50;
     switch (this.entityPopulationDensity) {

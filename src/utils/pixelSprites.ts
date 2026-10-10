@@ -391,6 +391,22 @@ const SEAL = [
   '............',
 ];
 
+// Hostile tower: s=stone, d=dark stone, c=crystal, w=crystal glow
+const SPIRE = [
+  '.....w......',
+  '....wcw.....',
+  '...wcccw....',
+  '....ccc.....',
+  '...kssdk....',
+  '...ssssd....',
+  '...swwsd....',
+  '...ssssd....',
+  '..sssssdd...',
+  '..ssswsdd...',
+  '.sssssssdd..',
+  '.ddddddddd..',
+];
+
 export const TEMPLATES: Record<string, string[]> = {
   humanoid: HUMANOID,
   quadruped: QUADRUPED,
@@ -416,6 +432,7 @@ export const TEMPLATES: Record<string, string[]> = {
   tallbird: TALLBIRD,
   camel: CAMEL,
   seal: SEAL,
+  spire: SPIRE,
 };
 
 interface SpriteSpec {
@@ -546,6 +563,8 @@ const SPECS: Record<EntityType, SpriteSpec> = {
   lil_pumpkin: { template: 'pumpkin', palette: { f: '#f0901e', d: '#b8600e', s: '#4a7a2a', e: '#ffe060' } },
   gummy_bear: { template: 'critter', palette: { f: '#ff5a7a', e: '#801030', w: '#ff9ab0' } },
   crabzilla: { template: 'crab', palette: { f: '#c83a2a', d: '#8a1e14', e: '#101010' } },
+  flame_tower: { template: 'spire', palette: { s: '#6a5a52', d: '#3e322c', c: '#ff7a1e', w: '#ffd060', k: '#2a1e18' } },
+  ice_tower: { template: 'spire', palette: { s: '#8aa4b8', d: '#566c80', c: '#9fe8ff', w: '#e8fbff', k: '#2a3a48' } },
 };
 
 const textureCache = new Map<string, THREE.CanvasTexture>();

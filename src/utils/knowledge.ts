@@ -69,6 +69,8 @@ const AURA_TEXT: Partial<Record<EntityType, string>> = {
   cold_one: 'Turns the ground to snow wherever it walks.',
   bee: 'Enriches the meadow it works.',
   crabzilla: 'Flattens any building it treads on.',
+  flame_tower: 'Burns whatever comes within five tiles, and the ground it stands on.',
+  ice_tower: 'Shoots whatever comes near and spreads a winter around itself.',
 };
 
 const RANGED_TEXT: Record<string, string> = {

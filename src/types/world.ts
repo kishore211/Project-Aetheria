@@ -248,7 +248,10 @@ export type EntityType =
   | 'acid_blob'
   | 'lil_pumpkin'
   | 'gummy_bear'
-  | 'crabzilla';
+  | 'crabzilla'
+  // Structures that fight: placed, never move, never eat
+  | 'flame_tower'
+  | 'ice_tower';
 
 /** Heritable unit traits. Rolled at spawn, passed to children. */
 export type TraitId =
