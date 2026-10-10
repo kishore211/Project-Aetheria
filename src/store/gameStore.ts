@@ -137,6 +137,15 @@ export interface KingdomSummary {
   villages: number;
   territory: number;
   atWarWith: string[];
+  /** Who wears the crown: the appointed unit, or the founding title. */
+  ruler?: string;
+  capital?: { name: string; x: number; y: number } | null;
+  /** Soldiers under arms, and how many of them carry a weapon. */
+  army?: number;
+  armed?: number;
+  allies?: string[];
+  /** The most notable item in the realm, if anyone carries a named one. */
+  relic?: string | null;
 }
 
 /** Global simulation switches, the sandbox "world laws" panel. */

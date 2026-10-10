@@ -3551,7 +3551,20 @@ export class SettlementSystem {
       for (const villageId of kingdom.villageIds) {
         territory += this.villages.get(villageId)?.territory.size ?? 0;
       }
+      const people = populations.get(kingdom.id) ?? [];
+      const soldiers = people.filter(p => p.job === 'warrior');
+      const king = kingdom.kingId ? this.entities.getEntityById(kingdom.kingId) : null;
+      const capital = kingdom.villageIds.map(id => this.villages.get(id)).find(v => v?.capital) ?? null;
+      const relic = people
+        .flatMap(p => [p.equipment?.weapon, p.equipment?.armor])
+        .find(item => item?.name);
       summaries.push({
+        ruler: king?.name ?? kingdom.ruler,
+        capital: capital ? { name: capital.name, x: capital.centerX, y: capital.centerY } : null,
+        army: soldiers.length,
+        armed: soldiers.filter(s => s.equipment?.weapon).length,
+        allies: Array.from(kingdom.allies).map(id => this.kingdoms.get(id)?.name ?? '').filter(Boolean),
+        relic: relic?.name ?? null,
         id: kingdom.id,
         name: kingdom.name,
         race: kingdom.race,
