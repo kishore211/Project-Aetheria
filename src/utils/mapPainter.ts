@@ -391,8 +391,13 @@ export class MapPainter {
     const fy = (Y + 0.5) / PX - 0.5;
     const ix = Math.floor(fx);
     const iy = Math.floor(fy);
-    const ax = fx - ix;
-    const ay = fy - iy;
+    // Smoothstepped, not linear. Plain bilinear weights draw the contour
+    // round a lone tile as a diamond — every one-tile pond came out as a
+    // rhombus. Easing the weights rounds it into a blob.
+    const lx = fx - ix;
+    const ly = fy - iy;
+    const ax = lx * lx * (3 - 2 * lx);
+    const ay = ly * ly * (3 - 2 * ly);
     const x0 = ix < 0 ? 0 : ix;
     const y0 = iy < 0 ? 0 : iy;
     const x1 = ix + 1 > n - 1 ? n - 1 : ix + 1;
@@ -475,7 +480,7 @@ export class MapPainter {
     // heightfield of its own and is lit by *its* slope: ridges lit on the
     // top-left, dark on the bottom-right, which is how their rock tiles are
     // drawn.
-    const craggy = mat === Mat.Rock ? 1.5 : mat === Mat.Volcanic ? 1.2 : mat === Mat.Hills ? 0.7 : mat === Mat.Strata ? 0.5 : 0;
+    const craggy = mat === Mat.Rock ? 1.5 : mat === Mat.Volcanic ? 1.2 : mat === Mat.Hills ? 0.4 : mat === Mat.Strata ? 0.5 : 0;
     let ridge = 0.5;
     if (craggy > 0) {
       ridge = crag(X, Y);

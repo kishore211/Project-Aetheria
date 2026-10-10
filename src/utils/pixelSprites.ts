@@ -320,10 +320,66 @@ export const poseGrid = (grid: string[], frame: number): string[] => {
   });
 };
 
-const drawGrid = (grid: string[], palette: Palette, frame: number): HTMLCanvasElement => {
-  const posed = poseGrid(grid, frame);
+/** The outline every creature wears. Near-black with a little warmth. */
+const SPRITE_OUTLINE = '#1c130d';
+
+/** Lighten (k > 1) or darken (k < 1) a #rrggbb colour. */
+const shadeHex = (hex: string, k: number): string => {
+  const n = parseInt(hex.slice(1, 7), 16);
+  const channel = (v: number) => Math.max(0, Math.min(255, Math.round(v * k)));
+  const r = channel((n >> 16) & 255);
+  const g = channel((n >> 8) & 255);
+  const b = channel(n & 255);
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+};
+
+/**
+ * The colour of every cell of a posed sprite, outline and shading included.
+ *
+ * Two things WorldBox does to every unit and the templates never did:
+ *
+ * A one-pixel dark outline round the silhouette. It is the single thing that
+ * keeps a creature readable against any ground — a green orc on grass, a white
+ * sheep on snow — and the painted map is now busy enough that without it the
+ * sprites dissolved into the texture.
+ *
+ * Light on top, shade underneath and on the right, matching the map's light
+ * from the top left. A flat fill reads as a sticker; two tones read as a body.
+ *
+ * Derived from the template rather than drawn into it, so every creature,
+ * every colour ramp and every walk frame gets it with no art to maintain.
+ * Exported so it can be tested without a canvas.
+ */
+export const shadedCells = (posed: string[], palette: Palette): (string | null)[][] => {
   const rows = posed.length;
   const cols = posed[0].length;
+  const solid = (x: number, y: number) =>
+    x >= 0 && y >= 0 && x < cols && y < rows && posed[y][x] !== '.';
+  const cells: (string | null)[][] = [];
+  for (let y = 0; y < rows; y += 1) {
+    const row: (string | null)[] = [];
+    for (let x = 0; x < cols; x += 1) {
+      if (!solid(x, y)) {
+        const touches = solid(x - 1, y) || solid(x + 1, y) || solid(x, y - 1) || solid(x, y + 1);
+        row.push(touches ? SPRITE_OUTLINE : null);
+        continue;
+      }
+      const base = palette[posed[y][x]] ?? '#ff00ff';
+      let k = 1;
+      if (!solid(x, y - 1)) k = 1.14;
+      else if (!solid(x, y + 1)) k = 0.8;
+      else if (!solid(x + 1, y)) k = 0.88;
+      row.push(k === 1 ? base : shadeHex(base, k));
+    }
+    cells.push(row);
+  }
+  return cells;
+};
+
+const drawGrid = (grid: string[], palette: Palette, frame: number): HTMLCanvasElement => {
+  const cells = shadedCells(poseGrid(grid, frame), palette);
+  const rows = cells.length;
+  const cols = cells[0].length;
   const scale = 8;
   const canvas = document.createElement('canvas');
   canvas.width = cols * scale;
@@ -334,9 +390,9 @@ const drawGrid = (grid: string[], palette: Palette, frame: number): HTMLCanvasEl
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   for (let y = 0; y < rows; y += 1) {
     for (let x = 0; x < cols; x += 1) {
-      const key = posed[y][x];
-      if (key === '.') continue;
-      ctx.fillStyle = palette[key] ?? '#ff00ff';
+      const colour = cells[y][x];
+      if (!colour) continue;
+      ctx.fillStyle = colour;
       ctx.fillRect(x * scale, y * scale, scale, scale);
     }
   }

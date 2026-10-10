@@ -172,6 +172,9 @@ export interface Kingdom {
   allies: Set<string>;
 }
 
+/** How much larger a building is drawn than its recipe size. */
+const BUILDING_DRAW_SCALE = 1.7;
+
 interface BuildingRecipe {
   kind: BuildingKind;
   wood: number;
@@ -1508,7 +1511,10 @@ export class SettlementSystem {
     // A building that stands on four tiles has to be drawn across four tiles.
     // Scaled a little under the full span so the neighbouring streets do not
     // disappear under the eaves.
-    const size = (kind === 'bonfire' ? 0.55 : recipe?.size ?? 0.5) * (span > 1 ? span * 0.92 : 1);
+    // Drawn at WorldBox's proportions: a house stands well over the heads of
+    // the people who live in it. At the old scale a tent came out half the
+    // height of a villager and a town read as a scattering of pebbles.
+    const size = (kind === 'bonfire' ? 0.55 : recipe?.size ?? 0.5) * (span > 1 ? span * 0.92 : 1) * BUILDING_DRAW_SCALE;
 
     const building: Building = {
       id: mintId('building'),

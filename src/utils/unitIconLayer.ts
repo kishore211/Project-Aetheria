@@ -12,6 +12,7 @@ import * as THREE from 'three';
 import type { Entity } from '../types/world';
 import { getIconAtlas } from './pixelAtlas';
 import { moodFace } from './mood';
+import { isSapient } from './entitySystemMinimal';
 import { SpriteCloud } from './spriteCloud';
 import { MATERIAL_TINT, TOOL_SPRITE, materialForTier, toolFor } from './tools';
 
@@ -34,8 +35,8 @@ const TOOL_REACH = 0.15;
 /** Roughly hand height, well below the icon stack over the head. */
 const TOOL_LIFT = 0.2;
 /** Height above the unit's feet for the first row. */
-const BASE_LIFT = 0.5;
-const ROW_SPACING = 0.2;
+const BASE_LIFT = 0.36;
+const ROW_SPACING = 0.17;
 
 /**
  * Activities worth an icon. Idle gets none, and neither does plain travelling:
@@ -152,7 +153,9 @@ export class UnitIconLayer {
       const base = entity.mesh.position;
       const profession = this.professionIcon(entity);
       const activity = ACTIVITY_ICONS[entity.activity ?? ''] ?? null;
-      const mood = entity.happiness === undefined
+      // People only. A sheep with a smiley face over it is a cartoon, and a
+      // field of them is noise.
+      const mood = entity.happiness === undefined || !isSapient(entity)
         ? null
         : MOOD_ICONS[moodFace(entity.happiness).step] ?? null;
 
@@ -215,7 +218,12 @@ export class UnitIconLayer {
     sprite: string,
     tint?: THREE.Color,
   ): void {
-    this.scratch.set(base.x, base.y + BASE_LIFT + tier * ROW_SPACING, base.z);
+    // Up the *screen*, which under the top-down camera is -z. Lifting in y
+    // alone moved the icon straight toward the lens and changed nothing you
+    // could see, so every face and badge sat on the creature's chest. The y
+    // lift stays so the icon still draws in front of the sprite.
+    const lift = BASE_LIFT + tier * ROW_SPACING;
+    this.scratch.set(base.x, base.y + lift, base.z - lift);
     this.cloud.set(row, { position: this.scratch, sprite, size: ICON_SIZE, tint });
   }
 

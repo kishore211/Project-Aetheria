@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TEMPLATES, WALK_FRAMES, poseGrid } from './pixelSprites';
+import { TEMPLATES, WALK_FRAMES, poseGrid, shadedCells } from './pixelSprites';
 
 /**
  * These tests exist because of a defect that survived three rounds of "the
@@ -103,5 +103,30 @@ describe('the walk cycle pose', () => {
         expect(poseGrid(TEMPLATES[name], frame), name).toEqual(TEMPLATES[name]);
       }
     }
+  });
+});
+
+describe('outline and shading', () => {
+  it('rings every silhouette with a dark outline', () => {
+    for (const [name, grid] of Object.entries(TEMPLATES)) {
+      const palette = new Proxy({}, { get: () => '#808080' }) as Record<string, string>;
+      const cells = shadedCells(grid, palette);
+      let outlined = 0;
+      for (let y = 0; y < grid.length; y++) {
+        for (let x = 0; x < grid[y].length; x++) {
+          if (grid[y][x] === '.' && cells[y][x] === '#1c130d') outlined++;
+          // A pixel of the creature itself is never overwritten by outline.
+          if (grid[y][x] !== '.') expect(cells[y][x], `${name} ${x},${y}`).not.toBe('#1c130d');
+        }
+      }
+      expect(outlined, name).toBeGreaterThan(8);
+    }
+  });
+
+  it('lights the top of a body and shades its underside', () => {
+    const cells = shadedCells(['...', '.f.', '.f.', '...'], { f: '#808080' });
+    expect(cells[1][1]).not.toBe('#808080');
+    expect(parseInt(cells[1][1]!.slice(1, 3), 16)).toBeGreaterThan(0x80);
+    expect(parseInt(cells[2][1]!.slice(1, 3), 16)).toBeLessThan(0x80);
   });
 });
