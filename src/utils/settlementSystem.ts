@@ -537,6 +537,7 @@ export class SettlementSystem {
   private fleetTimer = 0;
   private migrantTimer = 0;
   private forgeTimer = 0;
+  private paintedSeason: string = simulation.season;
   private boatPosition = new THREE.Vector3();
   private freeSlots: number[] = [];
   private nextSlot = 0;
@@ -623,6 +624,14 @@ export class SettlementSystem {
 
   update(delta: number): void {
     if (!this.laws.settlements) return;
+
+    // A new season repaints the fields.
+    if (simulation.season !== this.paintedSeason) {
+      this.paintedSeason = simulation.season;
+      for (const village of this.villages.values()) {
+        for (const building of village.buildings) if (building.kind === 'farm') this.paintBuilding(village, building);
+      }
+    }
 
     this.foundTimer += delta;
     if (this.foundTimer >= 4) {
@@ -1677,7 +1686,12 @@ export class SettlementSystem {
     position.x += offset;
     position.z += offset;
     position.y += size * 0.5 + 0.02;
-    const art = kind === 'house' && (building.level ?? 1) > 1 ? `house${building.level}` : kind;
+    // Fields follow the year: green while growing, gold at harvest, bare and
+    // frosted in winter.
+    const art = kind === 'house' && (building.level ?? 1) > 1 ? `house${building.level}`
+      : kind === 'farm' && simulation.season === 'autumn' ? 'farm_autumn'
+        : kind === 'farm' && simulation.season === 'winter' ? 'farm_winter'
+          : kind;
     this.buildingCloud.set(slot, {
       position,
       sprite: buildingSprite(art, village.race),
