@@ -293,6 +293,32 @@ phases 16–18.
 7. **Write the copy as we go.** A power without a description is unfinished.
 8. **One commit per coherent change,** with the *why* in the message.
 
+## Phase 20 — The replica pass  ✅ done
+
+The owner's verdict after Phase 19 was that it still did not look or play
+like WorldBox, and up close the map "looks like squares". This pass went
+back to the reference and closed the visible gaps rather than adding depth
+to systems that already existed.
+
+| # | Item | Status | Notes |
+|---|---|---|---|
+| 20.1 | **The map is one painted image** | ✅ done | `utils/mapPainter.ts`. Eight pixels a tile, painted per pixel: interpolated land/height/depth fields (smoothstepped, so a lone tile is a blob rather than a diamond), domain-warped biome choice so edges meander, sea banded by distance to the coast with a foam line, rivers that stay joined on diagonals, crag-lit rock with snow on the ridges, and trees, rocks, reeds and cacti as pixel stamps with cast shadows drawn bottom-to-top. The boxes stay, invisible, for picking only |
+| 20.2 | **Territory in the shader** | ✅ done | One-pixel border inside each realm plus a wash, from an owner texture; no more quads per tile |
+| 20.3 | **One daylight** | ✅ done | `utils/daylight.ts`. Map, buildings, boats and creatures share the time-of-day tint; icons and labels opt out |
+| 20.4 | **Outlines and shading on every sprite** | ✅ done | Derived from the template, so every creature, colour ramp and walk frame gets it. Buildings redrawn with outlines, two-tone roofs, lit windows, at proportions that stand over their people |
+| 20.5 | **~75 more powers** | ✅ done | `utils/extraPowers.ts`: terrain by height, sponge and three stamps, ten biome seeds, aimable clouds, heat and cold, tornado, volcano, geyser, lava, acid, grenade → atomic and a void bomb, plague that raises its dead, madness, confusion, divine light, shield, coffee, inspire, sleep, clone, four dusts of forgetting, six diplomacy powers on a Realms tab, and a spawner per creature |
+| 20.6 | **Statuses that change behaviour** | ✅ done | Shielded blocks every blow, caffeinated nearly doubles pace, spellbound stands still, confused staggers, enraged attacks the nearest, infected weakens, spreads by contact and rises as a zombie |
+| 20.7 | **22 more creatures** | ✅ done | 42 in all, seven new sprite templates; each with food-chain place checked against size bands, herd size, ramps, flavour, habitat and spawner |
+| 20.8 | **Boats** | ✅ done | `utils/boats.ts`. Fishing fleets, merchants between friendly ports, and transports that carry settlers to another island when the home one is full |
+| 20.9 | **Possession and WASD** | ✅ done | `utils/possession.ts`. G to wear a creature; WASD walks it, Space strikes, Esc lets go. The same keys pan the map otherwise |
+| 20.10 | **Relationship lines, fire, Huge maps** | ✅ done | Lines to lover, friend and home; fire pixels flicker in the shader; a 384² preset |
+
+**Still not WorldBox, honestly:** the content long tail (they have ~113
+creatures, 374 powers, 774 unlockables), equipment as items, armies as
+formations, and the mind/neuron editor. The thesis at the top of this file
+still holds — the gap that mattered was what the world looks like and what
+the player can do to it, and that is the gap this phase closed.
+
 ## Where this ended up
 
 Phases 16 through 19 are complete, along with the two items carried over from
