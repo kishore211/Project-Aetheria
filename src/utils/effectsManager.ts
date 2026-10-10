@@ -26,6 +26,8 @@ export class EffectsManager {
   private rainVelocity = 14;
   private rainArea = 64;
   private clouds: THREE.Sprite[] = [];
+  /** One per cloud, on the ground below it. */
+  private cloudShadows: THREE.Sprite[] = [];
   private cloudArea = 70;
   private stars: THREE.Points | null = null;
   private starTargetOpacity = 0;
@@ -110,6 +112,22 @@ export class EffectsManager {
       );
       this.scene.add(cloud);
       this.clouds.push(cloud);
+
+      // Its shadow, on the ground. The same pixel shape in dark at low
+      // opacity, thrown down and to the right like everything else on the
+      // map. It is what puts the cloud *above* the world rather than painted
+      // on the glass in front of it.
+      const shadow = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: material.map,
+        color: 0x0a1420,
+        transparent: true,
+        opacity: 0.16,
+        depthWrite: false,
+      }));
+      shadow.scale.copy(cloud.scale);
+      shadow.renderOrder = -1;
+      this.scene.add(shadow);
+      this.cloudShadows.push(shadow);
     }
 
     // Starfield dome, hidden during the day
@@ -165,7 +183,15 @@ export class EffectsManager {
     }
 
     // Drifting belongs to the cloud system now, along with what each cloud is
-    // carrying — see `clouds.ts`. This still owns making and disposing them.
+    // carrying — see `clouds.ts`. This still owns making and disposing them,
+    // and keeps each shadow under its cloud.
+    for (let i = 0; i < this.cloudShadows.length; i++) {
+      const cloud = this.clouds[i];
+      const shadow = this.cloudShadows[i];
+      if (!cloud) continue;
+      shadow.position.set(cloud.position.x + 1.4, 0.09, cloud.position.z + 2.2);
+      shadow.visible = cloud.visible;
+    }
 
     // Fade stars toward their target opacity
     if (this.stars) {
@@ -429,6 +455,11 @@ export class EffectsManager {
       cloud.material.dispose();
     }
     this.clouds = [];
+    for (const shadow of this.cloudShadows) {
+      this.scene.remove(shadow);
+      shadow.material.dispose();
+    }
+    this.cloudShadows = [];
     if (this.stars) {
       this.scene.remove(this.stars);
       this.stars.geometry.dispose();

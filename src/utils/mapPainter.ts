@@ -528,7 +528,14 @@ export class MapPainter {
         // Riding on the crag field rather than its own noise, so snow lies
         // on the ridges and leaves the gullies dark.
         const peak = h + (ridge - 0.5) * 0.16;
-        if (peak > 0.83) { r = SNOW_RGB[0]; g = SNOW_RGB[1]; b = SNOW_RGB[2]; s = 0.94; }
+        if (peak > 0.83) {
+          [r, g, b] = SNOW_RGB;
+          s = 0.94;
+          // The snowline gets an edge, as theirs does: one of the few places
+          // WorldBox spends an outline colour, and the reason a cap reads as
+          // lying *on* the rock rather than being a white patch in it.
+          if (peak < 0.85) { r = 168; g = 182; b = 198; s = 1; }
+        }
         break;
       }
       case Mat.Snow:
