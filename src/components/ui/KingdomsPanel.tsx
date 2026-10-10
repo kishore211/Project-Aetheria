@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Crown, ChevronDown, ChevronUp, Swords } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
+import Banner from './Banner';
 
 /**
  * Live standings of every kingdom: territory, population and active wars.
@@ -31,10 +32,7 @@ const KingdomsPanel = () => {
           {kingdoms.map((kingdom) => (
             <li key={kingdom.id} className="chronicle-item">
               <div className="flex items-center gap-2">
-                <span
-                  className="w-3 h-3 rounded-sm shrink-0 border border-black/30"
-                  style={{ backgroundColor: kingdom.color }}
-                />
+                <Banner id={kingdom.id} color={kingdom.color} race={kingdom.race} height={18} />
                 <span className="truncate font-medium text-foreground" title={kingdom.name}>
                   {kingdom.name}
                 </span>

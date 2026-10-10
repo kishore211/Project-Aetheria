@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import Banner from './Banner';
 import { Crown } from 'lucide-react';
 import { labelBridge, type MapLabel } from '../../utils/labelBridge';
 
@@ -67,10 +68,13 @@ const MapLabels = () => {
           {label.kind === 'village' && label.capital && (
             <Crown size={10} className="mr-1 inline-block -translate-y-px text-amber-300" />
           )}
-          {label.kind === 'kingdom' && (
-            <span
-              className="mr-1.5 inline-block h-2 w-2 rounded-sm border border-black/40 align-middle"
-              style={{ backgroundColor: label.color }}
+          {label.kingdomId && (
+            <Banner
+              id={label.kingdomId}
+              color={label.color}
+              race={label.race}
+              height={label.kind === 'kingdom' ? 18 : 12}
+              className="mr-1 align-middle -translate-y-px"
             />
           )}
           <span style={label.kind === 'kingdom' ? { color: label.color } : undefined}>

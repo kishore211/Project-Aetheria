@@ -1344,6 +1344,10 @@ export const useGameEngine = () => {
         previous.tileX = target.tileX;
         previous.tileY = target.tileY;
         previous.capital = target.capital;
+        // A town that changes hands changes banner, which React has to see.
+        if (previous.kingdomId !== target.kingdomId) changed = true;
+        previous.kingdomId = target.kingdomId;
+        previous.race = target.race;
         return previous;
       }
       changed = true;

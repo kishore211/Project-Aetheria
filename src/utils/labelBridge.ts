@@ -27,6 +27,9 @@ export interface MapLabel {
   opacity: number;
   /** Marks a kingdom's first settlement. */
   capital: boolean;
+  /** Whose banner to fly beside the name. */
+  kingdomId: string | null;
+  race: string;
 }
 
 /**

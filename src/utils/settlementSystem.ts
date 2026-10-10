@@ -3664,6 +3664,8 @@ export class SettlementSystem {
     tileX: number;
     tileY: number;
     capital: boolean;
+    kingdomId: string | null;
+    race: string;
   }> {
     const targets: Array<{
       id: string;
@@ -3673,6 +3675,8 @@ export class SettlementSystem {
       tileX: number;
       tileY: number;
       capital: boolean;
+      kingdomId: string | null;
+      race: string;
     }> = [];
 
     for (const village of this.villages.values()) {
@@ -3685,6 +3689,8 @@ export class SettlementSystem {
         tileX: village.centerX,
         tileY: village.centerY,
         capital: village.capital,
+        kingdomId: kingdom?.id ?? null,
+        race: kingdom?.race ?? village.race,
       });
     }
 
@@ -3704,6 +3710,8 @@ export class SettlementSystem {
         tileX: Math.round(centreX),
         tileY: Math.round(centreY),
         capital: false,
+        kingdomId: kingdom.id,
+        race: kingdom.race,
       });
     }
 
