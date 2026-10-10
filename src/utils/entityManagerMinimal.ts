@@ -429,6 +429,16 @@ export class EntityManager implements EntityIndex {
       'death',
       { x: ix, y: iy },
     );
+
+    // The plague's last act: whoever it took gets up again. Only people — an
+    // infected creature is always a person, since that is the only thing the
+    // infection spreads between — and never something already undead.
+    if (entity.status.includes('infected') && entity.type !== 'zombie' && entity.type !== 'skeleton') {
+      const risen = this.spawnEntity('zombie', entity.position.x, entity.position.y);
+      if (risen) {
+        this.onLifeEvent?.(`${entity.name} rises again, and is not themselves`, 'death', { x: ix, y: iy });
+      }
+    }
   }
 
   /**
@@ -522,6 +532,7 @@ export class EntityManager implements EntityIndex {
   ): number {
     let kills = 0;
     for (const victim of this.query(centerX, centerY, radius)) {
+      if (victim.status.includes('shielded')) continue;
       victim.health -= damage;
       emitDamage(victim.position.x, victim.position.y, damage, victim.id);
       applyStatus(victim, 'wounded');

@@ -512,6 +512,8 @@ export class EntityAI {
   private index: EntityIndex | null;
   private repathCooldown = 0;
   private attackCooldown = 0;
+  /** Which way a confused creature is currently staggering. */
+  private confusedHeading = 0;
   private pyroCooldown = 6;
   /**
    * Seconds until this creature next checks the mood of the crowd around it.
@@ -573,6 +575,10 @@ export class EntityAI {
         return;
       }
     }
+
+    // Whatever the player has laid on it. The list is almost always empty, so
+    // the whole pass is one length check for nearly every creature.
+    if (this.entity.status.length > 0 && this.underSpell(deltaTime)) return;
 
     // Moods and bonds are checked wherever the creature happens to be, not
     // only while it stands at a bonfire. Gating them on the socialising state
@@ -1260,6 +1266,8 @@ export class EntityAI {
   private tilesPerSecond(tiles?: Tile[][]): number {
     let speed = this.entity.attributes.speed * 0.12;
     if (this.entity.status.includes('exhausted')) speed *= 0.5;
+    if (this.entity.status.includes('caffeinated')) speed *= 1.9;
+    else if (this.entity.status.includes('inspired')) speed *= 1.3;
     // A captain deliberately marches slower so its warband stays with it
     if (this.entity.status.includes('captain')) speed *= 0.72;
     // ...and the ground itself, which is most of what makes a swamp a swamp
@@ -1567,11 +1575,72 @@ export class EntityAI {
     };
   }
 
+  /**
+   * The powers that change what a creature does rather than what it feels.
+   *
+   * Returns true when the spell has taken the whole turn — a spellbound
+   * creature stands where it is and nothing else in its AI runs.
+   */
+  private underSpell(deltaTime: number): boolean {
+    const status = this.entity.status;
+    if (status.includes('infected')) {
+      // Slow on purpose: the point of a plague is the stretch where you can
+      // see it coming and the village cannot.
+      this.entity.health -= 1.6 * deltaTime;
+      // ...and it travels, but only by contact and only between people. A
+      // plague that jumped species would empty the map in a minute.
+      if (this.index && Math.random() < 0.4 * deltaTime) {
+        for (const other of this.index.query(this.entity.position.x, this.entity.position.y, 1.2)) {
+          if (other.id === this.entity.id || !isSapient(other)) continue;
+          if (other.status.includes('infected') || other.status.includes('shielded')) continue;
+          applyStatus(other, 'infected');
+          break;
+        }
+      }
+    }
+    if (status.includes('spellbound')) {
+      this.entity.activity = 'sleeping';
+      return true;
+    }
+    if (status.includes('confused')) {
+      // A stagger, not a teleport: a small step in a direction that changes
+      // often enough to look lost rather than purposeful.
+      if (Math.random() < 4 * deltaTime) this.confusedHeading = Math.random() * Math.PI * 2;
+      const step = this.tilesPerSecond() * 0.6 * deltaTime;
+      this.entity.lastPosition = { ...this.entity.position };
+      this.entity.position = {
+        x: this.entity.position.x + Math.cos(this.confusedHeading) * step,
+        y: this.entity.position.y + Math.sin(this.confusedHeading) * step,
+      };
+      this.entity.activity = 'wandering';
+      return true;
+    }
+    if (status.includes('enraged') && this.currentState !== 'fighting' && this.index) {
+      // Anyone will do. That is what makes it madness rather than war.
+      let nearest: Entity | null = null;
+      let best = 36;
+      for (const other of this.index.query(this.entity.position.x, this.entity.position.y, 6)) {
+        if (other.id === this.entity.id || other.health <= 0) continue;
+        const d = (other.position.x - this.entity.position.x) ** 2
+          + (other.position.y - this.entity.position.y) ** 2;
+        if (d < best) { best = d; nearest = other; }
+      }
+      if (nearest) this.engage(nearest);
+    }
+    return false;
+  }
+
   /** Deal one blow, respecting the attack cooldown. */
   private strike(target: Entity): void {
     if (this.attackCooldown > 0) return;
     this.attackCooldown = 0.8;
-    const blow = this.entity.attributes.strength * 0.6;
+    if (target.status.includes('shielded')) {
+      // The blow lands on nothing. Still costs the attacker its swing.
+      this.addTimedStatus('attacking');
+      return;
+    }
+    const fury = this.entity.status.includes('inspired') || this.entity.status.includes('enraged') ? 1.4 : 1;
+    const blow = this.entity.attributes.strength * 0.6 * fury;
     target.health -= blow;
     emitDamage(target.position.x, target.position.y, blow, target.id);
     this.addTimedStatus('attacking');

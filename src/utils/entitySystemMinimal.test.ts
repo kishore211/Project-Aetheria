@@ -190,3 +190,43 @@ describe('village orders', () => {
     expect(delivered).toBe(true);
   });
 });
+
+describe('spells the player lays on', () => {
+  it('lets nothing through a shield', () => {
+    const manager = new EntityManager(makeGrid(16), new THREE.Scene());
+    const guarded = manager.spawnEntity('human', 5, 5)!;
+    const exposed = manager.spawnEntity('human', 5.3, 5)!;
+    guarded.status.push('shielded');
+    manager.damageArea(5, 5, 2, 20);
+    expect(guarded.health).toBe(guarded.maxHealth);
+    expect(exposed.health).toBeLessThan(exposed.maxHealth);
+  });
+
+  it('raises whoever the plague takes', () => {
+    const manager = new EntityManager(makeGrid(16), new THREE.Scene());
+    const victim = manager.spawnEntity('human', 6, 6)!;
+    victim.status.push('infected');
+    manager.killEntity(victim, 'health');
+    const risen = manager.getAllEntities().filter(e => e.type === 'zombie');
+    expect(risen).toHaveLength(1);
+    expect(Math.floor(risen[0].position.x)).toBe(6);
+  });
+
+  it('wears an infected creature down on its own', () => {
+    const manager = new EntityManager(makeGrid(16), new THREE.Scene());
+    const victim = manager.spawnEntity('human', 6, 6)!;
+    victim.status.push('infected');
+    const before = victim.health;
+    for (let i = 0; i < 20; i++) manager.update(0.1);
+    expect(victim.health).toBeLessThan(before - 1);
+  });
+
+  it('keeps a spellbound creature exactly where it stands', () => {
+    const manager = new EntityManager(makeGrid(16), new THREE.Scene());
+    const sleeper = manager.spawnEntity('human', 7, 7)!;
+    sleeper.status.push('spellbound');
+    const { x, y } = sleeper.position;
+    for (let i = 0; i < 30; i++) manager.update(0.1);
+    expect(sleeper.position).toEqual({ x, y });
+  });
+});

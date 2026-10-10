@@ -29,7 +29,10 @@ export type StatusId =
   // -- mood, and the contagious social ones --
   | 'happy' | 'content' | 'sad' | 'miserable'
   | 'laughing' | 'crying' | 'singing'
-  | 'in_love' | 'grieving' | 'furious' | 'poked' | 'blessed' | 'cursed';
+  | 'in_love' | 'grieving' | 'furious' | 'poked' | 'blessed' | 'cursed'
+  // -- laid on by the player's powers; each one changes behaviour --
+  | 'shielded' | 'caffeinated' | 'inspired' | 'confused' | 'enraged'
+  | 'infected' | 'spellbound';
 
 export interface StatusDef {
   id: StatusId;
@@ -91,6 +94,14 @@ export const STATUSES: Record<StatusId, StatusDef> = {
   poked: define('poked', 'Prodded', '\u{1F449}', 6, -8, false, 'Something enormous poked it, for no reason it can see.'),
   blessed: define('blessed', 'Blessed', '✨', 60, 5, false, 'Something looked kindly on it.'),
   cursed: define('cursed', 'Cursed', '\u{1F480}', 90, -7, false, 'Something did not.'),
+
+  shielded: define('shielded', 'Shielded', '\u{1F6E1}', 45, 1, false, 'Wrapped in something that does not let harm through.'),
+  caffeinated: define('caffeinated', 'Caffeinated', '☕', 30, 2, false, 'Moving at the speed of a bad idea.'),
+  inspired: define('inspired', 'Inspired', '\u{1F4A1}', 40, 4, false, 'Has had a thought, and it is a good one.'),
+  confused: define('confused', 'Confused', '\u{1F635}', 15, -2, false, 'Reality has slipped a little sideways.'),
+  enraged: define('enraged', 'Enraged', '\u{1F92C}', 20, -6, false, 'Blaming the gods, and settling for whoever is nearest.'),
+  infected: define('infected', 'Infected', '\u{1F9DF}', 0, -6, false, 'Feeling a little peaky. It will pass, in a sense.'),
+  spellbound: define('spellbound', 'Spellbound', '\u{1F4AB}', 25, 2, false, 'Asleep where it stood, and dreaming of something nice.'),
 };
 
 /** Guard for the many places that still hand us plain strings. */

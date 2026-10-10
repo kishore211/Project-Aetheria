@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Entity, Race, Season, Tile, TimeOfDay } from '../types/world';
+import type { Entity, EntityType, Race, Season, Tile, TimeOfDay } from '../types/world';
 import type { WorldTemplate } from '../utils/worldGenerator';
 import type { SaveGame } from '../utils/saveSystem';
 // Type-only both ways: powers.ts imports `Tool` from here. Erased at compile
@@ -199,7 +199,23 @@ export type Tool =
   | 'erase-life'
   | 'erase-buildings'
   | 'douse'
+  // Everything in utils/extraPowers.ts
+  | ExtraTool
+  | `spawn-${EntityType}`
   | null;
+
+/** The powers implemented in utils/extraPowers.ts. */
+export type ExtraTool =
+  | 'paint-deep' | 'paint-ocean' | 'paint-shallow' | 'paint-sand' | 'paint-soil' | 'paint-hills' | 'paint-summit'
+  | 'sponge' | 'stamp-island' | 'stamp-lake' | 'stamp-atoll'
+  | 'seed-desert' | 'seed-savanna' | 'seed-jungle' | 'seed-swamp' | 'seed-tundra' | 'seed-snow'
+  | 'seed-enchanted' | 'seed-bloom' | 'seed-grass' | 'seed-corrupt'
+  | 'rain-cloud' | 'snow-cloud' | 'seed-cloud' | 'heat' | 'cold'
+  | 'tornado' | 'volcano' | 'geyser' | 'lava' | 'acid'
+  | 'grenade' | 'bomb' | 'napalm' | 'atomic' | 'void-bomb'
+  | 'plague' | 'madness' | 'confusion'
+  | 'divine-light' | 'shield' | 'coffee' | 'inspire' | 'sleep' | 'clone'
+  | 'diplo-spite' | 'diplo-friendship' | 'diplo-whisper' | 'diplo-unity' | 'diplo-discord' | 'diplo-inspiration';
 
 /** Radius in tiles for area tools: 0 = single tile, 1 = 3x3, 2 = 5x5. */
 export type BrushRadius = 0 | 1 | 2;

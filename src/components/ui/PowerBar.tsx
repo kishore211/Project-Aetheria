@@ -6,6 +6,7 @@ import {
   Mountain, MousePointer2, Pause, PawPrint, Play, Pointer, Rocket, Scale,
   Scissors, Skull, Sparkle, Sparkles, Sprout, Swords, Tag, TreePine, Trees,
   User, Users, Video, VideoOff, Waves, X, Zap,
+  Biohazard, Bird, Bomb, Bone, Brain, Bug, Cloud, CloudSnow, Coffee, Copy, Crown, Dog, Droplet, Egg, Fish, FlaskConical, Flag, Flower, Handshake, HeartHandshake, Lightbulb, Megaphone, Moon, MountainSnow, Orbit, Palmtree, Rabbit, Radiation, Shell, Shield, Snowflake, Spline, Squirrel, Sun, Sword, ThermometerSnowflake, ThermometerSun, Tornado, TreePalm, Unlink, WandSparkles, Wheat, Wind, CircleDot,
   type LucideIcon,
 } from 'lucide-react';
 import { useGameStore, type BrushRadius } from '../../store/gameStore';
@@ -42,6 +43,7 @@ const ICONS: Record<string, LucideIcon> = {
   MousePointer2, PawPrint, Pointer, Rocket, Scale, Scissors, Skull, Sparkle,
   Sparkles, Sprout, Swords, Tag, TreePine, Trees, User, Users, Video, VideoOff,
   Waves, X, Zap,
+  Biohazard, Bird, Bomb, Bone, Brain, Bug, Cloud, CloudSnow, Coffee, Copy, Crown, Dog, Droplet, Egg, Fish, FlaskConical, Flag, Flower, Handshake, HeartHandshake, Lightbulb, Megaphone, Moon, MountainSnow, Orbit, Palmtree, Rabbit, Radiation, Shell, Shield, Snowflake, Spline, Squirrel, Sun, Sword, ThermometerSnowflake, ThermometerSun, Tornado, TreePalm, Unlink, WandSparkles, Wheat, Wind, CircleDot,
 };
 
 const Icon = ({ name, size = 20 }: { name: string; size?: number }) => {
@@ -306,7 +308,17 @@ const PowerBar = () => {
           <div className="powerbar-divider" />
 
           {/* The powers of the active tab */}
-          <div className="powerbar-powers no-scrollbar">
+          <div
+            className="powerbar-powers no-scrollbar"
+            // A tab of thirty powers is wider than the bar. A plain mouse
+            // wheel only scrolls vertically, so without this the end of the
+            // row is unreachable for anyone not on a trackpad.
+            onWheel={(event) => {
+              if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
+                event.currentTarget.scrollLeft += event.deltaY;
+              }
+            }}
+          >
             {powers.map((power, index) => {
               // A binding the player made outranks the tab position, and the
               // button has to say so — a key that has been reassigned and

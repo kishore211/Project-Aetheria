@@ -458,6 +458,9 @@ const FOUNDING_RADIUS = 5;
 const MIN_VILLAGE_SPACING = 16;
 const BUILDING_CLOUD_CAPACITY = 2048;
 
+/** The six things the player can do to the diplomatic map. */
+export type DiplomacyAct = 'spite' | 'friendship' | 'whisper' | 'unity' | 'discord' | 'inspiration';
+
 export interface SettlementEvents {
   onEvent: (message: string, kind: 'kingdom' | 'war' | 'info', position?: { x: number; y: number }) => void;
   onKingdomsChanged: (summaries: KingdomSummary[]) => void;
@@ -3247,6 +3250,103 @@ export class SettlementSystem {
 
   kingdomColorFor(id: string): string | undefined {
     return this.kingdoms.get(id)?.colorHex;
+  }
+
+  /**
+   * The player's hand on the diplomatic map.
+   *
+   * WorldBox's six diplomacy powers, aimed by clicking a kingdom's ground.
+   * Each goes through the same war and peace doors the simulation itself uses,
+   * so a war the player whispered into being is fought, timed out and
+   * chronicled exactly like one the kings arrived at on their own.
+   *
+   * Returns the line to put in the history, or null when it had nothing to
+   * act on — no kingdom under the cursor, or nobody to quarrel with.
+   */
+  intervene(act: DiplomacyAct, x: number, y: number): string | null {
+    const village = this.villageNear(x, y) ?? this.villageAt(x, y);
+    if (!village?.kingdomId) return null;
+    const kingdom = this.kingdoms.get(village.kingdomId);
+    if (!kingdom) return null;
+    const others = [...this.kingdoms.values()].filter(k => k.id !== kingdom.id && k.villageIds.length > 0);
+    const at = { x: village.centerX, y: village.centerY };
+    let line: string | null = null;
+
+    switch (act) {
+      case 'spite': {
+        if (others.length === 0) return null;
+        for (const other of others) {
+          kingdom.allies.delete(other.id);
+          other.allies.delete(kingdom.id);
+          const tension = Math.max(0.95, kingdom.tension.get(other.id) ?? 0);
+          kingdom.tension.set(other.id, tension);
+          other.tension.set(kingdom.id, tension);
+        }
+        line = `Every realm wakes up certain that ${kingdom.name} is the problem`;
+        break;
+      }
+      case 'friendship': {
+        for (const otherId of [...kingdom.atWar]) {
+          const other = this.kingdoms.get(otherId);
+          if (other) this.makePeace(kingdom, other);
+        }
+        for (const other of others) {
+          kingdom.tension.set(other.id, 0);
+          other.tension.set(kingdom.id, 0);
+        }
+        line = `A warmth settles over ${kingdom.name}, and nobody can remember what the quarrel was`;
+        break;
+      }
+      case 'whisper': {
+        if (!this.laws.warfare) return null;
+        const candidates = others.filter(o => !kingdom.atWar.has(o.id));
+        if (candidates.length === 0) return null;
+        // The neighbour it already resents most. A whisper works on what is
+        // there; it does not invent a grudge from nothing.
+        candidates.sort((a, b) => (kingdom.tension.get(b.id) ?? 0) - (kingdom.tension.get(a.id) ?? 0));
+        const target = candidates[0];
+        kingdom.allies.delete(target.id);
+        target.allies.delete(kingdom.id);
+        this.declareWar(kingdom, target);
+        line = `A voice in the ruler of ${kingdom.name}'s ear says ${target.name} is weak`;
+        break;
+      }
+      case 'unity': {
+        const candidates = others.filter(o => !kingdom.atWar.has(o.id) && !kingdom.allies.has(o.id));
+        if (candidates.length === 0) return null;
+        const capital = (k: Kingdom) => this.villages.get(k.villageIds[0]);
+        const here = capital(kingdom) ?? village;
+        candidates.sort((a, b) => {
+          const ca = capital(a); const cb = capital(b);
+          const da = ca ? (ca.centerX - here.centerX) ** 2 + (ca.centerY - here.centerY) ** 2 : Infinity;
+          const db = cb ? (cb.centerX - here.centerX) ** 2 + (cb.centerY - here.centerY) ** 2 : Infinity;
+          return da - db;
+        });
+        const partner = candidates[0];
+        kingdom.allies.add(partner.id);
+        partner.allies.add(kingdom.id);
+        kingdom.tension.set(partner.id, 0);
+        partner.tension.set(kingdom.id, 0);
+        line = chronicle('alliance', { a: kingdom.name, b: partner.name });
+        break;
+      }
+      case 'discord': {
+        if (kingdom.allies.size === 0) return null;
+        for (const allyId of kingdom.allies) this.kingdoms.get(allyId)?.allies.delete(kingdom.id);
+        kingdom.allies.clear();
+        line = `Old friends of ${kingdom.name} find they never really liked it`;
+        break;
+      }
+      case 'inspiration': {
+        if (village.capital) return null;
+        this.secede(village, kingdom);
+        return `${village.name} is struck by the idea that it could rule itself`;
+      }
+    }
+
+    if (line) this.events.onEvent(line, 'kingdom', at);
+    this.publishSummaries();
+    return line;
   }
 
   villageAt(x: number, y: number): Village | null {

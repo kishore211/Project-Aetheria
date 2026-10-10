@@ -31,6 +31,7 @@ import { worldAccess } from '../utils/worldAccess';
 import { buildSave } from '../utils/saveSystem';
 import { publishSimulationContext, simulation } from '../utils/simulation';
 import { advanceFloaters, clearFloaters, floatBridge } from '../utils/floatBridge';
+import { runExtraPower, PowerHazards, type PowerContext } from '../utils/extraPowers';
 import { clearImpacts, isShaking, requestFlash, requestShake, sampleShake } from '../utils/impactBridge';
 import { chronicle, toll } from '../utils/chronicle';
 import { applyScenario, type Scenario } from '../utils/scenarios';
@@ -150,6 +151,8 @@ export const useGameEngine = () => {
   const worldBehaviourRef = useRef<WorldBehaviour>(new WorldBehaviour());
   /** Drifting clouds and whatever they are carrying. See `clouds.ts`. */
   const cloudsRef = useRef<CloudSystem>(new CloudSystem());
+  /** Tornadoes, eruptions and geysers: powers that keep going after the click. */
+  const hazardsRef = useRef<PowerHazards>(new PowerHazards());
   const autosaveTimerRef = useRef<number>(0);
   const lastCameraNonceRef = useRef<number>(0);
   const lastZoomNonceRef = useRef<number>(0);
@@ -625,6 +628,49 @@ export const useGameEngine = () => {
     }
   }, []);
 
+  /** What the powers in utils/extraPowers.ts are allowed to touch. */
+  const powerContext = useCallback((): PowerContext => {
+    const store = useGameStore.getState();
+    const fxAt = (tile: Tile) => tileWorldPosition(tile);
+    return {
+      tiles: tilesRef.current,
+      brushRadius: store.brushRadius,
+      inBounds,
+      forEachBrushTile,
+      reshape: (tile, height, type) => reshapeTile(tile, height, type),
+      sync: syncTile,
+      ignite: (tile) => Boolean(fireRef.current?.ignite(tile)),
+      extinguish: (tile) => extinguishTile(tile, false),
+      query: (x, y, radius) => entityManagerRef.current?.query(x, y, radius) ?? [],
+      spawn: (type, x, y, subspecies) =>
+        entityManagerRef.current?.spawnEntity(type, x, y, { subspecies: subspecies ?? null }) ?? null,
+      damageArea: (x, y, radius, damage) => entityManagerRef.current?.damageArea(x, y, radius, damage) ?? 0,
+      healArea: (x, y, radius, amount) => entityManagerRef.current?.healArea(x, y, radius, amount) ?? 0,
+      demolishAt: (x, y) => { settlementRef.current?.demolishAt(x, y); },
+      cancelPlotsBy: (id) => settlementRef.current?.cancelPlotsBy(id, 'blessed') ?? 0,
+      diplomacy: (act, x, y) => settlementRef.current?.intervene(act, x, y) ?? null,
+      summonCloud,
+      announce: (message, kind, position) => store.addEvent(message, kind, position),
+      fx: {
+        burst: (tile, color, count, speed) => effectsManagerRef.current?.spawnBurst(fxAt(tile), color, count, speed),
+        aura: (tile, color) => effectsManagerRef.current?.spawnAura(fxAt(tile), color),
+        shockwave: (tile, color, radius) => effectsManagerRef.current?.spawnShockwave(fxAt(tile), color, radius),
+      },
+      sound: {
+        terraform: (voice) => soundManager.terraform(voice),
+        boom: () => soundManager.meteor(),
+        quake: () => soundManager.earthquake(),
+        fire: () => soundManager.fire(),
+        bless: () => soundManager.bless(),
+        curse: () => soundManager.curse(),
+        click: () => soundManager.uiClick(),
+      },
+      shake: requestShake,
+      flash: requestFlash,
+      random: Math.random,
+    };
+  }, [inBounds, forEachBrushTile, reshapeTile, syncTile, extinguishTile, tileWorldPosition, summonCloud]);
+
   const applyToolEffect = useCallback((tile: Tile, tool: string | null): boolean => {
     if (!tile || !tool) return false;
     const store = useGameStore.getState();
@@ -994,6 +1040,11 @@ export const useGameEngine = () => {
         );
         break;
       }
+      default: {
+        const result = runExtraPower(tool, tile, powerContext(), hazardsRef.current);
+        acted = result === true;
+        break;
+      }
     }
 
     if (!acted) {
@@ -1001,7 +1052,7 @@ export const useGameEngine = () => {
       soundManager.refused();
     }
     return acted;
-  }, [forEachBrushTile, reshapeTile, igniteTile, extinguishTile, syncTile, tileWorldPosition, spawnRace, spawnableAnimalsFor, reactNearby, summonCloud]);
+  }, [forEachBrushTile, reshapeTile, igniteTile, extinguishTile, syncTile, tileWorldPosition, spawnRace, spawnableAnimalsFor, reactNearby, summonCloud, powerContext]);
 
   /**
    * Handles mouse click on the game world
@@ -1765,6 +1816,7 @@ export const useGameEngine = () => {
     if (tilesRef.current.length > 0) {
       worldBehaviourRef.current.advance(scaledDelta, worldContext());
       cloudsRef.current.update(scaledDelta, cloudWorld());
+      if (hazardsRef.current.active > 0) hazardsRef.current.update(scaledDelta, powerContext());
     }
 
     // Publish stats and drive weather visuals
@@ -1800,7 +1852,7 @@ export const useGameEngine = () => {
         }
       }
     }
-  }, [isGamePaused, gameSpeed, scene, refreshWorldColors, simulateFire, worldContext, cloudWorld, updateCamera, advanceAge]);
+  }, [isGamePaused, gameSpeed, scene, refreshWorldColors, simulateFire, worldContext, cloudWorld, updateCamera, advanceAge, powerContext]);
 
   // Initialize the world when the seed, size, template or revision changes
   useEffect(() => {

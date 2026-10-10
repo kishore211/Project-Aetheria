@@ -1,0 +1,203 @@
+import { describe, expect, it } from 'vitest';
+import { BIOME_SEEDS, PowerHazards, runExtraPower, SPAWNABLE, TERRAIN_BRUSHES, type PowerContext } from './extraPowers';
+import { POWERS } from './powers';
+import { isWaterBiome, type BiomeType, type Entity, type EntityType, type Tile } from '../types/world';
+
+const makeTile = (x: number, y: number, type: BiomeType = 'grassland', height = 0.4): Tile => ({
+  x, y, type, height, temperature: 0.5, moisture: 0.5, fertility: 0.5, variant: 0.5,
+  structure: null, resources: [], entities: [], population: 0, isOnFire: false,
+}) as unknown as Tile;
+
+const makeCreature = (type: EntityType, x: number, y: number): Entity => ({
+  id: `${type}-${x}-${y}-${Math.random()}`, type, name: type, age: 1, maxAge: 99,
+  health: 100, maxHealth: 100, position: { x, y }, status: [],
+  attributes: { strength: 5, intelligence: 5, speed: 5, resilience: 5 },
+  needs: { hunger: 1, thirst: 1, rest: 1, social: 1 }, inventory: [],
+}) as unknown as Entity;
+
+const world = (size = 24, typeAt: (x: number, y: number) => BiomeType = () => 'grassland') => {
+  const tiles = Array.from({ length: size }, (_, x) => Array.from({ length: size }, (_, y) => {
+    const type = typeAt(x, y);
+    return makeTile(x, y, type, isWaterBiome(type) ? 0.15 : 0.4);
+  }));
+  const creatures: Entity[] = [];
+  const events: string[] = [];
+  const diplomacyCalls: string[] = [];
+  const ctx: PowerContext = {
+    tiles,
+    brushRadius: 0,
+    inBounds: (x, y) => x >= 0 && y >= 0 && x < size && y < size,
+    forEachBrushTile: (center, radius, visit) => {
+      const r = Math.ceil(radius);
+      for (let dx = -r; dx <= r; dx++) {
+        for (let dy = -r; dy <= r; dy++) {
+          const x = center.x + dx;
+          const y = center.y + dy;
+          const d = Math.hypot(dx, dy);
+          if (x < 0 || y < 0 || x >= size || y >= size || d > radius + 0.5) continue;
+          visit(tiles[x][y], d);
+        }
+      }
+    },
+    reshape: (tile, height, type) => {
+      tile.height = Math.max(0, Math.min(1, height));
+      tile.type = type ?? (tile.height < 0.25 ? 'shallow_water' : tile.height > 0.8 ? 'mountains' : 'grassland');
+    },
+    sync: () => {},
+    ignite: (tile) => { tile.isOnFire = true; return true; },
+    extinguish: (tile) => { tile.isOnFire = false; },
+    query: (x, y, radius) => creatures.filter(c => Math.hypot(c.position.x - x, c.position.y - y) <= radius),
+    spawn: (type, x, y) => {
+      const c = makeCreature(type, x, y);
+      creatures.push(c);
+      return c;
+    },
+    damageArea: (x, y, radius, damage) => {
+      let kills = 0;
+      for (const c of creatures) {
+        if (Math.hypot(c.position.x - x, c.position.y - y) > radius) continue;
+        if (c.status.includes('shielded')) continue;
+        c.health -= damage;
+        if (c.health <= 0) kills++;
+      }
+      return kills;
+    },
+    healArea: (x, y, radius, amount) => {
+      let n = 0;
+      for (const c of creatures) {
+        if (Math.hypot(c.position.x - x, c.position.y - y) > radius) continue;
+        c.health = Math.min(c.maxHealth, c.health + amount);
+        n++;
+      }
+      return n;
+    },
+    demolishAt: () => {},
+    cancelPlotsBy: () => 0,
+    diplomacy: (act) => { diplomacyCalls.push(act); return act === 'friendship' ? 'peace' : null; },
+    summonCloud: () => {},
+    announce: (message) => { events.push(message); },
+    fx: { burst: () => {}, aura: () => {}, shockwave: () => {} },
+    sound: { terraform: () => {}, boom: () => {}, quake: () => {}, fire: () => {}, bless: () => {}, curse: () => {}, click: () => {} },
+    shake: () => {},
+    flash: () => {},
+    random: () => 0.5,
+  };
+  return { tiles, creatures, events, diplomacyCalls, ctx, hazards: new PowerHazards() };
+};
+
+describe('the rest of the power bar', () => {
+  it('has a catalogue entry for every power it implements, and the reverse', () => {
+    const ids = new Set(POWERS.map(p => p.id as string));
+    for (const id of Object.keys(TERRAIN_BRUSHES)) expect(ids.has(id), id).toBe(true);
+    for (const id of Object.keys(BIOME_SEEDS)) expect(ids.has(id), id).toBe(true);
+    for (const type of SPAWNABLE) expect(ids.has(`spawn-${type}`), type).toBe(true);
+    // Every catalogue entry must actually do something when used somewhere
+    // sensible — an unknown id falls through to `null`.
+    const { ctx, hazards, tiles } = world();
+    const handledByEngine = new Set([
+      'select', 'raise-terrain', 'lower-terrain', 'place-water', 'place-mountain', 'place-forest',
+      'spawn-human', 'spawn-elf', 'spawn-dwarf', 'spawn-orc', 'uplift', 'spawn-animal', 'spawn-monster',
+      'plant-trees', 'unearth-minerals', 'summon-rain', 'earthquake', 'meteor', 'lightning', 'fire',
+      'blessing', 'curse', 'poke', 'erase-forest', 'erase-life', 'erase-buildings', 'douse',
+    ]);
+    for (const power of POWERS) {
+      if (handledByEngine.has(power.id)) continue;
+      expect(runExtraPower(power.id, tiles[12][12], ctx, hazards), power.id).not.toBeNull();
+    }
+  });
+
+  it('paints terrain by height', () => {
+    const { ctx, hazards, tiles } = world();
+    runExtraPower('paint-deep', tiles[5][5], ctx, hazards);
+    expect(tiles[5][5].type).toBe('deep_ocean');
+    runExtraPower('paint-summit', tiles[6][6], ctx, hazards);
+    expect(tiles[6][6].type).toBe('mountains');
+    expect(tiles[6][6].height).toBeGreaterThan(0.9);
+  });
+
+  it('seeds a biome on land and leaves the sea alone', () => {
+    const { ctx, hazards, tiles } = world(24, (x) => (x < 12 ? 'grassland' : 'ocean'));
+    expect(runExtraPower('seed-desert', tiles[5][5], ctx, hazards)).toBe(true);
+    expect(tiles[5][5].type).toBe('desert');
+    expect(runExtraPower('seed-desert', tiles[20][5], ctx, hazards)).toBe(false);
+    expect(tiles[20][5].type).toBe('ocean');
+  });
+
+  it('refuses to put a fish on dry land or a wolf in the sea', () => {
+    const { ctx, hazards, tiles, creatures } = world(24, (x) => (x < 12 ? 'grassland' : 'ocean'));
+    expect(runExtraPower('spawn-fish', tiles[5][5], ctx, hazards)).toBe(false);
+    expect(runExtraPower('spawn-wolf', tiles[20][5], ctx, hazards)).toBe(false);
+    expect(runExtraPower('spawn-fish', tiles[20][5], ctx, hazards)).toBe(true);
+    expect(runExtraPower('spawn-wolf', tiles[5][5], ctx, hazards)).toBe(true);
+    expect(creatures.map(c => c.type).sort()).toEqual(['fish', 'wolf']);
+  });
+
+  it('infects people with plague and leaves animals alone', () => {
+    const { ctx, hazards, tiles, creatures } = world();
+    creatures.push(makeCreature('human', 12, 12), makeCreature('sheep', 12, 12.5));
+    expect(runExtraPower('plague', tiles[12][12], ctx, hazards)).toBe(true);
+    expect(creatures[0].status).toContain('infected');
+    expect(creatures[1].status).not.toContain('infected');
+  });
+
+  it('shields creatures from a bomb', () => {
+    const { ctx, hazards, tiles, creatures } = world();
+    const shielded = makeCreature('human', 12, 12);
+    const exposed = makeCreature('human', 12.4, 12);
+    creatures.push(shielded, exposed);
+    runExtraPower('shield', tiles[12][12], { ...ctx, query: () => [shielded] }, hazards);
+    runExtraPower('bomb', tiles[12][12], ctx, hazards);
+    expect(shielded.health).toBe(100);
+    expect(exposed.health).toBeLessThanOrEqual(0);
+  });
+
+  it('cures plague and madness with divine light', () => {
+    const { ctx, hazards, tiles, creatures } = world();
+    const sick = makeCreature('human', 12, 12);
+    sick.status.push('infected', 'enraged');
+    creatures.push(sick);
+    runExtraPower('divine-light', tiles[12][12], ctx, hazards);
+    expect(sick.status).not.toContain('infected');
+    expect(sick.status).not.toContain('enraged');
+  });
+
+  it('refuses when status powers have nobody to touch', () => {
+    const { ctx, hazards, tiles } = world();
+    expect(runExtraPower('coffee', tiles[3][3], ctx, hazards)).toBe(false);
+    expect(runExtraPower('clone', tiles[3][3], ctx, hazards)).toBe(false);
+  });
+
+  it('leaves an atomic crater of ash', () => {
+    const { ctx, hazards, tiles, events } = world();
+    expect(runExtraPower('atomic', tiles[12][12], ctx, hazards)).toBe(true);
+    expect(tiles[12][12].type === 'ashland' || isWaterBiome(tiles[12][12].type)).toBe(true);
+    expect(tiles[12][16].type).not.toBe('grassland');
+    // No "0 gone" when the blast found nobody.
+    expect(events.at(-1)).not.toMatch(/\b0 gone/);
+  });
+
+  it('sends a tornado walking, and it uproots what it crosses', () => {
+    const { ctx, hazards, tiles } = world();
+    for (const column of tiles) for (const tile of column) tile.structure = { type: 'mature_tree', health: 100 };
+    runExtraPower('tornado', tiles[12][12], ctx, hazards);
+    expect(hazards.active).toBe(1);
+    for (let i = 0; i < 40; i++) hazards.update(0.1, ctx);
+    const uprooted = tiles.flat().filter(t => t.structure === null).length;
+    expect(uprooted).toBeGreaterThan(5);
+    for (let i = 0; i < 200; i++) hazards.update(0.1, ctx);
+    expect(hazards.active).toBe(0);
+  });
+
+  it('asks the realm for diplomacy and reports when there is nobody to ask', () => {
+    const { ctx, hazards, tiles, diplomacyCalls } = world();
+    expect(runExtraPower('diplo-friendship', tiles[4][4], ctx, hazards)).toBe(true);
+    expect(runExtraPower('diplo-whisper', tiles[4][4], ctx, hazards)).toBe(false);
+    expect(diplomacyCalls).toEqual(['friendship', 'whisper']);
+  });
+
+  it('leaves tools it does not own to the engine', () => {
+    const { ctx, hazards, tiles } = world();
+    expect(runExtraPower('meteor', tiles[1][1], ctx, hazards)).toBeNull();
+    expect(runExtraPower('spawn-human', tiles[1][1], ctx, hazards)).toBeNull();
+  });
+});
