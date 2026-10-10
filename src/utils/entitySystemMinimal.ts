@@ -157,6 +157,12 @@ for (const [predator, preyList] of Object.entries(FOOD_CHAIN) as [EntityType, En
 }
 
 const SENTIENT: EntityType[] = ['human', 'elf', 'dwarf', 'orc'];
+
+/** What the Peaceful Monsters law calms down. */
+export const MONSTERS = new Set<EntityType>([
+  'dragon', 'demon', 'zombie', 'skeleton', 'elemental', 'bandit', 'ghost', 'mage', 'alien',
+  'necromancer', 'fire_skull', 'cold_one', 'ufo', 'sand_spider', 'acid_blob', 'crabzilla',
+]);
 export const isSentient = (type: EntityType): boolean => SENTIENT.includes(type);
 
 /**
@@ -2069,9 +2075,12 @@ export class EntityAI {
     let best: Entity | null = null;
     let bestDistance = Infinity;
 
+    const tame = simulation.laws.peacefulMonsters && MONSTERS.has(this.entity.type);
     for (const candidate of this.index.query(this.entity.position.x, this.entity.position.y, perception)) {
       if (candidate.id === this.entity.id) continue;
       if (!preyTypes.includes(candidate.type)) continue;
+      // Peaceful Monsters: the peoples are off the menu.
+      if (tame && BORN_SAPIENT.has(candidate.type)) continue;
       // The food chain says what *kind* is prey; size says whether this animal
       // is big enough to try it. A runt fox leaves the chickens alone and a
       // monstrous one takes a deer, out of one comparison.

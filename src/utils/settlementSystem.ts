@@ -2714,7 +2714,7 @@ export class SettlementSystem {
    * back to arming people in copper.
    */
   private forgeRound(): void {
-    if (this.villages.size === 0) return;
+    if (this.villages.size === 0 || this.laws.forging === false) return;
     const tiers = this.craftTiers();
     const byVillage = new Map<string, Entity[]>();
     for (const entity of this.entities.getAllEntities()) {

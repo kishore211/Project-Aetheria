@@ -301,3 +301,29 @@ describe('favourites', () => {
     expect(lines.some(l => l.includes(star.name) && l.includes('favourites'))).toBe(true);
   });
 });
+
+describe('the Peaceful Monsters law', () => {
+  it('keeps a hungry dragon off the people, and only the people', () => {
+    const hunt = (peaceful: boolean, preyType: 'human' | 'sheep') => {
+      const before = simulation.laws.peacefulMonsters;
+      simulation.laws.peacefulMonsters = peaceful;
+      try {
+        const manager = new EntityManager(makeGrid(14), new THREE.Scene());
+        const dragon = manager.spawnEntity('dragon', 5, 5)!;
+        const prey = manager.spawnEntity(preyType, 6, 5)!;
+        const start = prey.health;
+        for (let i = 0; i < 30; i++) {
+          prey.position = { x: 6.5, y: 5.5 };
+          dragon.needs.hunger = 0.1;
+          manager.update(0.25);
+        }
+        return prey.health < start || !manager.getEntityById(prey.id);
+      } finally {
+        simulation.laws.peacefulMonsters = before;
+      }
+    };
+    expect(hunt(false, 'human')).toBe(true);
+    expect(hunt(true, 'human')).toBe(false);
+    expect(hunt(true, 'sheep')).toBe(true);
+  });
+});

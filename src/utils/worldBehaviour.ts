@@ -42,7 +42,7 @@ export interface WorldContext extends DisasterWorld {
   /** Growth multiplier from the current age: Wonders nearly doubles, Ash stops. */
   growth: number;
   /** World laws the player has switched off. */
-  laws: { biomeGrowth: boolean; disasters: boolean; erosion?: boolean };
+  laws: { biomeGrowth: boolean; disasters: boolean; erosion?: boolean; wildlife?: boolean; monsterVisits?: boolean };
   inBounds(x: number, y: number): boolean;
   /** Push a changed tile to the renderer. */
   syncTile(tile: Tile): void;
@@ -308,6 +308,7 @@ export const WORLD_PROCESSES: WorldProcess[] = [
     minInterval: 18,
     maxInterval: 40,
     action: (ctx) => {
+      if (ctx.laws.wildlife === false) return;
       const ceiling = Math.floor((ctx.size * ctx.size) / WILDLIFE_DENSITY);
       if (ctx.population() >= ceiling) return;
       for (let attempt = 0; attempt < 8; attempt += 1) {
@@ -342,7 +343,7 @@ export const WORLD_PROCESSES: WorldProcess[] = [
     minInterval: 300,
     maxInterval: 600,
     action: (ctx) => {
-      if (!ctx.laws.disasters) return;
+      if (!ctx.laws.disasters || ctx.laws.monsterVisits === false) return;
       sendMonster(ctx);
     },
   },

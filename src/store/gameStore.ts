@@ -193,6 +193,14 @@ export interface WorldLaws {
   entanglewood: boolean;
   /** The sea slowly eats soft, low coast. */
   erosion: boolean;
+  /** Wild animals come back to the land on their own. */
+  wildlife: boolean;
+  /** Dragons, UFOs, Crabzilla and the rest pay the towns a visit. */
+  monsterVisits: boolean;
+  /** Monsters leave the four peoples alone. */
+  peacefulMonsters: boolean;
+  /** Smiths forge weapons and armour. */
+  forging: boolean;
 }
 
 export const DEFAULT_WORLD_LAWS: WorldLaws = {
@@ -212,6 +220,10 @@ export const DEFAULT_WORLD_LAWS: WorldLaws = {
   migrants: true,
   entanglewood: false,
   erosion: false,
+  wildlife: true,
+  monsterVisits: true,
+  peacefulMonsters: false,
+  forging: true,
 };
 
 // Tools available to the player

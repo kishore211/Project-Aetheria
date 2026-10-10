@@ -1,6 +1,6 @@
 import {
   Baby, CloudLightning, Flag, Flame, Handshake, Hourglass, Scale, Ship, Sprout, Swords,
-  TreePine, UserPlus, Users, Utensils, Waves, X,
+  TreePine, UserPlus, Users, Utensils, Waves, X, Rabbit, Skull, HeartHandshake, Hammer,
 } from 'lucide-react';
 import { useGameStore, DEFAULT_WORLD_LAWS, type WorldLaws } from '../../store/gameStore';
 import { soundManager } from '../../utils/soundManager';
@@ -84,6 +84,21 @@ const GROUPS: LawGroup[] = [
         without: 'Coastlines stay exactly where you drew them. "Patient water" is off duty.',
       },
       {
+        key: 'wildlife', label: 'Animal spawns', icon: Rabbit,
+        description: 'Wild animals return to the land that suits them.',
+        without: 'What is hunted out stays hunted out. The wild only shrinks.',
+      },
+      {
+        key: 'monsterVisits', label: 'Monster visits', icon: Skull,
+        description: 'Dragons, UFOs, bandits, Crabzilla and the Cold Ones come to the towns.',
+        without: 'Monsters only arrive when you put them there.',
+      },
+      {
+        key: 'peacefulMonsters', label: 'Peaceful monsters', icon: HeartHandshake,
+        description: 'Monsters leave the four peoples alone.',
+        without: 'Monsters do what monsters do.',
+      },
+      {
         key: 'entanglewood', label: 'Entanglewood', icon: TreePine,
         description: 'Forests slow everyone who walks through them by a fifth.',
         without: 'A wood is just trees. The roots have stopped taking it personally.',
@@ -125,6 +140,11 @@ const GROUPS: LawGroup[] = [
         without: 'Towns grow as large as the food allows.',
       },
       {
+        key: 'forging', label: 'Forging', icon: Hammer,
+        description: 'Smiths arm the people in whatever metal the town can work.',
+        without: 'Everyone fights with their hands. A war of fists.',
+      },
+      {
         key: 'migrants', label: 'Handsome migrants', icon: UserPlus,
         description: 'Small towns sometimes attract strangers. Too handsome to trust.',
         without: 'A village of three stays a village of three.',
@@ -162,6 +182,7 @@ const PRESETS: Array<{ label: string; blurb: string; laws: WorldLaws }> = [
       fireSpread: false, biomeGrowth: false, settlements: false, warfare: false,
       ages: false, rebellions: false, colonisation: false, diplomacy: false,
       populationCap: false, migrants: false, entanglewood: false, erosion: false,
+      wildlife: false, monsterVisits: false, peacefulMonsters: false, forging: false,
     },
   },
 ];
