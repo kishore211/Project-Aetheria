@@ -294,6 +294,8 @@ export const useGameEngine = () => {
 
     // Build the instanced terrain
     const terrain = new TerrainRenderer(tilesData, storeState.timeOfDay, storeState.season);
+    // Lets an edit upload only the patch it touched instead of the whole map.
+    terrain.setRenderer(gl);
     // A new world inherits the layer you were looking through. Snapping back to
     // natural on every regeneration would be the kind of small betrayal that
     // makes an interface feel like it is not listening.

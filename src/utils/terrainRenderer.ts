@@ -130,6 +130,16 @@ export class TerrainRenderer {
   private apron: THREE.Mesh;
   private painter: MapPainter;
   private mapTexture: THREE.DataTexture;
+  /**
+   * The same pixels, wrapped as a texture that is never drawn. It is only
+   * ever the *source* of a partial upload: three copies a sub-rectangle of
+   * its buffer straight into the real texture, so editing one tile of a
+   * 3072-pixel map uploads a few thousand bytes rather than 37 megabytes.
+   */
+  private uploadSource: THREE.DataTexture;
+  private renderer: THREE.WebGLRenderer | null = null;
+  private uploadRegion = new THREE.Box2();
+  private uploadAt = new THREE.Vector2();
   private ownerData: Uint8Array;
   private ownerTexture: THREE.DataTexture;
   private matrix = new THREE.Matrix4();
@@ -161,6 +171,7 @@ export class TerrainRenderer {
     this.mapTexture.minFilter = THREE.LinearMipmapLinearFilter;
     this.mapTexture.generateMipmaps = true;
     this.mapTexture.needsUpdate = true;
+    this.uploadSource = new THREE.DataTexture(this.painter.data, this.painter.width, this.painter.width);
 
     this.ownerData = new Uint8Array(count * 4);
     this.ownerTexture = new THREE.DataTexture(this.ownerData, this.mapSize, this.mapSize);
@@ -265,6 +276,11 @@ export class TerrainRenderer {
     this.flush();
   }
 
+  /** Hand over the renderer, so edits can upload only what they touched. */
+  setRenderer(renderer: THREE.WebGLRenderer): void {
+    this.renderer = renderer;
+  }
+
   /** Repaint whatever changed since the last frame, then upload once. */
   flush(): void {
     if (this.depthDirty) {
@@ -277,18 +293,44 @@ export class TerrainRenderer {
       }
     }
     if (this.dirty.size === 0) return;
-    if (this.dirty.size > FULL_REPAINT_AT) {
+    const n = this.mapSize;
+    let full = this.dirty.size > FULL_REPAINT_AT;
+    let minX = n;
+    let minY = n;
+    let maxX = -1;
+    let maxY = -1;
+    if (full) {
       this.painter.paintAll();
     } else {
-      const n = this.mapSize;
       for (const index of this.dirty) {
         const x = index % n;
         const y = (index - x) / n;
         this.painter.paintRegion(x - 1, y - 1, x + 1, y + 1);
+        minX = Math.min(minX, x - 1);
+        minY = Math.min(minY, y - 1);
+        maxX = Math.max(maxX, x + 1);
+        maxY = Math.max(maxY, y + 1);
       }
     }
     this.dirty.clear();
-    this.mapTexture.needsUpdate = true;
+
+    // A partial upload when the change is a patch and the texture is already
+    // on the GPU; otherwise the whole thing, which is also the first upload.
+    const renderer = this.renderer;
+    const patchTiles = (maxX - minX + 1) * (maxY - minY + 1);
+    if (!full && renderer && renderer.properties.has(this.mapTexture) && patchTiles < (n * n) / 3) {
+      const x0 = Math.max(0, minX) * PX;
+      const y0 = Math.max(0, minY) * PX;
+      const x1 = (Math.min(n - 1, maxX) + 1) * PX;
+      const y1 = (Math.min(n - 1, maxY) + 1) * PX;
+      this.uploadRegion.min.set(x0, y0);
+      this.uploadRegion.max.set(x1, y1);
+      this.uploadAt.set(x0, y0);
+      renderer.copyTextureToTexture(this.uploadSource, this.mapTexture, this.uploadRegion, this.uploadAt);
+    } else {
+      full = true;
+    }
+    if (full) this.mapTexture.needsUpdate = true;
   }
 
   private markAllDirty(): void {
