@@ -73,6 +73,12 @@ export const BIOME_STEPS: Partial<Record<BiomeType, BiomeStep>> = {
   ashland: step(0.9, 0.02, 'Soft underfoot, and it gets everywhere.', 'exhausted'),
   salt_flat: step(0.95, 0.045, 'Flat, bright, and there is nothing to drink.', 'exhausted'),
   volcanic: step(0.8, 0.06, 'The rock is still warm, and in places it is not rock.', undefined, 4),
+  infernal: step(0.8, 0.07, 'The ground is on fire, in a manner of speaking and also literally.', undefined, 5),
+  wasteland: step(0.9, 0.03, 'Nothing grows, and the air tastes of metal.', 'exhausted'),
+  mushroom: step(0.85, 0, 'Springy, damp, and it squeaks.'),
+  // The two kind ones: a god who plants candy wants people to enjoy it.
+  candy: step(1, 0, 'Sticky underfoot, and absolutely nobody minds.'),
+  crystal: step(0.95, 0, 'Clear as glass and cold as it, and it hums.'),
 };
 
 /** Speed multiplier for the ground under a creature. */

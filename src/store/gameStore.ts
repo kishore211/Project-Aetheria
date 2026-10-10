@@ -232,6 +232,7 @@ export type ExtraTool =
   | 'sponge' | 'stamp-island' | 'stamp-lake' | 'stamp-atoll'
   | 'seed-desert' | 'seed-savanna' | 'seed-jungle' | 'seed-swamp' | 'seed-tundra' | 'seed-snow'
   | 'seed-enchanted' | 'seed-bloom' | 'seed-grass' | 'seed-corrupt'
+  | 'seed-candy' | 'seed-crystal' | 'seed-mushroom' | 'seed-infernal' | 'seed-wasteland'
   | 'rain-cloud' | 'snow-cloud' | 'seed-cloud' | 'heat' | 'cold'
   | 'tornado' | 'volcano' | 'geyser' | 'lava' | 'acid'
   | 'grenade' | 'bomb' | 'napalm' | 'atomic' | 'void-bomb'

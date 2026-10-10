@@ -35,6 +35,7 @@ export const PX = 8;
 const enum Mat {
   Grass, Forest, Sand, Desert, Rock, Hills, Snow, Ice, Swamp, Volcanic,
   Corrupt, Enchanted, Savanna, Tundra, Strata, Ash, Salt, Bloom, Water,
+  Candy, Crystal, Mushroom, Infernal, Waste,
 }
 
 const MATERIAL: Record<BiomeType, Mat> = {
@@ -48,6 +49,7 @@ const MATERIAL: Record<BiomeType, Mat> = {
   ashland: Mat.Ash, salt_flat: Mat.Salt, bloom: Mat.Bloom,
   volcanic: Mat.Volcanic, corrupted: Mat.Corrupt, enchanted_forest: Mat.Enchanted,
   sky_island: Mat.Grass,
+  candy: Mat.Candy, crystal: Mat.Crystal, mushroom: Mat.Mushroom, infernal: Mat.Infernal, wasteland: Mat.Waste,
 };
 
 /**
@@ -60,6 +62,7 @@ const RELIEF: Record<Mat, number> = {
   [Mat.Hills]: 2.2, [Mat.Snow]: 1.6, [Mat.Ice]: 0.8, [Mat.Swamp]: 0.4, [Mat.Volcanic]: 2.4,
   [Mat.Corrupt]: 1.2, [Mat.Enchanted]: 1.0, [Mat.Savanna]: 1.0, [Mat.Tundra]: 1.4,
   [Mat.Strata]: 2.4, [Mat.Ash]: 1.2, [Mat.Salt]: 0.4, [Mat.Bloom]: 1.0, [Mat.Water]: 0,
+  [Mat.Candy]: 0.9, [Mat.Crystal]: 1.6, [Mat.Mushroom]: 1.0, [Mat.Infernal]: 2.0, [Mat.Waste]: 1.3,
 };
 
 // -- noise ---------------------------------------------------------------
@@ -180,6 +183,26 @@ const STAMPS = {
     'LMD',
     'LMD',
     '.D.',
+  ],
+  toadstool: [
+    '.RRR.',
+    'RWRRR',
+    'RRRWR',
+    '..T..',
+    '..T..',
+  ],
+  candycane: [
+    'WR.',
+    'R.W',
+    'W..',
+    'R..',
+    'W..',
+  ],
+  spire: [
+    '.D.',
+    'LMD',
+    'LMD',
+    'LMD',
   ],
   rubble: [
     'L.M',
@@ -571,6 +594,30 @@ export class MapPainter {
       case Mat.Ash:
         s = pick < 0.15 ? 0.85 : pick > 0.94 ? 1.2 : 1;
         break;
+      case Mat.Candy: {
+        // Frosting swirls: a pink ground with cream stripes and sprinkles.
+        const swirl = Math.sin((X + Y) * 0.7 + noise(X / 5, Y / 5, 61) * 5);
+        if (swirl > 0.75) { r = 250; g = 236; b = 240; }
+        if (pick > 0.97) [r, g, b] = FLOWERS[Math.floor(hash(X, Y, 62) * FLOWERS.length)];
+        break;
+      }
+      case Mat.Crystal:
+        // Facets: hard light and dark planes rather than a soft clump.
+        s = clump > 0.6 ? 1.18 : clump < 0.3 ? 0.84 : 1;
+        if (pick > 0.96) { r = 240; g = 252; b = 255; }
+        break;
+      case Mat.Mushroom:
+        s = clump > 0.62 ? 0.88 : 1.04;
+        if (pick > 0.975) { r = 214; g = 236; b = 180; }
+        break;
+      case Mat.Infernal:
+        s = clump > 0.6 ? 0.78 : 1;
+        if (noise(X / 1.8, Y / 1.8, 63) > 0.72) { [r, g, b] = LAVA_RGB; light = 0; }
+        break;
+      case Mat.Waste:
+        s = pick < 0.12 ? 0.82 : clump > 0.65 ? 0.92 : 1.03;
+        if (pick > 0.985) { r = 120; g = 150; b = 60; }
+        break;
       default:
         break;
     }
@@ -752,6 +799,12 @@ const paletteFor = (kind: StampKind, ground: [number, number, number]): Palette 
       return fixed(CACTUS_RGB);
     case 'crystal':
       return fixed(CRYSTAL_RGB);
+    case 'toadstool':
+      return { ...fixed([200, 60, 60]), R: [212, 58, 52], W: [248, 244, 236], T: [236, 228, 208] };
+    case 'candycane':
+      return { ...fixed([240, 240, 240]), R: [220, 50, 60], W: [252, 252, 252] };
+    case 'spire':
+      return fixed([96, 40, 30]);
     case 'deadwood':
       return { ...fixed(DEADWOOD_RGB), T: DEADWOOD_RGB };
     case 'pine': {
@@ -835,6 +888,11 @@ export const stampsFor = (tile: Tile): Stamp[] | null => {
     case 'bloom': return v > 0.93 ? [{ kind: 'bush', cx: at(17), cy: at(18) }] : null;
     case 'snow':
     case 'tundra': return v > 0.9 ? [{ kind: 'pine', cx: at(17), cy: at(18) }] : null;
+    case 'candy': return v > 0.7 ? [{ kind: 'candycane', cx: at(17), cy: at(18) }] : null;
+    case 'crystal': return v > 0.55 ? [{ kind: 'crystal', cx: at(17), cy: at(18) }] : null;
+    case 'mushroom': return v > 0.4 ? [{ kind: 'toadstool', cx: at(17), cy: at(18) }] : null;
+    case 'infernal': return v > 0.75 ? [{ kind: 'spire', cx: at(17), cy: at(18) }] : null;
+    case 'wasteland': return v > 0.85 ? [{ kind: 'deadwood', cx: at(17), cy: at(18) }] : null;
     default: return null;
   }
 };

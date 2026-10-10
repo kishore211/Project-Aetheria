@@ -183,6 +183,12 @@ export const BIOME_BASE_COLORS: Record<BiomeType, number> = {
   corrupted: 0x51356b,
   enchanted_forest: 0x3f8a8a,
   sky_island: 0x8ed6e0,
+  // Seeded lands
+  candy: 0xf0a8c8,
+  crystal: 0x8ad8e8,
+  mushroom: 0x7a5a8a,
+  infernal: 0x8a2a1e,
+  wasteland: 0x8a8460,
 };
 
 /** Colour each biome lerps toward in winter. */

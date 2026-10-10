@@ -314,6 +314,31 @@ export const POWERS: PowerEntry[] = [
     quip: 'Something is wrong with the dirt, and it spreads.',
   },
   {
+    kind: 'tool', id: 'seed-candy', tab: 'nature', label: 'Candy', icon: 'Sparkle',
+    hint: 'Seed a land of candy and frosting.',
+    quip: 'A dentist\u2019s nightmare, lovingly made.',
+  },
+  {
+    kind: 'tool', id: 'seed-crystal', tab: 'nature', label: 'Crystal', icon: 'Gem',
+    hint: 'Seed a crystal land that rings underfoot.',
+    quip: 'Pretty, cold, and faintly musical.',
+  },
+  {
+    kind: 'tool', id: 'seed-mushroom', tab: 'nature', label: 'Mushroom', icon: 'Bean',
+    hint: 'Seed a damp land of giant toadstools.',
+    quip: 'Fungus, but with ambition.',
+  },
+  {
+    kind: 'tool', id: 'seed-infernal', tab: 'nature', label: 'Infernal', icon: 'Flame',
+    hint: 'Seed a burning, hellish land. Hurts to stand on.',
+    quip: 'The floor is lava, and it means it.',
+  },
+  {
+    kind: 'tool', id: 'seed-wasteland', tab: 'nature', label: 'Wasteland', icon: 'Wind',
+    hint: 'Seed a dead, grey wasteland.',
+    quip: 'Even the weeds gave up.',
+  },
+  {
     kind: 'tool', id: 'rain-cloud', tab: 'nature', label: 'Rain Cloud', icon: 'CloudRain',
     hint: 'Send a rain cloud here. Cools and waters.',
     quip: 'A small apology, delivered by air.',

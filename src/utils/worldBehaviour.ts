@@ -93,6 +93,11 @@ const NATIVES: Partial<Record<BiomeType, EntityType[]>> = {
   desert: ['snake'],
   enchanted_forest: ['unicorn', 'fairy', 'deer'],
   corrupted: ['ghost'],
+  candy: ['rabbit', 'fairy'],
+  crystal: ['unicorn'],
+  mushroom: ['frog', 'snake'],
+  infernal: ['demon'],
+  wasteland: ['rat', 'hyena'],
 };
 
 /** Roughly one creature per this many land tiles before wildlife stops. */

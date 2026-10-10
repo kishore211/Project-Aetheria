@@ -260,6 +260,11 @@ export const BIOME_LINES: Record<BiomeType, string> = {
   corrupted: 'Something happened here and the ground has not stopped thinking about it.',
   enchanted_forest: 'Lit from somewhere that is not the sky.',
   sky_island: 'Up. Simply, unreasonably, up.',
+  candy: 'Sweet, sticky, and a dentist\u2019s idea of a cautionary tale.',
+  crystal: 'The ground rings faintly when you walk on it, and remembers.',
+  mushroom: 'Damp, spongy, and very slightly watching you.',
+  infernal: 'Hot enough to have opinions about the people standing on it.',
+  wasteland: 'Something used to live here. It has not decided to come back.',
 };
 
 /**

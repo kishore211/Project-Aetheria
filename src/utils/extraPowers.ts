@@ -94,6 +94,11 @@ export const BIOME_SEEDS: Record<string, BiomeSeed> = {
   'seed-bloom': { type: 'bloom', moisture: 0.65, clear: true, color: 0xb8e070 },
   'seed-grass': { type: 'grassland', moisture: 0.55, temperature: 0.5, clear: true, color: 0x88c058 },
   'seed-corrupt': { type: 'corrupted', clear: true, color: 0x8040a0 },
+  'seed-candy': { type: 'candy', clear: true, color: 0xf0a8c8 },
+  'seed-crystal': { type: 'crystal', clear: true, color: 0x8ad8e8 },
+  'seed-mushroom': { type: 'mushroom', moisture: 0.85, clear: true, color: 0x9a6aaa },
+  'seed-infernal': { type: 'infernal', temperature: 0.95, clear: true, color: 0xc83a1e },
+  'seed-wasteland': { type: 'wasteland', moisture: 0.1, clear: true, color: 0x8a8460 },
 };
 
 /** Creatures with a spawner of their own. The four races have theirs already. */

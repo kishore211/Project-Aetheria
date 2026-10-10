@@ -100,7 +100,13 @@ export type BiomeType =
   | 'volcanic' 
   | 'corrupted' 
   | 'enchanted_forest'
-  | 'sky_island';
+  | 'sky_island'
+  // WorldBox's seeded lands: never generated, only planted by a god.
+  | 'candy'
+  | 'crystal'
+  | 'mushroom'
+  | 'infernal'
+  | 'wasteland';
 
 /** True for oceans, lakes and rivers. */
 export const isWaterBiome = (type: BiomeType): boolean =>
