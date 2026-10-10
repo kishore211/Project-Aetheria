@@ -23,7 +23,14 @@ export interface Atlas {
 const PIXEL = 4; // canvas pixels per art pixel
 
 /** Rasterise a set of named sprites into one nearest-filtered atlas texture. */
-const buildAtlas = (entries: Record<string, AtlasEntry>): Atlas => {
+/**
+ * Alpha a glowing pixel is written with. Still well above the cloud's discard
+ * threshold, but distinct from solid, so the shader can tell a lit window from
+ * a wall and keep it bright when night darkens everything else.
+ */
+export const GLOW_ALPHA = 0.85;
+
+const buildAtlas = (entries: Record<string, AtlasEntry>, glowKey?: string): Atlas => {
   const names = Object.keys(entries);
   const cols = Math.ceil(Math.sqrt(names.length));
   const rows = Math.ceil(names.length / cols);
@@ -46,6 +53,7 @@ const buildAtlas = (entries: Record<string, AtlasEntry>): Atlas => {
         const key = grid[y][x];
         if (key === '.') continue;
         ctx.fillStyle = palette[key] ?? '#ff00ff';
+        ctx.globalAlpha = key === glowKey ? GLOW_ALPHA : 1;
         ctx.fillRect(originX + x * PIXEL, originY + y * PIXEL, PIXEL, PIXEL);
       }
     }
@@ -229,7 +237,7 @@ const CLOTH: Palette = { c: '#e6dcc0', d: '#b8a882', e: '#4a3f2c', k: OUTLINE };
 const BUILD: Palette = {
   R: '#d0683e', r: '#923e26', w: '#eee3c8', v: '#bfae8a', y: '#ffd76a', d: '#4a3220', b: '#c8452f', k: OUTLINE,
 };
-const CROP: Palette = { r: '#7a5434', g: '#86b443', y: '#ecd35e', k: '#5a3e24' };
+const CROP: Palette = { r: '#7a5434', g: '#86b443', h: '#ecd35e', k: '#5a3e24' };
 const MASON: Palette = { s: '#c4c7cc', d: '#8a8f97', n: '#1d1f24', b: '#c8452f', k: OUTLINE };
 const HOLY: Palette = { O: '#f6eccc', o: '#cdbd92', w: '#ece6d4', v: '#bdb59c', y: '#f4c430', k: OUTLINE };
 const MONUMENT: Palette = { s: '#d2d5da', d: '#8e9299', k: OUTLINE };
@@ -315,11 +323,11 @@ const BUILDING_ART: Record<string, AtlasEntry> = {
       '............',
       '.kkkkkkkkkk.',
       '.krgrgrgrgk.',
-      '.kgygygygyk.',
+      '.kghghghghk.',
       '.krgrgrgrgk.',
-      '.kgygygygyk.',
+      '.kghghghghk.',
       '.krgrgrgrgk.',
-      '.kgygygygyk.',
+      '.kghghghghk.',
       '.kkkkkkkkkk.',
       '............',
       '............',
@@ -619,7 +627,8 @@ export const getBuildingAtlas = (): Atlas => {
         entries[`${kind}@${race}`] = { grid: art.grid, palette };
       }
     }
-    buildingAtlas = buildAtlas(entries);
+    // Windows are the glowing key: towns light up after dark.
+    buildingAtlas = buildAtlas(entries, 'y');
   }
   return buildingAtlas;
 };

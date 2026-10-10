@@ -82,7 +82,15 @@ const FRAGMENT_SHADER = /* glsl */ `
     vec2 uv = (vec2(col, row) + gl_PointCoord) * cell;
     vec4 texel = texture2D(uAtlas, uv);
     if (texel.a < 0.5) discard;
-    gl_FragColor = vec4(texel.rgb * vTint * uTintK + uTintO, 1.0);
+    vec3 lit = texel.rgb * vTint * uTintK + uTintO;
+    // Windows are written slightly translucent (GLOW_ALPHA). They keep their
+    // own light as the day goes, so a town at night is a scatter of warm
+    // squares rather than a dark smudge.
+    if (texel.a < 0.95) {
+      float night = clamp(1.0 - dot(uTintK, vec3(0.299, 0.587, 0.114)), 0.0, 1.0);
+      lit = mix(lit, texel.rgb * 1.15, smoothstep(0.15, 0.55, night));
+    }
+    gl_FragColor = vec4(lit, 1.0);
   }
 `;
 
