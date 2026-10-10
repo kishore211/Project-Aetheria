@@ -233,6 +233,7 @@ const CROP: Palette = { r: '#7a5434', g: '#86b443', y: '#ecd35e', k: '#5a3e24' }
 const MASON: Palette = { s: '#c4c7cc', d: '#8a8f97', n: '#1d1f24', b: '#c8452f', k: OUTLINE };
 const HOLY: Palette = { O: '#f6eccc', o: '#cdbd92', w: '#ece6d4', v: '#bdb59c', y: '#f4c430', k: OUTLINE };
 const MONUMENT: Palette = { s: '#d2d5da', d: '#8e9299', k: OUTLINE };
+const HULL: Palette = { w: '#f4f0e4', r: '#8a5a32', y: '#ffd76a', k: OUTLINE };
 const SHAFT: Palette = { s: '#a8aeb4', d: '#737980', r: '#7a5432', n: '#121215', k: OUTLINE };
 
 const BUILDING_ART: Record<string, AtlasEntry> = {
@@ -386,6 +387,40 @@ const BUILDING_ART: Record<string, AtlasEntry> = {
       'kkkkkkkkkkkk',
       '............',
       '............',
+      '............',
+    ],
+  },
+  boat: {
+    palette: HULL,
+    grid: [
+      '............',
+      '.....k......',
+      '.....kw.....',
+      '.....kww....',
+      '.....kwww...',
+      '.....kwwww..',
+      '.....k......',
+      '.kkkkkkkkkk.',
+      '.krrrrrrrrk.',
+      '..krrrrrrk..',
+      '...kkkkkk...',
+      '............',
+    ],
+  },
+  transport: {
+    palette: HULL,
+    grid: [
+      '............',
+      '..k....k....',
+      '..kw...kw...',
+      '..kww..kww..',
+      '..kwww.kwww.',
+      '..k....k....',
+      'kkkkkkkkkkkk',
+      'krrrrrrrrrrk',
+      '.krryrryrrk.',
+      '..krrrrrrk..',
+      '...kkkkkk...',
       '............',
     ],
   },

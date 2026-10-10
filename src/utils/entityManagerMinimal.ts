@@ -694,6 +694,8 @@ export class EntityManager implements EntityIndex {
     entity.mesh.position.y = THREE.MathUtils.lerp(entity.mesh.position.y, worldY, 0.3);
 
     updateEntityMesh(entity, delta, this.detailLevel);
+    // A passenger is inside the boat, not standing on the water beside it.
+    entity.mesh.visible = !entity.status.includes('aboard');
   }
 
   getAllEntities(): Entity[] {

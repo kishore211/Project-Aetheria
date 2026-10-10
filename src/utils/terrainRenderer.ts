@@ -384,8 +384,11 @@ export class TerrainRenderer {
     const [kb, ob] = solve(a.b, b.b, a2.b, b2.b);
     (this.uniforms.uTintK.value as THREE.Vector3).set(kr, kg, kb);
     (this.uniforms.uTintO.value as THREE.Vector3).set(or, og, ob);
-    // The sea beyond the edge darkens with everything else.
-    const deep = getBiomeColor('deep_ocean', timeOfDay, this.season);
+    // The sea beyond the edge darkens with everything else — and takes the
+    // same half-strength tint as the water on the map, or at dusk the world
+    // floats in a maroon void.
+    const deep = getBiomeColor('deep_ocean', 'day', this.season);
+    deep.lerp(getBiomeColor('deep_ocean', timeOfDay, this.season), 0.5);
     deep.multiplyScalar(0.82);
     (this.apron.material as THREE.MeshBasicMaterial).color.copy(deep);
   }

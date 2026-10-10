@@ -624,6 +624,13 @@ export class EntityAI {
       return;
     }
 
+    // Carried by a boat: it owns the position until it lands, and nobody
+    // gets hungry, drowns or wanders off on the way.
+    if (this.entity.status.includes('aboard')) {
+      this.entity.activity = 'sailing';
+      return;
+    }
+
     this.updateNeeds(deltaTime);
     // Mood shares the needs pass: it reads the same fields, needs the same
     // delta, and gives the status timers somewhere to tick from.

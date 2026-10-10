@@ -32,7 +32,9 @@ export type StatusId =
   | 'in_love' | 'grieving' | 'furious' | 'poked' | 'blessed' | 'cursed'
   // -- laid on by the player's powers; each one changes behaviour --
   | 'shielded' | 'caffeinated' | 'inspired' | 'confused' | 'enraged'
-  | 'infected' | 'spellbound';
+  | 'infected' | 'spellbound'
+  // -- at sea, carried by a boat --
+  | 'aboard';
 
 export interface StatusDef {
   id: StatusId;
@@ -101,6 +103,7 @@ export const STATUSES: Record<StatusId, StatusDef> = {
   confused: define('confused', 'Confused', '\u{1F635}', 15, -2, false, 'Reality has slipped a little sideways.'),
   enraged: define('enraged', 'Enraged', '\u{1F92C}', 20, -6, false, 'Blaming the gods, and settling for whoever is nearest.'),
   infected: define('infected', 'Infected', '\u{1F9DF}', 0, -6, false, 'Feeling a little peaky. It will pass, in a sense.'),
+  aboard: define('aboard', 'At sea', '⛵', 0, 0, false, 'Somewhere between home and wherever this is going.'),
   spellbound: define('spellbound', 'Spellbound', '\u{1F4AB}', 25, 2, false, 'Asleep where it stood, and dreaming of something nice.'),
 };
 

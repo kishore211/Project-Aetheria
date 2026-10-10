@@ -22,6 +22,7 @@ import type {
 import type { EntityManager } from './entityManagerMinimal';
 import { getBuildingAtlas } from './pixelAtlas';
 import { SpriteCloud } from './spriteCloud';
+import { BoatSystem, landmasses, nearestWater, waterPath, type Boat, type Point } from './boats';
 import type { TerrainRenderer } from './terrainRenderer';
 import { registerOrderHandler, simulation } from './simulation';
 import { emitFloater } from './floatBridge';
@@ -460,6 +461,14 @@ const FOUNDING_CLUSTER = 3;
 const FOUNDING_RADIUS = 5;
 const MIN_VILLAGE_SPACING = 16;
 const BUILDING_CLOUD_CAPACITY = 2048;
+/** Most boats on the water at once, across every kingdom. */
+const BOAT_CAPACITY = 96;
+/** A village needs this many people before it can spare a crew. */
+const FISHING_MIN_POPULATION = 6;
+/** How far across the sea a kingdom will look for a new home. */
+const OVERSEAS_RANGE = 60;
+/** An island smaller than this is a rock, not somewhere to found a town. */
+const MIN_COLONY_ISLAND = 24;
 
 /** The six things the player can do to the diplomatic map. */
 export type DiplomacyAct = 'spite' | 'friendship' | 'whisper' | 'unity' | 'discord' | 'inspiration';
@@ -479,6 +488,13 @@ export class SettlementSystem {
   private entities: EntityManager;
   private events: SettlementEvents;
   private buildingCloud: SpriteCloud;
+  /** Fishing boats and settler transports, and the sprites that draw them. */
+  private boats: BoatSystem;
+  private boatCloud: SpriteCloud;
+  private boatSlots = new Map<string, number>();
+  private freeBoatSlots: number[] = Array.from({ length: BOAT_CAPACITY }, (_, i) => BOAT_CAPACITY - 1 - i);
+  private fleetTimer = 0;
+  private boatPosition = new THREE.Vector3();
   private freeSlots: number[] = [];
   private nextSlot = 0;
 
@@ -525,6 +541,12 @@ export class SettlementSystem {
 
     this.buildingCloud = new SpriteCloud(getBuildingAtlas(), BUILDING_CLOUD_CAPACITY);
     scene.add(this.buildingCloud.points);
+    this.boatCloud = new SpriteCloud(getBuildingAtlas(), BOAT_CAPACITY);
+    scene.add(this.boatCloud.points);
+    this.boats = new BoatSystem(tiles, {
+      onCatch: (boat, food) => this.landCatch(boat, food),
+      onLand: (boat, shore) => this.landSettlers(boat, shore),
+    });
 
     // Own the wiring rather than relying on a caller to remember it
     this.unsubscribeOrders = registerOrderHandler((entity, order) => {
@@ -541,6 +563,7 @@ export class SettlementSystem {
 
   setViewportScale(scale: number, orthographic = false): void {
     this.buildingCloud.setViewportScale(scale, orthographic);
+    this.boatCloud.setViewportScale(scale, orthographic);
   }
 
   /**
@@ -549,6 +572,7 @@ export class SettlementSystem {
    */
   advancePulse(delta: number): void {
     this.buildingCloud.advanceWind(delta);
+    this.boatCloud.advanceWind(delta);
   }
 
   // -- main loop ---------------------------------------------------------
@@ -596,6 +620,16 @@ export class SettlementSystem {
       this.colonyRound(this.colonyTimer);
     }
     this.ageParties(delta);
+
+    this.fleetTimer += delta;
+    if (this.fleetTimer >= 6) {
+      this.fleetTimer = 0;
+      this.fleetRound();
+    }
+    if (this.boats.boats.size > 0 || this.boatSlots.size > 0) {
+      this.boats.update(delta);
+      this.drawBoats();
+    }
 
     this.loyaltyTimer += delta;
     if (this.loyaltyTimer >= 5) {
@@ -2486,10 +2520,16 @@ export class SettlementSystem {
       const source = this.pickSettlerSource(kingdom);
       if (!source) continue;
 
-      const site = this.findSettlementSite(source);
-      if (!site) continue;
-
-      this.sendSettlers(kingdom, source, site);
+      // Which landmass is which, so walkers only aim at ground they can
+      // actually walk to and everything else is a job for a boat.
+      const masses = landmasses(this.tiles);
+      const site = this.findSettlementSite(source, masses.label);
+      if (site) {
+        this.sendSettlers(kingdom, source, site);
+        continue;
+      }
+      const voyage = this.planVoyage(source, masses);
+      if (voyage) this.sendSettlersBySea(kingdom, source, voyage);
     }
   }
 
@@ -2523,9 +2563,11 @@ export class SettlementSystem {
   }
 
   /** Somewhere habitable, unclaimed, and far enough from every other village. */
-  private findSettlementSite(source: Village): { x: number; y: number } | null {
+  private findSettlementSite(source: Village, islands?: Int32Array): { x: number; y: number } | null {
     let best: { x: number; y: number } | null = null;
     let bestScore = -Infinity;
+    const size = this.tiles.length;
+    const home = islands ? islands[source.centerY * size + source.centerX] : -1;
 
     for (let attempt = 0; attempt < 90; attempt++) {
       const angle = Math.random() * Math.PI * 2;
@@ -2540,6 +2582,8 @@ export class SettlementSystem {
       if (tile.ownerId && tile.ownerId !== source.kingdomId) continue;
       if (tile.villageId) continue;
       if (this.tooCloseToVillage(x, y)) continue;
+      // Across the water is not a walk.
+      if (islands && home >= 0 && islands[y * size + x] !== home) continue;
 
       // Prefer fertile, unclaimed ground reasonably near home
       const score = tile.fertility * 3
@@ -2594,6 +2638,176 @@ export class SettlementSystem {
       'kingdom',
       { x: source.centerX, y: source.centerY },
     );
+  }
+
+  /**
+   * Somewhere across the sea worth sailing to, with a route that gets there.
+   *
+   * Only asked once the home island has nowhere left: a kingdom takes to the
+   * water because it has run out of land, which is also what makes the first
+   * boat leaving a moment worth noticing.
+   */
+  private planVoyage(
+    source: Village,
+    masses: { label: Int32Array; sizes: number[] },
+  ): { site: Point; departure: Point; landing: Point } | null {
+    const size = this.tiles.length;
+    const home = masses.label[source.centerY * size + source.centerX];
+    const departure = nearestWater(this.tiles, { x: source.centerX, y: source.centerY }, 10 + source.claimBonus);
+    if (!departure) return null;
+
+    const candidates: Array<{ site: Point; score: number }> = [];
+    for (let attempt = 0; attempt < 120; attempt++) {
+      const angle = Math.random() * Math.PI * 2;
+      const distance = 12 + Math.random() * (OVERSEAS_RANGE - 12);
+      const x = Math.round(source.centerX + Math.cos(angle) * distance);
+      const y = Math.round(source.centerY + Math.sin(angle) * distance);
+      const tile = this.tileAt(x, y);
+      if (!tile || isWaterBiome(tile.type) || tile.height < 0.28) continue;
+      if (tile.type === 'mountains' || tile.type === 'snow' || tile.type === 'volcanic') continue;
+      if (tile.villageId || (tile.ownerId && tile.ownerId !== source.kingdomId)) continue;
+      const island = masses.label[y * size + x];
+      if (island === home || island < 0 || masses.sizes[island] < MIN_COLONY_ISLAND) continue;
+      if (this.tooCloseToVillage(x, y)) continue;
+      candidates.push({ site: { x, y }, score: tile.fertility * 3 - distance / OVERSEAS_RANGE });
+    }
+    candidates.sort((a, b) => b.score - a.score);
+    for (const { site } of candidates.slice(0, 3)) {
+      const landing = nearestWater(this.tiles, site, 6);
+      if (!landing) continue;
+      if (waterPath(this.tiles, departure, landing)) return { site, departure, landing };
+    }
+    return null;
+  }
+
+  /** Put a party in a boat and send it across. */
+  private sendSettlersBySea(
+    kingdom: Kingdom,
+    source: Village,
+    voyage: { site: Point; departure: Point; landing: Point },
+  ): void {
+    const residents = this.residentsOf(source)
+      .filter(entity => entity.age > entity.maxAge * 0.2 && entity.health > entity.maxHealth * 0.5);
+    const spare = Math.max(0, residents.length - SETTLER_SOURCE_POPULATION + 1);
+    const size = Math.min(
+      spare,
+      SETTLER_PARTY_MIN + Math.floor(Math.random() * (SETTLER_PARTY_MAX - SETTLER_PARTY_MIN + 1)),
+    );
+    if (size < SETTLER_PARTY_MIN) return;
+    const crew = residents.slice(0, size);
+    const party: SettlerParty = {
+      id: mintId('party'),
+      kingdomId: kingdom.id,
+      sourceVillageId: source.id,
+      target: voyage.site,
+      memberIds: new Set(crew.map(c => c.id)),
+      // The crossing has to fit inside the patience, or a long voyage would
+      // be abandoned while the boat is still at sea.
+      timeout: SETTLE_TIMEOUT + 240,
+    };
+    const boat = this.boats.launchTransport(kingdom.id, voyage.departure, voyage.landing, [...party.memberIds], party.id);
+    if (!boat) return;
+    for (const settler of crew) {
+      settler.villageId = null;
+      settler.job = null;
+      this.clearOffices(settler);
+      applyStatus(settler, 'aboard');
+      settler.position = { x: boat.x, y: boat.y };
+    }
+    this.parties.set(party.id, party);
+    this.events.onEvent(
+      `Settlers set sail from ${source.name}, looking for land across the water`,
+      'kingdom',
+      { x: source.centerX, y: source.centerY },
+    );
+  }
+
+  /** A transport reached the far shore: everyone off, and on to the site. */
+  private landSettlers(boat: Boat, shore: Point): void {
+    const party = boat.payload ? this.parties.get(boat.payload) : undefined;
+    for (const id of boat.passengers) {
+      const settler = this.entities.getEntityById(id);
+      if (!settler) continue;
+      clearStatus(settler, 'aboard');
+      settler.position = { x: shore.x + 0.5, y: shore.y + 0.5 };
+      if (party) {
+        this.entities.giveOrder(settler, { kind: 'goto', x: party.target.x, y: party.target.y, purpose: 'settle' });
+      }
+    }
+    if (party) party.timeout = SETTLE_TIMEOUT;
+    const kingdom = this.kingdoms.get(boat.kingdomId);
+    this.events.onEvent(
+      `Settlers of ${kingdom?.name ?? 'a lost kingdom'} come ashore on new land`,
+      'kingdom',
+      shore,
+    );
+  }
+
+  /** A fishing boat came home: the catch goes in the village store. */
+  private landCatch(boat: Boat, food: number): void {
+    const village = boat.villageId ? this.villages.get(boat.villageId) : undefined;
+    if (!village) return;
+    village.store.food += food;
+    emitFloater({ kind: 'gain', text: `+${food} fish`, x: boat.x, y: boat.y });
+  }
+
+  /**
+   * Keep coastal villages' boats on the water.
+   *
+   * One boat for a village that can spare a crew, two once it is a town.
+   * Also the safety net for anybody still marked as aboard with no boat
+   * under them — a save loaded mid-voyage — who simply steps ashore.
+   */
+  private fleetRound(): void {
+    const atSea = this.boats.passengersAtSea();
+    for (const entity of this.entities.getAllEntities()) {
+      if (entity.status.includes('aboard') && !atSea.has(entity.id)) clearStatus(entity, 'aboard');
+    }
+    for (const village of this.villages.values()) {
+      if (!village.kingdomId) continue;
+      const residents = this.residentsOf(village).length;
+      if (residents < FISHING_MIN_POPULATION) continue;
+      const wanted = residents >= 14 ? 2 : 1;
+      if (this.boats.fishingBoatsOf(village.id) >= wanted) continue;
+      const dock = nearestWater(this.tiles, { x: village.centerX, y: village.centerY }, 6 + village.claimBonus);
+      if (dock) this.boats.launchFishing(village.id, village.kingdomId, dock);
+    }
+  }
+
+  /** Move every boat's sprite, and its passengers with it. */
+  private drawBoats(): void {
+    const size = this.tiles.length;
+    const live = new Set<string>();
+    for (const boat of this.boats.boats.values()) {
+      live.add(boat.id);
+      let slot = this.boatSlots.get(boat.id);
+      if (slot === undefined) {
+        slot = this.freeBoatSlots.pop();
+        if (slot === undefined) continue;
+        this.boatSlots.set(boat.id, slot);
+      }
+      const kingdom = this.kingdoms.get(boat.kingdomId);
+      this.boatPosition.set((boat.x - size / 2) * TILE_SIZE, 0.2, (boat.y - size / 2) * TILE_SIZE);
+      const transport = boat.kind === 'transport';
+      this.boatCloud.set(slot, {
+        position: this.boatPosition,
+        sprite: transport ? 'transport' : 'boat',
+        size: (transport ? 0.66 : 0.48) * BUILDING_DRAW_SCALE * 1.15,
+        // The sail carries the flag.
+        tint: kingdom ? new THREE.Color(0xffffff).lerp(kingdom.color, 0.45) : undefined,
+        sway: 0.4,
+      });
+      for (const id of boat.passengers) {
+        const passenger = this.entities.getEntityById(id);
+        if (passenger) passenger.position = { x: boat.x, y: boat.y };
+      }
+    }
+    for (const [id, slot] of this.boatSlots) {
+      if (live.has(id)) continue;
+      this.boatCloud.clear(slot);
+      this.boatSlots.delete(id);
+      this.freeBoatSlots.push(slot);
+    }
   }
 
   /** Abandon parties that never made it, and send their people home. */
@@ -2878,6 +3092,7 @@ export class SettlementSystem {
    * struck from its kingdom. Used by conquest and by abandonment alike.
    */
   private releaseVillage(village: Village): void {
+    this.boats.removeVillage(village.id);
     // A village that no longer exists is not an institution any more, and
     // leaving its identity in the registry means the loyalty formula keeps
     // comparing live provinces against a ghost.
@@ -2928,6 +3143,14 @@ export class SettlementSystem {
 
   /** Rebuild settlements and kingdoms from a save (see saveSystem.ts). */
   restore(savedKingdoms: SavedKingdom[], savedVillages: SavedVillage[]): void {
+    // Boats are not saved: a loaded world starts with an empty sea, and the
+    // fleet round puts the fishing boats back within a few seconds.
+    this.boats.clear();
+    for (const slot of this.boatSlots.values()) {
+      this.boatCloud.clear(slot);
+      this.freeBoatSlots.push(slot);
+    }
+    this.boatSlots.clear();
     // Keep the shared counter ahead of every id the save mentions, so newly
     // founded villages can never collide with restored ones.
     const trackId = (id: string) => {
@@ -3367,6 +3590,9 @@ export class SettlementSystem {
     if (simulation.gatheringPointFor) simulation.gatheringPointFor = undefined;
     this.buildingCloud.points.removeFromParent();
     this.buildingCloud.dispose();
+    this.boatCloud.points.removeFromParent();
+    this.boatCloud.dispose();
+    this.boats.clear();
     this.villages.clear();
     this.kingdoms.clear();
   }
