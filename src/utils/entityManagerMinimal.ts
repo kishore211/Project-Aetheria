@@ -70,7 +70,14 @@ export class EntityManager implements EntityIndex {
 
   // Lifecycle settings
   private reproductionProbability = 0.001;
-  private deathProbability = 0.0005;
+  /**
+   * Chance per second of an unexplained death. It was 0.0005 — a mean life of
+   * about half an hour whatever a creature's age, a quarter of a human's
+   * natural span — so sudden deaths outnumbered births and a civilisation of
+   * forty took half an hour to reach sixty. Old age, hunger and war are what
+   * should end most lives; this is the background, not the main cause.
+   */
+  private deathProbability = 0.00012;
   private agingRate = 0.01;
   private entityPopulationDensity: 'low' | 'medium' | 'high' = 'medium';
 
@@ -390,7 +397,10 @@ export class EntityManager implements EntityIndex {
       && entity.age >= entity.maxAge * 0.2
       && entity.age <= entity.maxAge * 0.8
       && entity.needs.hunger > 0.4;
-    const fertility = traits.includes('fertile') ? 3 : 1;
+    // Couples breed faster than herds: both partners have to be together and
+    // fed for any of it to happen, which already throttles it far below the
+    // raw rate, and a town that never grows is a town nobody watches.
+    const fertility = (traits.includes('fertile') ? 3 : 1) * (PAIRING_TYPES.has(entity.type) ? 2.5 : 1);
     const populationMultiplier = this.getPopulationDensityMultiplier();
 
     if (canReproduce && Math.random() < this.reproductionProbability * delta * populationMultiplier * fertility) {
@@ -659,15 +669,15 @@ export class EntityManager implements EntityIndex {
     switch (density) {
       case 'low':
         this.reproductionProbability = 0.0005;
-        this.deathProbability = 0.001;
+        this.deathProbability = 0.00025;
         break;
       case 'medium':
         this.reproductionProbability = 0.001;
-        this.deathProbability = 0.0005;
+        this.deathProbability = 0.00012;
         break;
       case 'high':
         this.reproductionProbability = 0.002;
-        this.deathProbability = 0.0002;
+        this.deathProbability = 0.00006;
         break;
     }
   }
@@ -690,7 +700,10 @@ export class EntityManager implements EntityIndex {
 
   private getMaxEntityCount(type: EntityType): number {
     const baseMaxCounts: Record<EntityType, number> = {
-      human: 140, elf: 110, dwarf: 90, orc: 110,
+      // The peoples are the point of the world. WorldBox runs thousands of
+      // them; drawing a creature is now nearly free, so these are set by what
+      // the simulation can carry rather than what the renderer could.
+      human: 600, elf: 450, dwarf: 400, orc: 450,
       wolf: 30, bear: 15, deer: 40, rabbit: 60, bird: 60, fish: 90,
       sheep: 50, chicken: 60, fox: 25, snake: 25,
       dragon: 3, demon: 5, zombie: 60, skeleton: 70, elemental: 10, bandit: 25,

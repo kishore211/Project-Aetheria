@@ -2952,16 +2952,27 @@ export class SettlementSystem {
    * three from being a dead end, and nobody ever asks where they came from.
    */
   private migrantRound(): void {
+    // One town a round — the one that needs it most. Every small town rolling
+    // separately turned a quiet law into a stream of arrivals that was most
+    // of the chronicle.
+    const members = this.entities.getEntitiesByVillage();
+    let neediest: Village | null = null;
+    let fewest = 12;
     for (const village of this.villages.values()) {
-      const residents = this.residentsOf(village).length;
-      if (residents === 0 || residents >= 12 || village.age < 30) continue;
-      if (Math.random() >= 0.35) continue;
+      const residents = members.get(village.id)?.length ?? 0;
+      if (residents === 0 || residents >= fewest || village.age < 30) continue;
+      fewest = residents;
+      neediest = village;
+    }
+    if (!neediest || Math.random() >= 0.35) return;
+    {
+      const village = neediest;
       const count = 1 + (Math.random() < 0.4 ? 1 : 0);
       let arrived = 0;
       for (let i = 0; i < count; i++) {
         if (this.entities.spawnEntity(village.race, village.centerX, village.centerY)) arrived++;
       }
-      if (arrived === 0) continue;
+      if (arrived === 0) return;
       this.events.onEvent(
         `${arrived === 1 ? 'A handsome stranger arrives' : 'Two handsome strangers arrive'} at ${village.name}. Nobody asks where from`,
         'kingdom',

@@ -1552,7 +1552,9 @@ export const useGameEngine = () => {
       syncTile,
       ignite: (tile) => { fireRef.current?.ignite(tile); },
       spawn: (type, x, y) => Boolean(entityManagerRef.current?.spawnEntity(type, x, y)),
-      population: () => entityManagerRef.current?.getAllEntities().length ?? 0,
+      // Wildlife only: counting the peoples too meant a growing civilisation
+      // stopped the animals coming back, and the wild emptied as towns filled.
+      population: () => entityManagerRef.current?.getAllEntities().filter(e => !BORN_SAPIENT.has(e.type)).length ?? 0,
       announce: (message, at) => store.addEvent(message, 'info', at),
       random: Math.random,
       // The disaster surface. A disaster needs a building to eat, so this is

@@ -50,7 +50,7 @@ export interface WorldContext extends DisasterWorld {
   ignite(tile: Tile): void;
   /** Put a creature into the world. Returns false if it could not be placed. */
   spawn(type: EntityType, x: number, y: number): boolean;
-  /** How many creatures are already alive, so wildlife does not run away. */
+  /** How many wild creatures are alive (not the peoples), so wildlife does not run away. */
   population(): number;
   announce(message: string, at?: { x: number; y: number }): void;
   random(): number;
