@@ -45,7 +45,7 @@ const TopBar = () => {
   };
 
   return (
-    <div className="ui-topbar fixed top-2 left-1/2 -translate-x-1/2 flex items-center gap-x-3 gap-y-1 flex-wrap justify-center max-w-[min(46rem,calc(100vw-2rem))] bg-secondary/90 backdrop-blur px-4 py-1.5 rounded-2xl shadow-lg text-xs sm:text-sm text-foreground border border-muted/40">
+    <div className="ui-topbar fixed top-2 left-1/2 -translate-x-1/2 flex items-center gap-x-3 gap-y-1 flex-wrap justify-center max-w-[min(46rem,calc(100vw-2rem))] bg-secondary/90 backdrop-blur-sm px-4 py-1.5 rounded-2xl shadow-lg text-xs sm:text-sm text-foreground border border-muted/40">
       <span className="flex items-center gap-1.5" title="World population">
         <Users size={16} className="text-emerald-300" />
         {shownPopulation}

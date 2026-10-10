@@ -56,7 +56,7 @@ const EventLog = () => {
   );
 
   return (
-    <div className="ui-panel-right mt-auto w-full bg-secondary/90 backdrop-blur rounded-md shadow-lg border border-muted/40 text-sm">
+    <div className="ui-panel-right mt-auto w-full bg-secondary/90 backdrop-blur-sm rounded-md shadow-lg border border-muted/40 text-sm">
       <button
         type="button"
         className="w-full flex items-center justify-between px-3 py-2 text-foreground font-medium"

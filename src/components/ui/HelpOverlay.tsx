@@ -80,7 +80,7 @@ const HelpOverlay = () => {
   if (!showHelp) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4">
       <div className="ui-modal max-w-lg w-full max-h-[88vh] overflow-y-auto bg-secondary rounded-xl shadow-2xl border border-muted/50 p-6 text-foreground">
         <h1 className="text-2xl font-bold flex items-center gap-2 mb-1">
           <Sparkles className="text-amber-300" />

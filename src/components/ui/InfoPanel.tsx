@@ -71,7 +71,7 @@ const InfoPanel = () => {
     : null;
 
   return (
-    <div className="ui-panel-right relative w-full max-h-[46vh] overflow-y-auto bg-secondary/95 backdrop-blur border border-muted/40 p-4 rounded-md shadow-lg">
+    <div className="ui-panel-right relative w-full max-h-[46vh] overflow-y-auto bg-secondary/95 backdrop-blur-sm border border-muted/40 p-4 rounded-md shadow-lg">
       <button
         type="button"
         onClick={close}

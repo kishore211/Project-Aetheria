@@ -68,7 +68,7 @@ const ListWindow = ({ open, onClose }: { open: boolean; onClose: () => void }) =
   };
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
       <div className="ui-modal w-full max-w-lg max-h-[80vh] flex flex-col bg-secondary rounded-xl shadow-2xl border border-muted/50 text-foreground">
         <div className="flex items-center justify-between px-5 pt-4">
           <h2 className="text-lg font-bold">The World's Register</h2>

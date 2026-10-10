@@ -83,7 +83,7 @@ const AchievementWatcher = () => {
   if (!achievement) return null;
 
   return (
-    <div className="ui-modal fixed bottom-24 left-1/2 -translate-x-1/2 z-30 flex items-start gap-3 bg-secondary/95 backdrop-blur border border-amber-300/50 rounded-lg shadow-xl px-4 py-3 max-w-xs">
+    <div className="ui-modal fixed bottom-24 left-1/2 -translate-x-1/2 z-30 flex items-start gap-3 bg-secondary/95 backdrop-blur-sm border border-amber-300/50 rounded-lg shadow-xl px-4 py-3 max-w-xs">
       <Trophy size={20} className="text-amber-300 shrink-0 mt-0.5" />
       <div className="min-w-0">
         <p className="text-xs uppercase tracking-wide text-amber-300/80">Milestone</p>

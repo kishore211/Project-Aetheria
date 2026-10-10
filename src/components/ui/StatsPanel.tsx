@@ -72,7 +72,7 @@ const StatsPanel = ({ open, onClose }: { open: boolean; onClose: () => void }) =
   const totalTiles = kingdoms.reduce((sum, kingdom) => sum + kingdom.territory, 0);
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
       <div className="ui-modal w-full max-w-lg max-h-[88vh] overflow-y-auto bg-secondary rounded-xl shadow-2xl border border-muted/50 p-5 text-foreground">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-bold flex items-center gap-2">

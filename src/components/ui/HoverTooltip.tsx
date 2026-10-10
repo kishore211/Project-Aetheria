@@ -62,7 +62,7 @@ const HoverTooltip = () => {
     <div
       ref={boxRef}
       style={{ visibility: positioned.current ? 'visible' : 'hidden' }}
-      className="fixed left-0 top-0 z-40 pointer-events-none max-w-[15rem] rounded-md border border-muted/50 bg-secondary/95 px-2.5 py-2 text-xs shadow-xl backdrop-blur"
+      className="fixed left-0 top-0 z-40 pointer-events-none max-w-60 rounded-md border border-muted/50 bg-secondary/95 px-2.5 py-2 text-xs shadow-xl backdrop-blur-sm"
     >
       {target.kind === 'unit' ? (
         <>

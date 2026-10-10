@@ -11,7 +11,7 @@ import EventLog from './EventLog';
  * power bar, which owns that strip.
  */
 const RightRail = () => (
-  <div className="fixed right-2 sm:right-3 top-[3.4rem] sm:top-14 bottom-[7rem] sm:bottom-[6.5rem] w-56 sm:w-72 max-w-[calc(100vw-1rem)] flex flex-col gap-2 pointer-events-none overflow-y-auto no-scrollbar">
+  <div className="fixed right-2 sm:right-3 top-[3.4rem] sm:top-14 bottom-28 sm:bottom-26 w-56 sm:w-72 max-w-[calc(100vw-1rem)] flex flex-col gap-2 pointer-events-none overflow-y-auto no-scrollbar">
     <Minimap />
     <InfoPanel />
     <KingdomsPanel />

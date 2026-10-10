@@ -176,7 +176,7 @@ const Minimap = () => {
       <button
         type="button"
         title="Show minimap"
-        className="tool-btn self-end bg-secondary/90 backdrop-blur border border-muted/40 rounded-md p-2 text-muted-foreground hover:text-foreground"
+        className="tool-btn self-end bg-secondary/90 backdrop-blur-sm border border-muted/40 rounded-md p-2 text-muted-foreground hover:text-foreground"
         onClick={toggleMinimap}
       >
         <MapIcon size={16} />
@@ -185,7 +185,7 @@ const Minimap = () => {
   }
 
   return (
-    <div className="ui-panel-right self-end bg-secondary/90 backdrop-blur border border-muted/40 rounded-md p-2 shadow-lg">
+    <div className="ui-panel-right self-end bg-secondary/90 backdrop-blur-sm border border-muted/40 rounded-md p-2 shadow-lg">
       <div className="flex items-center justify-between mb-1 text-xs text-muted-foreground">
         <span className="flex items-center gap-1">
           <MapIcon size={12} /> World
