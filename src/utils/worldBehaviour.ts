@@ -246,6 +246,8 @@ export const WORLD_PROCESSES: WorldProcess[] = [
       // The elapsed time this row stands in for. Using a fixed figure rather
       // than the real gap keeps a slow frame from flash-freezing a coastline.
       const step = 1.7;
+      // One line per kind of change per pass, however many tiles it took.
+      const told = new Set<string>();
       for (let i = 0; i < samples; i += 1) {
         const { tile, x, y } = sampleTile(ctx);
 
@@ -271,7 +273,10 @@ export const WORLD_PROCESSES: WorldProcess[] = [
         // Only the two ends of the ladder are worth a chronicle line. The
         // rungs in between fire hundreds of times during one eruption, and a
         // chronicle nobody can read is a chronicle nobody reads.
-        if (change.note) ctx.announce(change.note, { x, y });
+        if (change.note && !told.has(change.note)) {
+          told.add(change.note);
+          ctx.announce(change.note, { x, y });
+        }
       }
     },
   },

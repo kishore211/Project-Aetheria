@@ -163,7 +163,9 @@ export const cascade = (tile: Tile): Cascade | null => {
   if (heat >= THAW && FROZEN.includes(tile.type)) {
     return { step: 'thaw', became: 'tundra', note: null };
   }
-  if (heat <= DEEP_FREEZE && !isWaterBiome(tile.type)) {
+  // Already glacier is the bottom of the ladder: without this guard a frozen
+  // tile "froze" again on every pass and wrote the same line each time.
+  if (heat <= DEEP_FREEZE && !isWaterBiome(tile.type) && tile.type !== 'glacier') {
     return { step: 'deep_freeze', became: 'glacier', note: 'Ice closes over the land' };
   }
   if (heat <= FREEZE && tile.type !== 'snow' && !FROZEN.includes(tile.type)) {

@@ -182,3 +182,11 @@ describe('heat moving around', () => {
     expect(heatOf(wood)).toBeLessThan(SCORCH);
   });
 });
+
+describe('the bottom of the ladder', () => {
+  it('does not freeze a glacier into a glacier again', async () => {
+    const { cascade, DEEP_FREEZE } = await import('./thermal');
+    const tile = { type: 'glacier', heat: DEEP_FREEZE - 1, temperature: 0, isOnFire: false } as unknown as Parameters<typeof cascade>[0];
+    expect(cascade(tile)?.step).not.toBe('deep_freeze');
+  });
+});
