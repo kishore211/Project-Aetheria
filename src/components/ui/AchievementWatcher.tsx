@@ -13,6 +13,7 @@ const AchievementWatcher = () => {
   const kingdoms = useGameStore((state) => state.kingdoms);
   const events = useGameStore((state) => state.events);
   const unlock = useGameStore((state) => state.unlockAchievement);
+  const possessedId = useGameStore((state) => state.possessedId);
   const latest = useGameStore((state) => state.latestAchievement);
   const dismiss = useGameStore((state) => state.dismissAchievementToast);
 
@@ -38,6 +39,10 @@ const AchievementWatcher = () => {
   }, [kingdoms, unlock]);
 
   useEffect(() => {
+    if (possessedId) unlock('puppeteer');
+  }, [possessedId, unlock]);
+
+  useEffect(() => {
     // Only inspect entries added since the last render
     const fresh = events.filter((event) => event.id > lastSeenEventId.current);
     if (fresh.length === 0) return;
@@ -50,6 +55,20 @@ const AchievementWatcher = () => {
       if (message.includes('blessing')) unlock('benevolent');
       if (message.includes('razed')) unlock('conqueror');
       if (message.includes('old age')) unlock('elder');
+      if (message.includes('set sail')) unlock('seafarers');
+      if (message.includes('come ashore')) unlock('landfall');
+      if (message.includes('land rises out of the water')) unlock('archipelago');
+      if (message.includes('second sun')) unlock('second-sun');
+      if (message.includes('no longer there')) unlock('absence');
+      if (message.includes('tornado drops')) unlock('twister');
+      if (message.includes('climbs out of it, burning')) unlock('hot-spot');
+      if (message.includes('rises again')) unlock('patient-zero');
+      if (message.includes('could rule itself')) unlock('kingmaker');
+      if (message.includes('voice in the ruler')) unlock('whisperer');
+      if (message.includes('nobody can remember what the quarrel was')) unlock('peacemaker');
+      if (message.includes('a second of itself')) unlock('double');
+      if (message.includes('cannot quite remember who they were')) unlock('lethe');
+      if (message.includes('handsome stranger')) unlock('strangers');
     }
   }, [events, unlock]);
 

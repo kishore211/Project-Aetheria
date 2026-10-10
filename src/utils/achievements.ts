@@ -22,6 +22,21 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'extinction', title: 'Silence', description: 'Watch a thriving world fall empty.' },
   { id: 'archivist', title: 'Archivist', description: 'Save a world for another day.' },
   { id: 'elder', title: 'Full Circle', description: 'Let a creature die peacefully of old age.' },
+  { id: 'seafarers', title: 'Seafarers', description: 'Watch settlers set sail for another island.' },
+  { id: 'landfall', title: 'Landfall', description: 'See a boatload of settlers come ashore on new land.' },
+  { id: 'archipelago', title: 'Archipelago', description: 'Raise an island out of the sea.' },
+  { id: 'second-sun', title: 'Second Sun', description: 'Drop the atomic bomb. You know what you did.' },
+  { id: 'absence', title: 'Absence', description: 'Erase a piece of the world with the void.' },
+  { id: 'twister', title: 'Twister', description: 'Set a tornado walking.' },
+  { id: 'hot-spot', title: 'Hot Spot', description: 'Raise a volcano.' },
+  { id: 'patient-zero', title: 'Patient Zero', description: 'Watch the plague raise its first dead.' },
+  { id: 'kingmaker', title: 'Kingmaker', description: 'Give a province the idea that it could rule itself.' },
+  { id: 'whisperer', title: 'Whisperer', description: 'Start a war with a word in a king\u2019s ear.' },
+  { id: 'peacemaker', title: 'Peacemaker', description: 'End a quarrel with a touch of friendship.' },
+  { id: 'double', title: 'Double Trouble', description: 'Clone a creature.' },
+  { id: 'lethe', title: 'Lethe', description: 'Make people forget who they were.' },
+  { id: 'strangers', title: 'Handsome Strangers', description: 'Welcome migrants to a struggling town.' },
+  { id: 'puppeteer', title: 'Puppeteer', description: 'Possess a creature and walk around in it.' },
 ];
 
 export const ACHIEVEMENTS_BY_ID = new Map(ACHIEVEMENTS.map((entry) => [entry.id, entry]));
