@@ -67,6 +67,9 @@ import {
   type OpinionResult,
 } from './politics';
 import { speak } from './dialogue';
+import { emitShot } from './shotBridge';
+import { emitDamage } from './floatBridge';
+import { MONSTERS } from './entitySystemMinimal';
 import { buildingSprite } from './pixelAtlas';
 import { conquestOutcome, formationSlots } from './army';
 import { emitItemEvent, equip, forgeItem, forgePriority, MATERIAL_COST } from './equipment';
@@ -409,6 +412,10 @@ const BUILDING_YIELD: Record<string, number> = {
   library: 2,
 };
 
+/** How far a watchtower's archers reach, and how hard an arrow hits. */
+const TOWER_RANGE = 5;
+const TOWER_DAMAGE = 9;
+
 /** What it costs to rebuild a house at the next level. */
 const HOUSE_UPGRADE: Record<number, { wood: number; stone: number; gold: number }> = {
   2: { wood: 6, stone: 6, gold: 0 },
@@ -537,6 +544,7 @@ export class SettlementSystem {
   private fleetTimer = 0;
   private migrantTimer = 0;
   private forgeTimer = 0;
+  private towerTimer = 0;
   private paintedSeason: string = simulation.season;
   private boatPosition = new THREE.Vector3();
   private freeSlots: number[] = [];
@@ -678,6 +686,12 @@ export class SettlementSystem {
     if (this.migrantTimer >= 60) {
       this.migrantTimer = 0;
       if (this.laws.migrants) this.migrantRound();
+    }
+
+    this.towerTimer += delta;
+    if (this.towerTimer >= 1.4) {
+      this.towerTimer = 0;
+      this.towerVolley();
     }
 
     this.forgeTimer += delta;
@@ -1204,6 +1218,37 @@ export class SettlementSystem {
       if (slots) this.entities.setHerdAnchor(warrior, captain!, 0.6, slots[i]);
       else this.entities.setHerdAnchor(warrior, captain!, 2.5);
     });
+  }
+
+  /**
+   * Watchtowers defend. Each tower looses an arrow at the nearest enemy
+   * soldier or monster within range — WorldBox's towers shoot, and a town
+   * with towers is visibly harder to walk into than one without.
+   */
+  private towerVolley(): void {
+    for (const village of this.villages.values()) {
+      const kingdom = this.kingdoms.get(village.kingdomId);
+      if (!kingdom) continue;
+      for (const tower of village.buildings) {
+        if (tower.kind !== 'tower') continue;
+        let target: Entity | null = null;
+        let best = TOWER_RANGE * TOWER_RANGE;
+        for (const other of this.entities.query(tower.x + 0.5, tower.y + 0.5, TOWER_RANGE)) {
+          if (other.health <= 0) continue;
+          const hostile = MONSTERS.has(other.type)
+            || (other.kingdomId != null && other.kingdomId !== kingdom.id && kingdom.atWar.has(other.kingdomId));
+          if (!hostile) continue;
+          const d = (other.position.x - tower.x - 0.5) ** 2 + (other.position.y - tower.y - 0.5) ** 2;
+          if (d < best) { best = d; target = other; }
+        }
+        if (!target) continue;
+        emitShot({ position: { x: tower.x + 0.5, y: tower.y + 0.2 } }, target);
+        target.health -= TOWER_DAMAGE;
+        emitDamage(target.position.x, target.position.y, TOWER_DAMAGE, target.id);
+        if (!target.status.includes('wounded')) target.status.push('wounded');
+        if (target.health <= 0 && !target.status.includes('slain')) target.status.push('slain');
+      }
+    }
   }
 
   /** The nearest enemy town to a unit, if its kingdom is at war. */

@@ -646,3 +646,23 @@ describe('a town growing up', () => {
     expect(town.store.stone).toBe(500 - 2 * 6 - 2 * 12);
   });
 });
+
+describe('watchtowers', () => {
+  it('shoot the monster at the gate and leave the townsfolk alone', () => {
+    const harness = makeHarness();
+    seatTwoRivals(harness);
+    const town = harness.settlements.villages.get('village-a')!;
+    (harness.settlements as unknown as { placeBuilding(v: unknown, k: string, x: number, y: number): void })
+      .placeBuilding(town, 'tower', 16, 23);
+    const zombie = harness.entities.spawnEntity('zombie', 17, 24)!;
+    const local = harness.entities.getAllEntities().find(e => e.villageId === 'village-a')!;
+    const zombieStart = zombie.health;
+    const localStart = local.health;
+    for (let i = 0; i < 6; i++) {
+      zombie.position = { x: 17.5, y: 24.5 };
+      harness.settlements.update(0.5);
+    }
+    expect(zombie.health).toBeLessThan(zombieStart);
+    expect(local.health).toBe(localStart);
+  });
+});
