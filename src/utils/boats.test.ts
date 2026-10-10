@@ -135,3 +135,26 @@ describe('the fleet', () => {
     expect(landed).toBe(true);
   });
 });
+
+describe('merchants', () => {
+  it('shuttle between two ports, paying out at each end', () => {
+    const tiles = grid(TWO_ISLANDS);
+    const visits: string[] = [];
+    const fleet = new BoatSystem(tiles, { onTrade: (boat) => { visits.push(boat.payload ?? '?'); } });
+    const boat = fleet.launchTrade('k', 'west', { x: 4, y: 2 }, 'east', { x: 7, y: 8 });
+    expect(boat).toBeTruthy();
+    expect(fleet.tradersOf('west')).toBe(1);
+    expect(fleet.tradersOf('east')).toBe(1);
+    for (let i = 0; i < 400 && visits.length < 2; i++) fleet.update(0.1);
+    // Arrived east, turned round, arrived back west.
+    expect(visits).toEqual(['east', 'west']);
+  });
+
+  it('stop when either port is gone', () => {
+    const tiles = grid(TWO_ISLANDS);
+    const fleet = new BoatSystem(tiles);
+    fleet.launchTrade('k', 'west', { x: 4, y: 2 }, 'east', { x: 7, y: 8 });
+    fleet.removeVillage('east');
+    expect(fleet.boats.size).toBe(0);
+  });
+});

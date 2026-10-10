@@ -469,6 +469,10 @@ const FISHING_MIN_POPULATION = 6;
 const OVERSEAS_RANGE = 60;
 /** An island smaller than this is a rock, not somewhere to found a town. */
 const MIN_COLONY_ISLAND = 24;
+/** Gold a merchant brings into port per run. */
+const TRADE_PROFIT = 3;
+/** A town needs this many people before it runs a trade route. */
+const TRADE_MIN_POPULATION = 10;
 
 /** The six things the player can do to the diplomatic map. */
 export type DiplomacyAct = 'spite' | 'friendship' | 'whisper' | 'unity' | 'discord' | 'inspiration';
@@ -546,6 +550,7 @@ export class SettlementSystem {
     this.boats = new BoatSystem(tiles, {
       onCatch: (boat, food) => this.landCatch(boat, food),
       onLand: (boat, shore) => this.landSettlers(boat, shore),
+      onTrade: (boat) => this.landTrade(boat),
     });
 
     // Own the wiring rather than relying on a caller to remember it
@@ -2743,6 +2748,19 @@ export class SettlementSystem {
     );
   }
 
+  /**
+   * A merchant made port. Both ends profit — that is the whole case for
+   * trade — and the arriving town gets a coin floater so you can see why the
+   * boat was worth building.
+   */
+  private landTrade(boat: Boat): void {
+    const port = boat.payload ? this.villages.get(boat.payload) : undefined;
+    const origin = boat.villageId ? this.villages.get(boat.villageId) : undefined;
+    if (port) port.store.gold += TRADE_PROFIT;
+    if (origin) origin.store.gold += Math.ceil(TRADE_PROFIT / 2);
+    emitFloater({ kind: 'gain', text: `+${TRADE_PROFIT} gold`, x: boat.x, y: boat.y });
+  }
+
   /** A fishing boat came home: the catch goes in the village store. */
   private landCatch(boat: Boat, food: number): void {
     const village = boat.villageId ? this.villages.get(boat.villageId) : undefined;
@@ -2772,6 +2790,35 @@ export class SettlementSystem {
       const dock = nearestWater(this.tiles, { x: village.centerX, y: village.centerY }, 6 + village.claimBonus);
       if (dock) this.boats.launchFishing(village.id, village.kingdomId, dock);
     }
+    this.tradeRound();
+  }
+
+  /**
+   * Open a trade route between two coastal towns of one realm, or of two
+   * realms that are allied. One route per town: a harbour full of merchants
+   * is a traffic jam, not an economy.
+   */
+  private tradeRound(): void {
+    const ports: Array<{ village: Village; dock: Point }> = [];
+    for (const village of this.villages.values()) {
+      if (!village.kingdomId) continue;
+      if (this.residentsOf(village).length < TRADE_MIN_POPULATION) continue;
+      if (this.boats.tradersOf(village.id) > 0) continue;
+      const dock = nearestWater(this.tiles, { x: village.centerX, y: village.centerY }, 6 + village.claimBonus);
+      if (dock) ports.push({ village, dock });
+    }
+    for (let i = 0; i < ports.length; i++) {
+      const a = ports[i];
+      if (this.boats.tradersOf(a.village.id) > 0) continue;
+      for (let j = i + 1; j < ports.length; j++) {
+        const b = ports[j];
+        if (this.boats.tradersOf(b.village.id) > 0) continue;
+        const ka = this.kingdoms.get(a.village.kingdomId!);
+        const friendly = a.village.kingdomId === b.village.kingdomId || Boolean(ka?.allies.has(b.village.kingdomId!));
+        if (!friendly || ka?.atWar.has(b.village.kingdomId!)) continue;
+        if (this.boats.launchTrade(a.village.kingdomId!, a.village.id, a.dock, b.village.id, b.dock)) break;
+      }
+    }
   }
 
   /** Move every boat's sprite, and its passengers with it. */
@@ -2788,11 +2835,11 @@ export class SettlementSystem {
       }
       const kingdom = this.kingdoms.get(boat.kingdomId);
       this.boatPosition.set((boat.x - size / 2) * TILE_SIZE, 0.2, (boat.y - size / 2) * TILE_SIZE);
-      const transport = boat.kind === 'transport';
+      const scale = boat.kind === 'transport' ? 0.66 : boat.kind === 'trade' ? 0.58 : 0.48;
       this.boatCloud.set(slot, {
         position: this.boatPosition,
-        sprite: transport ? 'transport' : 'boat',
-        size: (transport ? 0.66 : 0.48) * BUILDING_DRAW_SCALE * 1.15,
+        sprite: boat.kind === 'transport' ? 'transport' : boat.kind === 'trade' ? 'merchant' : 'boat',
+        size: scale * BUILDING_DRAW_SCALE * 1.15,
         // The sail carries the flag.
         tint: kingdom ? new THREE.Color(0xffffff).lerp(kingdom.color, 0.45) : undefined,
         sway: 0.4,

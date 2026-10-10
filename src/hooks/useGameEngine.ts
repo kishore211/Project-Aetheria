@@ -33,6 +33,7 @@ import { publishSimulationContext, simulation } from '../utils/simulation';
 import { advanceFloaters, clearFloaters, floatBridge } from '../utils/floatBridge';
 import { runExtraPower, PowerHazards, type PowerContext } from '../utils/extraPowers';
 import { heldDirection } from '../utils/possession';
+import { RelationLines } from '../utils/relationLines';
 import { clearImpacts, isShaking, requestFlash, requestShake, sampleShake } from '../utils/impactBridge';
 import { chronicle, toll } from '../utils/chronicle';
 import { applyScenario, type Scenario } from '../utils/scenarios';
@@ -131,6 +132,7 @@ export const useGameEngine = () => {
   const mousePositionRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
   const selectionIndicatorRef = useRef<THREE.Mesh | null>(null);
+  const relationLinesRef = useRef<RelationLines | null>(null);
   const lightsRef = useRef<THREE.Light[]>([]);
   const tickTimerRef = useRef<number>(0);
   const entityManagerRef = useRef<EntityManager | null>(null);
@@ -265,6 +267,8 @@ export const useGameEngine = () => {
     resetStats();
     resetPlotIds();
     resetIdentity();
+    relationLinesRef.current?.dispose();
+    relationLinesRef.current = null;
     if (selectionIndicatorRef.current) {
       scene.remove(selectionIndicatorRef.current);
       selectionIndicatorRef.current.geometry.dispose();
@@ -312,6 +316,8 @@ export const useGameEngine = () => {
     indicator.renderOrder = 2;
     selectionIndicatorRef.current = indicator;
     scene.add(indicator);
+    relationLinesRef.current = new RelationLines();
+    scene.add(relationLinesRef.current.lines);
 
     // Brush preview: shows exactly which tiles a power will touch before the
     // player commits. Area tools were previously a guess.
@@ -1976,6 +1982,19 @@ export const useGameEngine = () => {
     settlementRef.current?.setViewportScale(pixelScale, orthographic);
     unitIconsRef.current?.setViewportScale(pixelScale, orthographic);
     updateSelectionIndicator();
+    {
+      const selected = useGameStore.getState().selectedEntity;
+      const live = selected ? entityManagerRef.current?.getEntityById(selected.id) ?? null : null;
+      relationLinesRef.current?.update(live, {
+        entity: (id) => entityManagerRef.current?.getEntityById(id),
+        home: (entity) => simulation.homePositionFor?.(entity) ?? null,
+        toWorld: (x, y, target) => target.set(
+          (x - tilesRef.current.length / 2 + 0.5) * TILE_SIZE,
+          0.2,
+          (y - tilesRef.current.length / 2 + 0.5) * TILE_SIZE,
+        ),
+      });
+    }
 
     // Hover is sampled ~15x a second: often enough to feel instant, rarely
     // enough that flicking the mouse does not cost hundreds of raycasts.

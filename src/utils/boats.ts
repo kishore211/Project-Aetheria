@@ -159,7 +159,7 @@ export const landmasses = (tiles: Tile[][]): { label: Int32Array; sizes: number[
 
 // -- the fleet --------------------------------------------------------------
 
-export type BoatKind = 'fishing' | 'transport';
+export type BoatKind = 'fishing' | 'transport' | 'trade';
 
 export interface Boat {
   id: string;
@@ -189,9 +189,11 @@ export interface BoatHooks {
   onCatch?: (boat: Boat, food: number) => void;
   /** A transport reached the far shore (or ran aground trying). */
   onLand?: (boat: Boat, shore: Point) => void;
+  /** A merchant reached the other port with its cargo. */
+  onTrade?: (boat: Boat) => void;
 }
 
-const SPEED: Record<BoatKind, number> = { fishing: 1.6, transport: 2.4 };
+const SPEED: Record<BoatKind, number> = { fishing: 1.6, transport: 2.4, trade: 2 };
 /** Seconds a fishing boat sits on the grounds before turning for home. */
 const FISHING_TIME = 6;
 /** Food one trip brings home. */
@@ -250,9 +252,38 @@ export class BoatSystem {
     return boat;
   }
 
+  /** Merchants currently sailing for a village, either way. */
+  tradersOf(villageId: string): number {
+    let count = 0;
+    for (const boat of this.boats.values()) {
+      if (boat.kind === 'trade' && (boat.villageId === villageId || boat.payload === villageId)) count++;
+    }
+    return count;
+  }
+
+  /**
+   * Send a merchant from one port to another. `villageId` is the port it
+   * sails from and `payload` the port it sails to; it shuttles between them
+   * until either is gone. Null when the ports do not share a sea.
+   */
+  launchTrade(kingdomId: string, fromVillage: string, from: Point, toVillage: string, to: Point): Boat | null {
+    const path = waterPath(this.tiles, from, to);
+    if (!path || path.length < 4) return null;
+    const boat = this.make('trade', kingdomId, from);
+    boat.villageId = fromVillage;
+    boat.payload = toVillage;
+    boat.path = path;
+    boat.state = 'voyage';
+    boat.destination = to;
+    this.boats.set(boat.id, boat);
+    return boat;
+  }
+
   /** A village is gone: its fishing boats go with it. */
   removeVillage(villageId: string): void {
-    for (const [id, boat] of this.boats) if (boat.villageId === villageId) this.boats.delete(id);
+    for (const [id, boat] of this.boats) {
+      if (boat.villageId === villageId || (boat.kind === 'trade' && boat.payload === villageId)) this.boats.delete(id);
+    }
   }
 
   clear(): void {
@@ -367,6 +398,19 @@ export class BoatSystem {
   }
 
   private arrive(boat: Boat, random: () => number): void {
+    if (boat.kind === 'trade') {
+      this.hooks.onTrade?.(boat);
+      // Turn round: the port it reached becomes the one it sails from.
+      const home = boat.dock;
+      boat.dock = boat.destination ?? home;
+      boat.destination = home;
+      const from = boat.villageId;
+      boat.villageId = boat.payload;
+      boat.payload = from;
+      boat.path = [...boat.path].reverse();
+      boat.step = 0;
+      return;
+    }
     if (boat.kind === 'transport') {
       const shore = nearestShore(this.tiles, { x: boat.x, y: boat.y }, 6) ?? { x: Math.floor(boat.x), y: Math.floor(boat.y) };
       this.hooks.onLand?.(boat, shore);
