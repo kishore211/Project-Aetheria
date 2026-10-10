@@ -312,6 +312,13 @@ to systems that already existed.
 | 20.8 | **Boats** | ✅ done | `utils/boats.ts`. Fishing fleets, merchants between friendly ports, and transports that carry settlers to another island when the home one is full |
 | 20.9 | **Possession and WASD** | ✅ done | `utils/possession.ts`. G to wear a creature; WASD walks it, Space strikes, Esc lets go. The same keys pan the map otherwise |
 | 20.10 | **Relationship lines, fire, Huge maps** | ✅ done | Lines to lover, friend and home; fire pixels flicker in the shader; a 384² preset |
+| 20.11 | **Five seeded lands** | ✅ done | Candy, crystal, mushroom, infernal, wasteland — painted materials, decoration, ground effects, wildlife, flavour |
+| 20.12 | **Seven more world laws** | ✅ done | Rebellions, Kingdom Expansion, Diplomacy, 100 People, Handsome Migrants, Entanglewood, Erosion; saved laws merge over defaults |
+| 20.13 | **Nine more traits** | ✅ done | Fireproof, Giant, Tiny, Venomous, Peaceful, Lucky, Nimble, Glutton, Thick-skinned — each with a mechanic, rolls guarded |
+| 20.14 | **Outfits, cloud shadows, snowline** | ✅ done | Warriors in steel, rulers in gold; clouds throw shadows; snow caps get an edge |
+| 20.15 | **Fifteen more milestones** | ✅ done | One per new system, keyed to the chronicle lines they already write |
+| 20.16 | **Partial texture uploads** | ✅ done | An edit uploads only the patch it touched: brushing a Huge map went from 18 to 120 fps |
+| 20.17 | **A ten-minute soak test** | ✅ done | Every system at once, asserting the invariants that must hold between them |
 
 **Still not WorldBox, honestly:** the content long tail (they have ~113
 creatures, 374 powers, 774 unlockables), equipment as items, armies as
