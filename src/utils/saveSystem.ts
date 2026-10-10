@@ -76,6 +76,8 @@ export interface SavedBuilding {
   y: number;
   health: number;
   maxHealth: number;
+  /** House tier. Absent in older saves, which load as huts. */
+  level?: number;
 }
 
 export interface SavedVillage {
@@ -226,6 +228,7 @@ export const buildSave = (options: {
         y: building.y,
         health: building.health,
         maxHealth: building.maxHealth,
+        level: building.level,
       })),
     })),
     kingdoms: options.kingdoms.map(kingdom => ({

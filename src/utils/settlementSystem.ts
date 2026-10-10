@@ -105,6 +105,8 @@ export interface Building {
   villageId: string;
   /** Slot in the building sprite cloud. */
   slot: number;
+  /** 1-3 for houses: hut, stone house, manor. Everything else stays at 1. */
+  level?: number;
 }
 
 export interface VillageStore {
@@ -407,6 +409,12 @@ const BUILDING_YIELD: Record<string, number> = {
   library: 2,
 };
 
+/** What it costs to rebuild a house at the next level. */
+const HOUSE_UPGRADE: Record<number, { wood: number; stone: number; gold: number }> = {
+  2: { wood: 6, stone: 6, gold: 0 },
+  3: { wood: 8, stone: 12, gold: 10 },
+};
+
 /** How many residents each building houses, for the homelessness term. */
 const HOUSING: Record<string, number> = {
   house: 4,
@@ -667,6 +675,7 @@ export class SettlementSystem {
     if (this.forgeTimer >= 12) {
       this.forgeTimer = 0;
       this.forgeRound();
+      this.upgradeRound();
     }
 
     this.fleetTimer += delta;
@@ -1280,7 +1289,7 @@ export class SettlementSystem {
       // -- 1. buildings earn --------------------------------------------
       let yield_ = 0;
       for (const building of village.buildings) {
-        const base = BUILDING_YIELD[building.kind] ?? 1;
+        const base = (BUILDING_YIELD[building.kind] ?? 1) + ((building.level ?? 1) - 1);
         const tile = this.tileAt(building.x, building.y);
         yield_ += base * (tile ? groundBonus(tile) : 1);
       }
@@ -1327,7 +1336,8 @@ export class SettlementSystem {
   private homesIn(village: Village): number {
     let capacity = 0;
     for (const building of village.buildings) {
-      capacity += HOUSING[building.kind] ?? 0;
+      // A stone house holds two more than a hut, a manor two more again.
+      capacity += (HOUSING[building.kind] ?? 0) + (building.kind === 'house' ? ((building.level ?? 1) - 1) * 2 : 0);
     }
     return capacity;
   }
@@ -1618,17 +1628,6 @@ export class SettlementSystem {
     const slot = this.freeSlots.pop() ?? this.nextSlot++;
     if (slot >= BUILDING_CLOUD_CAPACITY) return;
 
-    const kingdom = this.kingdoms.get(village.kingdomId);
-    const recipe = RECIPES.find(r => r.kind === kind);
-    const span = footprintOf(kind);
-    // A building that stands on four tiles has to be drawn across four tiles.
-    // Scaled a little under the full span so the neighbouring streets do not
-    // disappear under the eaves.
-    // Drawn at WorldBox's proportions: a house stands well over the heads of
-    // the people who live in it. At the old scale a tent came out half the
-    // height of a villager and a town read as a scattering of pebbles.
-    const size = (kind === 'bonfire' ? 0.55 : recipe?.size ?? 0.5) * (span > 1 ? span * 0.92 : 1) * BUILDING_DRAW_SCALE;
-
     const building: Building = {
       id: mintId('building'),
       kind,
@@ -1638,6 +1637,7 @@ export class SettlementSystem {
       maxHealth: BUILDING_HEALTH[kind],
       villageId: village.id,
       slot,
+      level: 1,
     };
     village.buildings.push(building);
 
@@ -1648,6 +1648,27 @@ export class SettlementSystem {
       this.terrain.clearDetail(footprintTile);
     });
 
+    this.paintBuilding(village, building);
+  }
+
+  /** Put a building's sprite in the cloud, or refresh it after an upgrade. */
+  private paintBuilding(village: Village, building: Building): void {
+    const tile = this.tileAt(building.x, building.y);
+    if (!tile) return;
+    const { kind, slot } = building;
+    const kingdom = this.kingdoms.get(village.kingdomId);
+    const recipe = RECIPES.find(r => r.kind === kind);
+    const span = footprintOf(kind);
+    // A building that stands on four tiles has to be drawn across four tiles.
+    // Scaled a little under the full span so the neighbouring streets do not
+    // disappear under the eaves.
+    // Drawn at WorldBox's proportions: a house stands well over the heads of
+    // the people who live in it. At the old scale a tent came out half the
+    // height of a villager and a town read as a scattering of pebbles.
+    // A house that has been built up is drawn a little taller each time.
+    const grown = 1 + ((building.level ?? 1) - 1) * 0.12;
+    const size = (kind === 'bonfire' ? 0.55 : recipe?.size ?? 0.5) * (span > 1 ? span * 0.92 : 1) * BUILDING_DRAW_SCALE * grown;
+
     const position = this.terrain.worldPosition(tile).clone();
     // Anchored at its corner tile, so the sprite has to shift to the middle of
     // the block it covers or a hall sits a tile up and to the left of its own
@@ -1656,9 +1677,10 @@ export class SettlementSystem {
     position.x += offset;
     position.z += offset;
     position.y += size * 0.5 + 0.02;
+    const art = kind === 'house' && (building.level ?? 1) > 1 ? `house${building.level}` : kind;
     this.buildingCloud.set(slot, {
       position,
-      sprite: buildingSprite(kind, village.race),
+      sprite: buildingSprite(art, village.race),
       size,
       // Tint toward the kingdom colour so borders and buildings agree
       tint: kingdom ? new THREE.Color(0xffffff).lerp(kingdom.color, 0.22) : undefined,
@@ -1667,6 +1689,35 @@ export class SettlementSystem {
       // because a building that wobbles looks broken.
       sway: -(PULSE_BY_BUILDING[kind] ?? 0.5),
     });
+  }
+
+  /**
+   * A town grows up as well as out. Once it has a hall its houses can be
+   * rebuilt in stone, and once it has a temple or a library, as manors —
+   * WorldBox's building tiers, which are most of why an old capital looks
+   * nothing like a new village. One house a round, cheapest first.
+   */
+  private upgradeRound(): void {
+    for (const village of this.villages.values()) {
+      const has = (kind: BuildingKind) => village.buildings.some(b => b.kind === kind);
+      const ceiling = !has('hall') ? 1 : has('temple') || has('library') ? 3 : 2;
+      if (ceiling === 1) continue;
+      const house = village.buildings
+        .filter(b => b.kind === 'house' && (b.level ?? 1) < ceiling)
+        .sort((a, b) => (a.level ?? 1) - (b.level ?? 1))[0];
+      if (!house) continue;
+      const next = (house.level ?? 1) + 1;
+      const cost = HOUSE_UPGRADE[next];
+      if (!cost) continue;
+      if (village.store.wood < cost.wood || village.store.stone < cost.stone || village.store.gold < cost.gold) continue;
+      village.store.wood -= cost.wood;
+      village.store.stone -= cost.stone;
+      village.store.gold -= cost.gold;
+      house.level = next;
+      house.maxHealth = Math.round(BUILDING_HEALTH.house * (1 + (next - 1) * 0.5));
+      house.health = house.maxHealth;
+      this.paintBuilding(village, house);
+    }
   }
 
   /**
@@ -3449,6 +3500,10 @@ export class SettlementSystem {
           restored.id = building.id;
           restored.health = building.health;
           restored.maxHealth = building.maxHealth;
+          if (building.level && building.level > 1) {
+            restored.level = building.level;
+            this.paintBuilding(village, restored);
+          }
         }
       }
       this.claimTerritory(village);

@@ -236,6 +236,7 @@ const MONUMENT: Palette = { s: '#d2d5da', d: '#8e9299', k: OUTLINE };
 const HULL: Palette = { w: '#f4f0e4', r: '#8a5a32', y: '#ffd76a', c: '#c8964a', k: OUTLINE };
 const SHAFT: Palette = { s: '#a8aeb4', d: '#737980', r: '#7a5432', n: '#121215', k: OUTLINE };
 const MILL: Palette = { ...BUILD, c: '#ece2c6' };
+const MASONRY: Palette = { ...BUILD, s: '#c9c2b4', n: '#9a9384' };
 const SMITH: Palette = { ...BUILD, f: '#ff8a2b', o: '#ffe066', s: '#6d7378' };
 
 const BUILDING_ART: Record<string, AtlasEntry> = {
@@ -443,6 +444,40 @@ const BUILDING_ART: Record<string, AtlasEntry> = {
       '............',
     ],
   },
+  house2: {
+    palette: MASONRY,
+    grid: [
+      '.....kk.....',
+      '....kRrk....',
+      '...kRRrrk...',
+      '..kRRRrrrk..',
+      '.kRRRRrrrrk.',
+      'kkkkkkkkkkkk',
+      '.kssssnnnnk.',
+      '.ksyysnyynk.',
+      '.kssssnnnnk.',
+      '.ksyysdnnnk.',
+      '.kssssdnnnk.',
+      '.kkkkkkkkkk.',
+    ],
+  },
+  house3: {
+    palette: MASONRY,
+    grid: [
+      '.kb.........',
+      '.kbb........',
+      '.k.....kk...',
+      'kRk...kRrk..',
+      'kRk..kRRrrk.',
+      'kRkkkRRRrrrk',
+      'kskkkkkkkkkk',
+      'ksksssssnnnk',
+      'kykssyysnynk',
+      'ksksssssnnnk',
+      'ksksssddnnnk',
+      'kkkkkkkkkkkk',
+    ],
+  },
   windmill: {
     palette: MILL,
     grid: [
@@ -561,7 +596,7 @@ const RACE_STYLE: Record<'elf' | 'dwarf' | 'orc', Palette> = {
 };
 
 /** Buildings drawn in a racial style. Everything else is the same for everyone. */
-const STYLED = ['house', 'hall', 'tower', 'temple', 'windmill', 'barracks', 'smithy', 'library'];
+const STYLED = ['house', 'house2', 'house3', 'hall', 'tower', 'temple', 'windmill', 'barracks', 'smithy', 'library'];
 
 /** The atlas name for a building of a given race, falling back to the plain one. */
 export const buildingSprite = (kind: string, race: string): string =>

@@ -615,3 +615,34 @@ describe('building tiers', () => {
     expect(harness.tiles[big.x + 1][big.y + 1].villageId).toBeNull();
   });
 });
+
+describe('a town growing up', () => {
+  it('rebuilds its houses in stone once it has a hall, and as manors once it has a temple', () => {
+    const harness = makeHarness();
+    seatTwoRivals(harness);
+    const town = harness.settlements.villages.get('village-a')!;
+    town.store.wood = 500;
+    town.store.stone = 500;
+    town.store.gold = 500;
+    const inner = harness.settlements as unknown as {
+      placeBuilding(v: unknown, k: string, x: number, y: number): void;
+      upgradeRound(): void;
+    };
+    inner.placeBuilding(town, 'house', 14, 22);
+    inner.placeBuilding(town, 'house', 18, 22);
+    const levels = () => town.buildings.filter(b => b.kind === 'house').map(b => b.level ?? 1).sort();
+    const houses = () => town.buildings.filter(b => b.kind === 'house');
+
+    // One house a round, lowest first: two rounds raise both to stone, and
+    // with only a hall that is as far as it goes.
+    for (let i = 0; i < 5; i++) inner.upgradeRound();
+    expect(levels()).toEqual([2, 2]);
+    const stoneHealth = houses()[0].maxHealth;
+
+    inner.placeBuilding(town, 'temple', 16, 24);
+    for (let i = 0; i < 5; i++) inner.upgradeRound();
+    expect(levels()).toEqual([3, 3]);
+    expect(houses()[0].maxHealth).toBeGreaterThan(stoneHealth);
+    expect(town.store.stone).toBe(500 - 2 * 6 - 2 * 12);
+  });
+});
