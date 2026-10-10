@@ -1125,7 +1125,7 @@ export const useGameEngine = () => {
       soundManager.refused();
     }
     return acted;
-  }, [forEachBrushTile, reshapeTile, igniteTile, extinguishTile, syncTile, tileWorldPosition, spawnRace, spawnableAnimalsFor, reactNearby, summonCloud, powerContext]);
+  }, [forEachBrushTile, reshapeTile, igniteTile, extinguishTile, syncTile, tileWorldPosition, spawnRace, spawnableAnimalsFor, reactNearby, summonCloud, powerContext, inBounds]);
 
   /**
    * Handles mouse click on the game world
