@@ -623,7 +623,9 @@ export class SettlementSystem {
     scene.add(this.boatCloud.points);
     this.boats = new BoatSystem(tiles, {
       onCatch: (boat, food) => this.landCatch(boat, food),
-      onLand: (boat, shore) => this.landSettlers(boat, shore),
+      onLand: (boat, shore) => (boat.payload?.startsWith('invasion:')
+        ? this.landInvasion(boat, shore)
+        : this.landSettlers(boat, shore)),
       onTrade: (boat) => this.landTrade(boat),
     });
 
@@ -3400,8 +3402,10 @@ export class SettlementSystem {
     }
   }
 
-  private sendRaid(_attacker: Kingdom, defender: Kingdom, warriors: Entity[]): void {
+  private sendRaid(attacker: Kingdom, defender: Kingdom, warriors: Entity[]): void {
     if (warriors.length === 0) return;
+    let masses: { label: Int32Array; sizes: number[] } | null = null;
+    const size = this.tiles.length;
 
     // Only captains are given marching orders; their warband is anchored to
     // them by appointCaptain, so the army moves as one body.
@@ -3420,6 +3424,14 @@ export class SettlementSystem {
 
       const target = this.nearestVillage(defender, warrior.position.x, warrior.position.y);
       if (!target) continue;
+      // Across the water: walking will never get there, so take ship.
+      masses ??= landmasses(this.tiles);
+      const here = masses.label[Math.floor(warrior.position.y) * size + Math.floor(warrior.position.x)];
+      const there = masses.label[target.centerY * size + target.centerX];
+      if (here >= 0 && there >= 0 && here !== there) {
+        this.sendInvasion(attacker, warrior, warriors, target);
+        continue;
+      }
       this.entities.giveOrder(warrior, {
         kind: 'goto',
         x: target.centerX,
@@ -3427,6 +3439,62 @@ export class SettlementSystem {
         purpose: 'raid',
       });
     }
+  }
+
+  /** Towns that recently launched an invasion, and when they may launch again. */
+  private invasionCooldown = new Map<string, number>();
+
+  /**
+   * Put a captain and its warband in a transport bound for an enemy town on
+   * another island. WorldBox's wars cross the sea; ours used to stop at the
+   * shoreline and stand there, which made every island kingdom untouchable.
+   */
+  private sendInvasion(attacker: Kingdom, captain: Entity, warriors: Entity[], target: Village): void {
+    const home = captain.villageId ? this.villages.get(captain.villageId) : null;
+    if (!home) return;
+    const now = home.age;
+    if ((this.invasionCooldown.get(home.id) ?? -Infinity) > now) return;
+    const departure = this.harbourOf(home, 8);
+    const landing = nearestWater(this.tiles, { x: target.centerX, y: target.centerY }, 7);
+    if (!departure || !landing) return;
+    const crew = warriors
+      .filter(w => w.villageId === home.id && w.health > 0 && !w.status.includes('aboard'))
+      .slice(0, 8);
+    if (crew.length < 2) return;
+    const boat = this.boats.launchTransport(attacker.id, departure, landing, crew.map(c => c.id), `invasion:${target.id}`);
+    if (!boat) {
+      this.invasionCooldown.set(home.id, now + 60);
+      return;
+    }
+    this.invasionCooldown.set(home.id, now + 120);
+    for (const soldier of crew) {
+      this.entities.setHerdAnchor(soldier, null);
+      applyStatus(soldier, 'aboard');
+      soldier.position = { x: boat.x, y: boat.y };
+    }
+    this.events.onEvent(
+      `The army of ${attacker.name} takes ship for ${target.name}`,
+      'war',
+      { x: home.centerX, y: home.centerY },
+    );
+  }
+
+  /** An invasion fleet made landfall: everyone off, and up the beach at the town. */
+  private landInvasion(boat: Boat, shore: Point): void {
+    const target = this.villages.get(boat.payload!.slice('invasion:'.length));
+    for (const id of boat.passengers) {
+      const soldier = this.entities.getEntityById(id);
+      if (!soldier) continue;
+      clearStatus(soldier, 'aboard');
+      soldier.position = { x: shore.x + 0.5, y: shore.y + 0.5 };
+      if (target) this.entities.giveOrder(soldier, { kind: 'goto', x: target.centerX, y: target.centerY, purpose: 'raid' });
+    }
+    const kingdom = this.kingdoms.get(boat.kingdomId);
+    this.events.onEvent(
+      `The army of ${kingdom?.name ?? 'a fallen kingdom'} comes ashore below ${target?.name ?? 'an empty shore'}`,
+      'war',
+      shore,
+    );
   }
 
   private nearestVillage(kingdom: Kingdom, x: number, y: number): Village | null {

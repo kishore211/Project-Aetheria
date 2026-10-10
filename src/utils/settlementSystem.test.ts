@@ -705,3 +705,43 @@ describe('a dock', () => {
     expect(Math.hypot(harbour.x - spot!.x, harbour.y - spot!.y)).toBeLessThanOrEqual(2.9);
   });
 });
+
+describe('war across the water', () => {
+  it('puts the warband in a transport when the enemy is on another island, and lands it', () => {
+    const harness = makeHarness();
+    // A channel down the middle: two islands.
+    for (let x = 21; x <= 23; x++) {
+      for (let y = 0; y < harness.tiles.length; y++) {
+        harness.tiles[x][y].type = 'ocean';
+        harness.tiles[x][y].height = 0.12;
+        harness.tiles[x][y].walkable = false;
+      }
+    }
+    seatTwoRivals(harness);
+    const a = harness.settlements.kingdoms.get('kingdom-a')!;
+    const b = harness.settlements.kingdoms.get('kingdom-b')!;
+    a.atWar.add(b.id);
+    b.atWar.add(a.id);
+    // A town needs eight before it keeps soldiers at all.
+    for (let i = 0; i < 6; i++) {
+      const extra = harness.entities.spawnEntity('human', 15 + (i % 3), 18 + Math.floor(i / 3));
+      if (extra) { extra.villageId = 'village-a'; extra.kingdomId = 'kingdom-a'; }
+    }
+    const sailed = () => harness.events.some(m => m.includes('takes ship for Grakpit'));
+    for (let t = 0; t < 60 && !sailed(); t++) {
+      harness.entities.update(1);
+      harness.settlements.update(1);
+    }
+    expect(sailed()).toBe(true);
+    const aboard = harness.entities.getAllEntities().filter(e => e.status.includes('aboard'));
+    expect(aboard.length).toBeGreaterThanOrEqual(2);
+    for (let t = 0; t < 120 && !harness.events.some(m => m.includes('comes ashore below Grakpit')); t++) {
+      harness.entities.update(0.5);
+      harness.settlements.update(0.5);
+    }
+    expect(harness.events.some(m => m.includes('comes ashore below Grakpit'))).toBe(true);
+    // Ashore on the far side.
+    expect(aboard.every(e => !e.status.includes('aboard'))).toBe(true);
+    expect(aboard.some(e => e.position.x > 23)).toBe(true);
+  });
+});
