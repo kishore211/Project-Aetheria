@@ -326,6 +326,28 @@ formations, and the mind/neuron editor. The thesis at the top of this file
 still holds — the gap that mattered was what the world looks like and what
 the player can do to it, and that is the gap this phase closed.
 
+## Phase 21 — Past the replica  (in progress)
+
+The owner asked for the replica to keep going until it was WorldBox and
+then better. This phase takes the gaps Phase 20 named honestly — items,
+armies, the content long tail — and the things that only show at scale.
+
+| # | Item | Status | Notes |
+|---|---|---|---|
+| 21.1 | **Audit clean** | ✅ done | Non-breaking `npm audit fix`, then Tailwind 3 → 4 with the official tool. Its renames of plain words in game text (and one event name, `blur` → `blur-sm`) were reverted by hand |
+| 21.2 | **Weapons and armour as items** | ✅ done | `utils/equipment.ts`. Smiths forge from the craft tier and the store; five shapes, nine materials, quality, modifiers, legendary names; wear, breakage, looting from the dead; drawn on the sprite; saved |
+| 21.3 | **Arrows and breath** | ✅ done | `utils/shotBridge.ts`. Archers, and six creatures that fight at range — dragon and demon fire that can set the ground alight, bolts, a dark bolt, a beam |
+| 21.4 | **Armies in ranks; towns captured** | ✅ done | `utils/army.ts`. Warbands fall in four abreast behind the captain at war; a fallen town changes flag with its land and people (orcs still burn) |
+| 21.5 | **Twenty more creatures** | ✅ done | 62 in all. Six with auras on their own clock: necromancer, Cold One, fire skull, plague doctor, bee, Crabzilla (`utils/creatureAbilities.ts`) |
+| 21.6 | **Magnet and new powers** | ✅ done | `utils/magnet.ts`; twelve trait gifts and an eraser, rain of arms, gold rain, youth, love potion, locusts, cluster bomb |
+| 21.7 | **Town buildings and racial styles** | ✅ done | Windmill, barracks, smithy, library, each with an effect; every race builds in its own materials |
+| 21.8 | **Banners** | ✅ done | `utils/heraldry.ts`. Field, division and charge from the kingdom id; in the list and on the map |
+| 21.9 | **Families, clans, levels** | ✅ done | `utils/families.ts`. Surnames down the generations, parents remembered; units level from kills |
+| 21.10 | **Realm card** | ✅ done | Ruler, seat, army, allies, relic, from the kingdom list |
+| 21.11 | **One draw call for every creature** | ✅ done | `utils/creatureLayer.ts`. 2,000 creatures: 4,022 calls and 10.5 ms → 23 calls and ~0.1 ms |
+| 21.12 | **House tiers** | ✅ done | Hut → stone house → manor, gated on hall and temple/library |
+| 21.13 | **Deterministic test ids** | ✅ done | uuid was the hidden source of the one-in-ten unreproducible failures |
+
 ## Where this ended up
 
 Phases 16 through 19 are complete, along with the two items carried over from
