@@ -353,6 +353,10 @@ armies, the content long tail — and the things that only show at scale.
 | 21.17 | **Demographics from a headless 30-minute game** | ✅ done | Random deaths were a quarter of a human life; caps were tiny; migrants were most of the chronicle; the wild emptied as towns grew. All four fixed; a glacier re-freezing spam found the same way |
 | 21.18 | **Favourites, Knowledge book, watchtowers** | ✅ done | `utils/knowledge.ts`. Star creatures; a bestiary remembered across worlds; towers shoot monsters and enemies |
 | 21.19 | **Twenty laws; flame and ice towers; wells, markets, docks** | ✅ done | Animal spawns, Monster visits, Peaceful monsters, Forging; hostile towers as placeable structures; three town buildings with effects |
+| 21.20 | **Alliance and town layers; winter snow on trees** | ✅ done | Two more map layers; canopies and rocks dusted with snow in winter |
+| 21.21 | **Ten more creatures** | ✅ done | 74 in all: white mage, angel, sandworm, Langton's ant, tumor, treant, candy man, jumpy skull, Robot Santa, yeti — each with its own behaviour |
+| 21.22 | **Wars cross the sea; wars of succession** | ✅ done | Warbands take ship for enemies on other islands; a contested crown can split a great realm |
+| 21.23 | **Seventeen scripted visits** | ✅ done | Plus mad thoughts, snowmen, hellspawn, alien invasion, evil mage, plague (with a doctor half the time) |
 
 ## Where this ended up
 
