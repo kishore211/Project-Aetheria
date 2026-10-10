@@ -141,6 +141,24 @@ export const MONSTER_EVENTS: MonsterEvent[] = [
     },
   },
   {
+    id: 'plague',
+    weight: 2,
+    run: (world, town) => {
+      const people = (world.near?.(town.x, town.y, 6) ?? []).filter(e => ['human', 'elf', 'dwarf', 'orc'].includes(e.type));
+      if (people.length < 4) return false;
+      for (const person of people.slice(0, 3)) applyStatus(person, 'infected');
+      world.announce(`Plague comes to ${town.villageName}. The first of them coughs at the well`, { x: town.x, y: town.y });
+      // Sometimes help follows the sickness.
+      if (world.random() < 0.5) {
+        const tile = approach(world, town, 6);
+        if (tile && world.spawn('plague_doctor', tile.x, tile.y)) {
+          world.announce(`A plague doctor arrives at ${town.villageName}, beak first`, { x: tile.x, y: tile.y });
+        }
+      }
+      return true;
+    },
+  },
+  {
     id: 'snowmen',
     weight: 1,
     run: (world, town) => {

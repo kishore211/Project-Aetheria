@@ -71,3 +71,15 @@ describe('the rest of the scripted events', () => {
     expect(spawned).toContain('ufo');
   });
 });
+
+describe('plague', () => {
+  it('infects three in a town big enough to catch it', () => {
+    const plague = MONSTER_EVENTS.find(e => e.id === 'plague')!;
+    const town = { id: 'b', kind: 'bonfire', x: 20, y: 20, villageId: 'v', villageName: 'Ashby' };
+    const people = Array.from({ length: 6 }, (_, i) => ({ id: `p${i}`, type: 'elf', status: [] as string[] }));
+    const { world } = makeWorld(() => 'grassland');
+    world.near = () => people as never;
+    expect(plague.run(world, town)).toBe(true);
+    expect(people.filter(p => p.status.includes('infected')).length).toBe(3);
+  });
+});
