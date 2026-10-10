@@ -13,7 +13,7 @@
 //   family_check_existence         60 s
 import { isWaterBiome, type Entity, type EntityType, type Tile } from '../types/world';
 import type { EntityManager } from './entityManagerMinimal';
-import { isWalkableForEntity } from './pathfinding';
+import { isAquatic, isWalkableForEntity } from './pathfinding';
 import { isSentient } from './entitySystemMinimal';
 import { registerOrderHandler } from './simulation';
 
@@ -40,10 +40,22 @@ const HERD_SIZE: Partial<Record<EntityType, number>> = {
   bear: 2,
   snake: 1,
   fish: 8,
+  cow: 7,
+  pig: 5,
+  buffalo: 10,
+  penguin: 9,
+  hyena: 5,
+  monkey: 6,
+  rat: 8,
+  piranha: 10,
+  frog: 4,
+  dog: 3,
+  crab: 4,
+  rhino: 2,
 };
 
 /** Species that head toward creatures rather than toward pasture. */
-const PREDATORS: EntityType[] = ['wolf', 'fox', 'bear', 'snake'];
+const PREDATORS: EntityType[] = ['wolf', 'fox', 'bear', 'snake', 'hyena', 'crocodile', 'cat', 'dog', 'piranha'];
 
 // WorldBox's cooldowns are 60/200/5/20/60 seconds, but its days are far longer
 // than ours: a full Aetheria year is about 320 seconds, so its 200-second
@@ -290,7 +302,7 @@ export class HerdSystem {
       const y = Math.round(entity.position.y + Math.sin(angle) * distance);
       if (x < 1 || x >= size - 1 || y < 1 || y >= size - 1) continue;
       const tile = this.tiles[x][y];
-      if (isWaterBiome(tile.type) && entity.type !== 'fish') continue;
+      if (isWaterBiome(tile.type) && !isAquatic(entity.type)) continue;
       if (!isWalkableForEntity(tile, entity.type)) continue;
       return tile;
     }

@@ -2,15 +2,15 @@
 import { Tile, BiomeType, EntityType, isWaterBiome } from '../types/world';
 
 /** Creatures that live in water and cannot leave it. */
-const AQUATIC: EntityType[] = ['fish'];
+const AQUATIC: EntityType[] = ['fish', 'piranha'];
 /** Creatures that ignore terrain entirely. */
-const AIRBORNE: EntityType[] = ['bird', 'dragon'];
+const AIRBORNE: EntityType[] = ['bird', 'dragon', 'fairy', 'ghost'];
 /**
  * Creatures that will wade or swim across fresh water and shallows. Everything
  * else keeps its feet dry — a land animal standing in the sea is the bug that
  * strands whole populations.
  */
-const SWIMMERS: EntityType[] = ['bear', 'wolf', 'deer', 'orc', 'human', 'elemental'];
+const SWIMMERS: EntityType[] = ['bear', 'wolf', 'deer', 'orc', 'human', 'elemental', 'crocodile', 'turtle', 'frog', 'penguin', 'dog', 'buffalo'];
 /** Water a swimmer will cross, as opposed to open sea nobody crosses. */
 const SHALLOW: BiomeType[] = ['shallow_water', 'river', 'lake'];
 
@@ -183,7 +183,7 @@ function getMovementCost(a: Tile, b: Tile, entityType: EntityType): number {
  */
 function getTerrainModifier(biomeType: BiomeType, entityType: EntityType): number {
   // Water creatures
-  if (entityType === 'fish') {
+  if (isAquatic(entityType)) {
     if (['deep_ocean', 'ocean', 'shallow_water', 'river', 'lake'].includes(biomeType)) {
       return 1.0; // Normal movement in water
     }

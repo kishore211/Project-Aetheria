@@ -75,18 +75,24 @@ const SPREADING_FORESTS: BiomeType[] = [
 
 /** What lives where, for the wildlife row. */
 const NATIVES: Partial<Record<BiomeType, EntityType[]>> = {
-  grassland: ['sheep', 'rabbit', 'chicken'],
-  savanna: ['sheep', 'snake'],
-  hills: ['sheep', 'rabbit'],
-  deciduous_forest: ['deer', 'rabbit', 'fox'],
+  grassland: ['sheep', 'rabbit', 'chicken', 'cow', 'pig'],
+  savanna: ['buffalo', 'hyena', 'rhino', 'snake'],
+  hills: ['sheep', 'rabbit', 'buffalo'],
+  deciduous_forest: ['deer', 'rabbit', 'fox', 'pig'],
   coniferous_forest: ['deer', 'wolf', 'bear'],
   taiga: ['wolf', 'bear'],
-  tundra: ['wolf'],
-  snow: ['wolf'],
-  rainforest: ['deer', 'bird', 'snake'],
-  tropical_forest: ['deer', 'bird'],
-  swamp: ['snake'],
-  marsh: ['bird'],
+  tundra: ['wolf', 'penguin'],
+  snow: ['wolf', 'penguin'],
+  ice: ['penguin'],
+  glacier: ['penguin'],
+  rainforest: ['monkey', 'bird', 'snake', 'frog'],
+  tropical_forest: ['monkey', 'deer', 'bird'],
+  swamp: ['snake', 'frog', 'crocodile'],
+  marsh: ['bird', 'frog'],
+  beach: ['crab', 'turtle'],
+  desert: ['snake'],
+  enchanted_forest: ['unicorn', 'fairy', 'deer'],
+  corrupted: ['ghost'],
 };
 
 /** Roughly one creature per this many land tiles before wildlife stops. */

@@ -514,6 +514,116 @@ export const POWERS: PowerEntry[] = [
     quip: 'Untroubled by everything above the waterline.',
   },
   {
+    kind: 'tool', id: 'spawn-cat', tab: 'life', label: 'Cat', icon: 'Cat',
+    hint: 'Hunts rats and owns villages.',
+    quip: 'It allows the village to stay.',
+  },
+  {
+    kind: 'tool', id: 'spawn-dog', tab: 'life', label: 'Dog', icon: 'Dog',
+    hint: 'Loyal, cheerful, chases small things.',
+    quip: 'A good dog. They are all good dogs.',
+  },
+  {
+    kind: 'tool', id: 'spawn-cow', tab: 'life', label: 'Cow', icon: 'PawPrint',
+    hint: 'Grazes in herds on open grass.',
+    quip: 'A herd of moos.',
+  },
+  {
+    kind: 'tool', id: 'spawn-pig', tab: 'life', label: 'Pig', icon: 'PiggyBank',
+    hint: 'Roots in fields and woods.',
+    quip: 'Smarter than it smells.',
+  },
+  {
+    kind: 'tool', id: 'spawn-crab', tab: 'life', label: 'Crab', icon: 'Shell',
+    hint: 'Scuttles along beaches.',
+    quip: 'Sideways is a direction too.',
+  },
+  {
+    kind: 'tool', id: 'spawn-frog', tab: 'life', label: 'Frog', icon: 'Bug',
+    hint: 'Lives in swamps and marshes.',
+    quip: 'Ribbit, it says, meaning everything.',
+  },
+  {
+    kind: 'tool', id: 'spawn-penguin', tab: 'life', label: 'Penguin', icon: 'Snowflake',
+    hint: 'Waddles on ice and snow, eats fish.',
+    quip: 'Dressed for dinner, forever.',
+  },
+  {
+    kind: 'tool', id: 'spawn-turtle', tab: 'life', label: 'Turtle', icon: 'Shell',
+    hint: 'Slow, tough, and very long-lived.',
+    quip: 'It will outlive the kingdom. Probably two.',
+  },
+  {
+    kind: 'tool', id: 'spawn-monkey', tab: 'life', label: 'Monkey', icon: 'Banana',
+    hint: 'Troops of them in the jungle.',
+    quip: 'Somebody will lose a sandwich.',
+  },
+  {
+    kind: 'tool', id: 'spawn-rat', tab: 'life', label: 'Rat', icon: 'Rat',
+    hint: 'Breeds fast wherever there is food.',
+    quip: 'Where there are granaries, there are rats.',
+  },
+  {
+    kind: 'tool', id: 'spawn-crocodile', tab: 'life', label: 'Crocodile', icon: 'Spline',
+    hint: 'Lurks in swamps and shallows. Eats anything.',
+    quip: 'A log with teeth.',
+  },
+  {
+    kind: 'tool', id: 'spawn-piranha', tab: 'life', label: 'Piranha', icon: 'Fish',
+    hint: 'Schools of biters. Click water.',
+    quip: 'The river is no longer for swimming.',
+  },
+  {
+    kind: 'tool', id: 'spawn-hyena', tab: 'life', label: 'Hyena', icon: 'Dog',
+    hint: 'Savanna scavengers that hunt in packs.',
+    quip: 'Laughing at something. Possibly you.',
+  },
+  {
+    kind: 'tool', id: 'spawn-rhino', tab: 'life', label: 'Rhino', icon: 'Mountain',
+    hint: 'Armoured, horned, and short-tempered.',
+    quip: 'It cannot see you. It is charging anyway.',
+  },
+  {
+    kind: 'tool', id: 'spawn-buffalo', tab: 'life', label: 'Buffalo', icon: 'Mountain',
+    hint: 'Great herds on the plains.',
+    quip: 'The ground shakes when they decide to move.',
+  },
+  {
+    kind: 'tool', id: 'spawn-unicorn', tab: 'life', label: 'Unicorn', icon: 'WandSparkles',
+    hint: 'A rare and magical beast.',
+    quip: 'Exactly as real as you need it to be.',
+  },
+  {
+    kind: 'tool', id: 'spawn-fairy', tab: 'life', label: 'Fairy', icon: 'Sparkle',
+    hint: 'Tiny, winged and mischievous.',
+    quip: 'Has a favour to grant and a price not yet named.',
+  },
+  {
+    kind: 'tool', id: 'spawn-ghost', tab: 'life', label: 'Ghost', icon: 'Ghost',
+    hint: 'A restless spirit that haunts the living.',
+    quip: 'Unfinished business.',
+  },
+  {
+    kind: 'tool', id: 'spawn-mage', tab: 'life', label: 'Evil Mage', icon: 'Wand',
+    hint: 'A dark sorcerer that attacks villages.',
+    quip: 'Read the wrong book, all the way through.',
+  },
+  {
+    kind: 'tool', id: 'spawn-druid', tab: 'life', label: 'Druid', icon: 'Leaf',
+    hint: 'A keeper of the forest.',
+    quip: 'Speaks for the trees.',
+  },
+  {
+    kind: 'tool', id: 'spawn-alien', tab: 'life', label: 'Alien', icon: 'Orbit',
+    hint: 'Visitors from the stars, curious about cows.',
+    quip: 'We come in peace. Mostly.',
+  },
+  {
+    kind: 'tool', id: 'spawn-snowman', tab: 'life', label: 'Snowman', icon: 'Snowflake',
+    hint: 'A cheerful snowman that has come to life.',
+    quip: 'Doomed by spring, and determined to enjoy it.',
+  },
+  {
     kind: 'tool', id: 'spawn-dragon', tab: 'life', label: 'Dragon', icon: 'Flame',
     hint: 'Flies, burns, and is very hard to kill.',
     quip: 'Regards your walls as a suggestion.',

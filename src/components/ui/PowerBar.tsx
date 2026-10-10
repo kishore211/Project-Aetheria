@@ -7,6 +7,7 @@ import {
   Scissors, Skull, Sparkle, Sparkles, Sprout, Swords, Tag, TreePine, Trees,
   User, Users, Video, VideoOff, Waves, X, Zap,
   Biohazard, Bird, Bomb, Bone, Brain, Bug, Cloud, CloudSnow, Coffee, Copy, Crown, Dog, Droplet, Egg, Fish, FlaskConical, Flag, Flower, Handshake, HeartHandshake, Lightbulb, Megaphone, Moon, MountainSnow, Orbit, Palmtree, Rabbit, Radiation, Shell, Shield, Snowflake, Spline, Squirrel, Sun, Sword, ThermometerSnowflake, ThermometerSun, Tornado, TreePalm, Unlink, WandSparkles, Wheat, Wind, CircleDot,
+  PiggyBank, Banana, Wand, Cat, Rat,
   type LucideIcon,
 } from 'lucide-react';
 import { useGameStore, type BrushRadius } from '../../store/gameStore';
@@ -43,6 +44,7 @@ const ICONS: Record<string, LucideIcon> = {
   MousePointer2, PawPrint, Pointer, Rocket, Scale, Scissors, Skull, Sparkle,
   Sparkles, Sprout, Swords, Tag, TreePine, Trees, User, Users, Video, VideoOff,
   Waves, X, Zap,
+  PiggyBank, Banana, Wand, Cat, Rat,
   Biohazard, Bird, Bomb, Bone, Brain, Bug, Cloud, CloudSnow, Coffee, Copy, Crown, Dog, Droplet, Egg, Fish, FlaskConical, Flag, Flower, Handshake, HeartHandshake, Lightbulb, Megaphone, Moon, MountainSnow, Orbit, Palmtree, Rabbit, Radiation, Shell, Shield, Snowflake, Spline, Squirrel, Sun, Sword, ThermometerSnowflake, ThermometerSun, Tornado, TreePalm, Unlink, WandSparkles, Wheat, Wind, CircleDot,
 };
 

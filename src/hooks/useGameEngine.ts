@@ -574,12 +574,17 @@ export const useGameEngine = () => {
   }, [syncTile]);
 
   const spawnableAnimalsFor = useCallback((tile: Tile): EntityType[] => {
-    if (['shallow_water', 'river', 'lake'].includes(tile.type)) return ['fish'];
-    if (tile.type.includes('forest') || tile.type === 'taiga') return ['wolf', 'bear', 'deer', 'bird', 'fox', 'snake'];
-    if (tile.type === 'grassland' || tile.type === 'savanna') return ['rabbit', 'deer', 'bird', 'sheep', 'chicken', 'fox'];
+    if (['shallow_water', 'river', 'lake'].includes(tile.type)) return ['fish', 'fish', 'piranha'];
+    if (tile.type === 'enchanted_forest') return ['unicorn', 'fairy', 'deer'];
+    if (tile.type === 'rainforest' || tile.type === 'tropical_forest') return ['monkey', 'snake', 'frog', 'bird'];
+    if (tile.type.includes('forest') || tile.type === 'taiga') return ['wolf', 'bear', 'deer', 'bird', 'fox', 'snake', 'pig'];
+    if (tile.type === 'savanna') return ['buffalo', 'hyena', 'rhino', 'snake', 'bird'];
+    if (tile.type === 'beach') return ['crab', 'turtle'];
+    if (['snow', 'tundra', 'ice', 'glacier'].includes(tile.type)) return ['penguin', 'wolf'];
+    if (tile.type === 'grassland') return ['rabbit', 'deer', 'bird', 'sheep', 'chicken', 'fox', 'cow', 'pig', 'cat', 'dog'];
     if (tile.type === 'mountains' || tile.type === 'hills') return ['bear', 'bird', 'sheep'];
     if (tile.type === 'desert' || tile.type === 'badlands' || tile.type === 'mesa') return ['snake', 'bird'];
-    if (tile.type === 'swamp' || tile.type === 'marsh') return ['snake', 'bird', 'rabbit'];
+    if (tile.type === 'swamp' || tile.type === 'marsh') return ['snake', 'bird', 'frog', 'crocodile'];
     return ['bird', 'rabbit', 'chicken'];
   }, []);
 
@@ -783,7 +788,7 @@ export const useGameEngine = () => {
         else if (tile.type === 'corrupted') monsterType = Math.random() < 0.6 ? 'zombie' : 'skeleton';
         else if (tile.height > 0.7) monsterType = 'dragon';
         else {
-          const monsters: EntityType[] = ['zombie', 'skeleton', 'demon', 'bandit'];
+          const monsters: EntityType[] = ['zombie', 'skeleton', 'demon', 'bandit', 'ghost', 'mage', 'alien'];
           monsterType = monsters[Math.floor(Math.random() * monsters.length)];
         }
         acted = Boolean(entityManagerRef.current?.spawnEntity(monsterType, tile.x, tile.y));

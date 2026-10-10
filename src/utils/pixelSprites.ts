@@ -117,6 +117,118 @@ const FOWL = [
   '............',
 ];
 
+// Crab template: f=shell, d=claw, e=eye
+const CRAB = [
+  '............',
+  '............',
+  '.d........d.',
+  'dd.d....d.dd',
+  '.d.ffffff.d.',
+  '..fffefeff..',
+  '.ffffffffff.',
+  '..ffffffff..',
+  '.f.f....f.f.',
+  '............',
+  '............',
+  '............',
+];
+
+// Turtle template: f=shell, d=shell pattern, s=skin, e=eye
+const TURTLE = [
+  '............',
+  '............',
+  '............',
+  '....dddd....',
+  '...dfdfdd...',
+  '..dfdfdfdd..',
+  '..ddddddddss',
+  '..s.s..s.sse',
+  '............',
+  '............',
+  '............',
+  '............',
+];
+
+// Ghost template: f=sheet, e=eye, d=mouth
+const GHOST = [
+  '....ffff....',
+  '...ffffff...',
+  '..ffffffff..',
+  '..fefffeff..',
+  '..ffffffff..',
+  '..fffddfff..',
+  '..ffffffff..',
+  '..ffffffff..',
+  '..ffffffff..',
+  '..f.ff.ff.f.',
+  '............',
+  '............',
+];
+
+// Fairy template: w=wing, h=hair, s=skin, e=eye, b=dress
+const FAIRY = [
+  '............',
+  '.ww..hh..ww.',
+  'www.hssh.www',
+  '.ww.sess.ww.',
+  '..w.ssss.w..',
+  '.....bb.....',
+  '....bbbb....',
+  '....bbbb....',
+  '.....bb.....',
+  '.....ss.....',
+  '............',
+  '............',
+];
+
+// Snowman template: h=hat, f=snow, e=coal eye, o=carrot, b=stick arm, d=button
+const SNOWMAN = [
+  '....hhhh....',
+  '....hhhh....',
+  '...hhhhhh...',
+  '....ffff....',
+  '...fefeff...',
+  '...ffoooo...',
+  '....ffff....',
+  '.b.ffffff.b.',
+  '..bffdfffb..',
+  '..ffffffff..',
+  '..fffdffff..',
+  '...ffffff...',
+];
+
+// Horned quadruped (unicorn, rhino, buffalo): f=body, d=dark, e=eye, t=tail, h=horn
+const HORNED = [
+  '..........h.',
+  '.tt......h..',
+  '..t.ffffff..',
+  '...fffffff..',
+  '...ffffffff.',
+  '...fffffefd.',
+  '...ffffffdd.',
+  '...ff..ff...',
+  '...ff..ff...',
+  '...dd..dd...',
+  '............',
+  '............',
+];
+
+// Long low reptile (crocodile): f=body, d=scutes, e=eye, t=tail
+const LONG = [
+  '............',
+  '............',
+  '............',
+  '............',
+  '.........fe.',
+  'tffffffffffd',
+  'ddfdfdfdffff',
+  '..d..d..d.d.',
+  '............',
+  '............',
+  '............',
+  '............',
+];
+
 /** Exported so the frame generator can be tested against every template. */
 export const TEMPLATES: Record<string, string[]> = {
   humanoid: HUMANOID,
@@ -126,6 +238,13 @@ export const TEMPLATES: Record<string, string[]> = {
   dragon: DRAGON,
   serpent: SERPENT,
   fowl: FOWL,
+  crab: CRAB,
+  turtle: TURTLE,
+  ghost: GHOST,
+  fairy: FAIRY,
+  snowman: SNOWMAN,
+  horned: HORNED,
+  long: LONG,
 };
 
 interface SpriteSpec {
@@ -210,6 +329,28 @@ const SPECS: Record<EntityType, SpriteSpec> = {
     template: 'serpent',
     palette: { f: '#5f9e46', d: '#33622a', e: '#e8c33b' },
   },
+  cat: { template: 'quadruped', palette: { f: '#e0a050', d: '#a86a2a', e: '#3fbf4f', t: '#a86a2a' } },
+  dog: { template: 'quadruped', palette: { f: '#b88a5a', d: '#7a5530', e: '#1c1c1c', t: '#7a5530' } },
+  cow: { template: 'horned', palette: { f: '#f2efe6', d: '#2c2622', e: '#1c1c1c', t: '#2c2622', h: '#e8dcc0' } },
+  pig: { template: 'quadruped', palette: { f: '#f0a8b0', d: '#c8747e', e: '#1c1c1c', t: '#c8747e' } },
+  crab: { template: 'crab', palette: { f: '#d8503a', d: '#a83224', e: '#111111' } },
+  frog: { template: 'critter', palette: { f: '#5cae3a', e: '#111111', w: '#3c7a24' } },
+  penguin: { template: 'fowl', palette: { f: '#26262e', w: '#f2f2f2', e: '#f2f2f2', d: '#f0a830' } },
+  turtle: { template: 'turtle', palette: { f: '#6a8a3a', d: '#3e5a22', s: '#a8b860', e: '#111111' } },
+  monkey: { template: 'humanoid', palette: { s: '#d8a878', h: '#7a4a24', b: '#8a5a2e', p: '#6a4020', e: '#1a1a1a' } },
+  rat: { template: 'critter', palette: { f: '#8a8478', e: '#d03030', w: '#e8a0a8' } },
+  crocodile: { template: 'long', palette: { f: '#4c7a3a', d: '#2e4e22', e: '#e8c33b', t: '#4c7a3a' } },
+  piranha: { template: 'fish', palette: { f: '#c84a3a', d: '#7a2a20', e: '#f0e040' } },
+  hyena: { template: 'quadruped', palette: { f: '#c8a870', d: '#5a4630', e: '#1c1c1c', t: '#5a4630' } },
+  rhino: { template: 'horned', palette: { f: '#8a8a8e', d: '#5c5c60', e: '#1c1c1c', t: '#5c5c60', h: '#e8e0cc' } },
+  buffalo: { template: 'horned', palette: { f: '#5a3e2a', d: '#3a281a', e: '#1c1c1c', t: '#3a281a', h: '#d8ccb0' } },
+  unicorn: { template: 'horned', palette: { f: '#f6f2ff', d: '#c8b8f0', e: '#5a3aa8', t: '#e8a0f0', h: '#ffd84a' } },
+  fairy: { template: 'fairy', palette: { w: '#c8f0ff', h: '#f0d060', s: '#f6d6c0', e: '#2a6ab0', b: '#7ad08a' } },
+  ghost: { template: 'ghost', palette: { f: '#dfe8f0', e: '#20283a', d: '#20283a' } },
+  mage: { template: 'humanoid', palette: { s: '#c8a890', h: '#3a1a5a', b: '#5a2a8a', p: '#3a1a5a', e: '#ff5ae0' } },
+  druid: { template: 'humanoid', palette: { s: '#d8b088', h: '#e8e4d4', b: '#4a7a3a', p: '#3a5a2a', e: '#1a3a1a' } },
+  alien: { template: 'humanoid', palette: { s: '#8ae06a', h: '#5ab04a', b: '#9aa8b8', p: '#6a7888', e: '#101010' } },
+  snowman: { template: 'snowman', palette: { h: '#22222a', f: '#f4f8fc', e: '#1a1a1a', o: '#f08a2a', b: '#6a4a2a', d: '#1a1a1a' } },
   dragon: {
     template: 'dragon',
     palette: { f: '#c03a2b', w: '#7c1f16', d: '#e8b34b', e: '#ffe94d' },

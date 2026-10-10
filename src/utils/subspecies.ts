@@ -77,6 +77,20 @@ export const RAMPS_FOR: Partial<Record<EntityType, string[]>> = {
   skeleton: ['snow', 'ashen', 'dun'],
   elemental: ['azure', 'crimson', 'verdant', 'violet'],
   bandit: ['sable', 'ashen', 'chestnut'],
+  cat: ['sable', 'snow', 'russet', 'grey', 'golden'],
+  dog: ['chestnut', 'sable', 'snow', 'dun', 'golden'],
+  cow: ['sable', 'chestnut', 'snow', 'dun'],
+  pig: ['russet', 'sable', 'dun'],
+  crab: ['crimson', 'azure', 'golden'],
+  frog: ['verdant', 'azure', 'golden', 'crimson'],
+  monkey: ['chestnut', 'golden', 'ashen'],
+  rat: ['grey', 'sable', 'snow'],
+  hyena: ['dun', 'golden', 'ashen'],
+  unicorn: ['snow', 'violet', 'golden', 'azure'],
+  fairy: ['verdant', 'violet', 'azure', 'golden'],
+  ghost: ['snow', 'azure', 'verdant'],
+  mage: ['violet', 'crimson', 'sable'],
+  alien: ['verdant', 'violet', 'azure'],
 };
 
 /** Perceived brightness, 0-1. The whole ramp turns on getting this right. */

@@ -15,6 +15,7 @@ import { isWaterBiome, type BiomeType, type Entity, type EntityType, type Tile }
 import { addHeat, MELT, SCORCH } from './thermal';
 import { applyStatus, clearStatus, type StatusId } from './statusEffects';
 import { isSapient } from './entitySystemMinimal';
+import { isAquatic } from './pathfinding';
 import type { DropKind } from './clouds';
 import type { DiplomacyAct } from './settlementSystem';
 import type { FlashTone } from './impactBridge';
@@ -98,6 +99,9 @@ export const BIOME_SEEDS: Record<string, BiomeSeed> = {
 /** Creatures with a spawner of their own. The four races have theirs already. */
 export const SPAWNABLE: EntityType[] = [
   'wolf', 'bear', 'deer', 'rabbit', 'sheep', 'chicken', 'fox', 'snake', 'bird', 'fish',
+  'cat', 'dog', 'cow', 'pig', 'crab', 'frog', 'penguin', 'turtle', 'monkey', 'rat',
+  'crocodile', 'piranha', 'hyena', 'rhino', 'buffalo',
+  'unicorn', 'fairy', 'ghost', 'mage', 'druid', 'alien', 'snowman',
   'dragon', 'demon', 'zombie', 'skeleton', 'elemental', 'bandit',
 ];
 
@@ -335,7 +339,7 @@ export const runExtraPower = (
     const type = tool.slice('spawn-'.length) as EntityType;
     if (!SPAWNABLE.includes(type)) return null;
     const wet = isWaterBiome(tile.type);
-    if ((type === 'fish') !== wet && type !== 'bird') return false;
+    if (isAquatic(type) !== wet && type !== 'bird') return false;
     return Boolean(ctx.spawn(type, tile.x, tile.y));
   }
 

@@ -115,6 +115,115 @@ export const CREATURE_LINES: Partial<Record<EntityType, string[]>> = {
     'Has a philosophy about property. You will not enjoy it.',
     'Believes this is a career.',
   ],
+  cat: [
+    'Owns this village. The villagers are under the impression it is theirs.',
+    'Knocked something off a table once and has never apologised.',
+    'Asleep in the one patch of sun, on principle.',
+  ],
+  dog: [
+    'Delighted to see you. Delighted to see everybody, frankly.',
+    'Has found a stick and considers the day a success.',
+    'Guards the house from the postman, who does not exist yet.',
+  ],
+  cow: [
+    'Contemplating the grass with the seriousness it deserves.',
+    'Moves at the speed of a decision nobody has made.',
+    'Not bothered. Will never be bothered.',
+  ],
+  pig: [
+    'Cleverer than it lets on, and filthier than it needs to be.',
+    'Has found the only mud for a mile and is in it.',
+    'Snuffling after something it can smell and you cannot.',
+  ],
+  crab: [
+    'Going somewhere important, sideways.',
+    'All armour and opinions.',
+    'Pinches first and asks questions never.',
+  ],
+  frog: [
+    'Sits very still until the exact moment it does not.',
+    'Sings all night about something only other frogs care about.',
+    'Damp, and pleased about it.',
+  ],
+  penguin: [
+    'Dressed for a dinner nobody invited it to.',
+    'Cannot fly, has made its peace with that, swims instead.',
+    'Waddling with tremendous dignity.',
+  ],
+  turtle: [
+    'Was here before the village and fully intends to be here after.',
+    'Carries its house and never once complains about the rent.',
+    'In no hurry. Has never been in a hurry.',
+  ],
+  monkey: [
+    'Up to something, and the something is your lunch.',
+    'Thinks the people are a very silly sort of monkey.',
+    'Swinging from the subject at hand.',
+  ],
+  rat: [
+    'Wherever there are granaries, there it is.',
+    'Small, quick, and much better organised than you would like.',
+    'Has heard about the plague and would like to deny everything.',
+  ],
+  crocodile: [
+    'Smiling. It is not a friendly smile.',
+    'Has been perfect for a hundred million years and sees no reason to change.',
+    'Lies in the shallows looking exactly like a log, which is the point.',
+  ],
+  piranha: [
+    'A small fish with a large problem, and the problem is teeth.',
+    'Never alone, never full, never sorry.',
+  ],
+  hyena: [
+    'Laughing at a joke you would not find funny.',
+    'Lets something else do the hunting and turns up for dinner.',
+    'Not a dog. Do not call it a dog.',
+  ],
+  rhino: [
+    'Has poor eyesight and a policy of charging whatever it cannot see.',
+    'Armoured, horned, and entirely uninterested in your borders.',
+    'A boulder with a temper and a plan.',
+  ],
+  buffalo: [
+    'Part of a herd that takes the whole valley to turn around.',
+    'Shaggy, heavy, and moving in one direction: forward.',
+    'Grazes like the plains owe it something.',
+  ],
+  unicorn: [
+    'Exactly as real as you need it to be.',
+    'Leaves flowers where it steps and judgement where it looks.',
+    'Has never once been in a hurry, and still arrives first.',
+  ],
+  fairy: [
+    'Mischief in a very small hat.',
+    'Glows a bit when it laughs, which is often and at you.',
+    'Has a favour to grant and a price it has not mentioned.',
+  ],
+  ghost: [
+    'Unfinished business, and in no hurry to finish it.',
+    'Walks through walls and through conversations.',
+    'Was someone once. Remembers the outline of it.',
+  ],
+  mage: [
+    'Read the wrong book, and read all of it.',
+    'Has ambitions measured in kingdoms and a temper measured in craters.',
+    'The robe is mostly for effect. So is the laugh.',
+  ],
+  druid: [
+    'Speaks for the trees, which have been waiting a long time to be spoken for.',
+    'Older than the village and kinder than it deserves.',
+    'Smells faintly of moss and certainty.',
+  ],
+  alien: [
+    'Came a very long way to look at cows.',
+    'Taking notes. The notes are not flattering.',
+    'Would like to speak to whoever is in charge, and then probe them.',
+  ],
+  snowman: [
+    'Fragile, cheerful, and doomed by spring.',
+    'Somebody made it, and now it is making its own decisions.',
+    'Keeps glancing at the sun.',
+  ],
 };
 
 /** Every biome has something to say about itself. */

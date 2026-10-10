@@ -1,6 +1,7 @@
 // src/utils/entityManagerMinimal.ts
 import * as THREE from 'three';
 import { pickRamp } from './subspecies';
+import { isAquatic } from './pathfinding';
 import { TILE_SIZE, type Tile, type Entity, type EntityType } from '../types/world';
 import { createEntity, createEntityMesh, updateEntityMesh, EntityAI, type AIOrder } from './entitySystemMinimal';
 import { inheritTraits } from './traits';
@@ -292,8 +293,17 @@ export class EntityManager implements EntityIndex {
   // -- lifecycle ---------------------------------------------------------
 
   private processLifecycleEvents(entity: Entity, delta: number): void {
+    // A snowman somewhere warm is a snowman with a deadline.
+    if (entity.type === 'snowman') {
+      const ix = Math.floor(entity.position.x);
+      const iy = Math.floor(entity.position.y);
+      if (this.isInBounds(ix, iy) && this.tiles[ix][iy].temperature > 0.55) {
+        entity.health -= 4 * delta;
+      }
+    }
+
     // Undead do not age or breed
-    if (['skeleton', 'zombie'].includes(entity.type)) {
+    if (['skeleton', 'zombie', 'ghost'].includes(entity.type)) {
       if (entity.health <= 0) {
         this.killEntity(entity, entity.status.includes('slain') ? 'combat' : 'health');
       }
@@ -619,6 +629,9 @@ export class EntityManager implements EntityIndex {
       wolf: 30, bear: 15, deer: 40, rabbit: 60, bird: 60, fish: 90,
       sheep: 50, chicken: 60, fox: 25, snake: 25,
       dragon: 3, demon: 5, zombie: 60, skeleton: 70, elemental: 10, bandit: 25,
+      cat: 25, dog: 25, cow: 40, pig: 40, crab: 40, frog: 40, penguin: 40, turtle: 20,
+      monkey: 30, rat: 60, crocodile: 12, piranha: 60, hyena: 25, rhino: 10, buffalo: 40,
+      unicorn: 4, fairy: 15, ghost: 15, mage: 4, druid: 6, alien: 8, snowman: 20,
     };
     const baseMax = baseMaxCounts[type] ?? 50;
     switch (this.entityPopulationDensity) {
@@ -635,7 +648,7 @@ export class EntityManager implements EntityIndex {
    */
   private isSuitableTileForEntity(type: EntityType, tile: Tile): boolean {
     const isWater = ['deep_ocean', 'ocean', 'shallow_water', 'river', 'lake'].includes(tile.type);
-    if (type === 'fish') return isWater;
+    if (isAquatic(type)) return isWater;
     if (isWater || tile.walkable === false) return false;
     return tile.height > 0.25;
   }
