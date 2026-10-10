@@ -347,6 +347,12 @@ armies, the content long tail — and the things that only show at scale.
 | 21.11 | **One draw call for every creature** | ✅ done | `utils/creatureLayer.ts`. 2,000 creatures: 4,022 calls and 10.5 ms → 23 calls and ~0.1 ms |
 | 21.12 | **House tiers** | ✅ done | Hut → stone house → manor, gated on hall and temple/library |
 | 21.13 | **Deterministic test ids** | ✅ done | uuid was the hidden source of the one-in-ten unreproducible failures |
+| 21.14 | **Monster visits** | ✅ done | `utils/monsterEvents.ts`. Dragon, UFO, Crabzilla, bandits, necromancer, Cold Ones in winter — aimed at a town, each with its precondition |
+| 21.15 | **Night windows, seasonal fields, lunges** | ✅ done | Windows keep their light after dark; farms green/gold/frost; attackers lunge and face their target |
+| 21.16 | **The mind editor** | ✅ done | `utils/mind.ts`. Eight drives switchable per creature in the inspector |
+| 21.17 | **Demographics from a headless 30-minute game** | ✅ done | Random deaths were a quarter of a human life; caps were tiny; migrants were most of the chronicle; the wild emptied as towns grew. All four fixed; a glacier re-freezing spam found the same way |
+| 21.18 | **Favourites, Knowledge book, watchtowers** | ✅ done | `utils/knowledge.ts`. Star creatures; a bestiary remembered across worlds; towers shoot monsters and enemies |
+| 21.19 | **Twenty laws; flame and ice towers; wells, markets, docks** | ✅ done | Animal spawns, Monster visits, Peaceful monsters, Forging; hostile towers as placeable structures; three town buildings with effects |
 
 ## Where this ended up
 
