@@ -1,4 +1,5 @@
 // src/utils/entityManagerMinimal.ts
+import { wants } from './mind';
 import { bornInto, foundClan } from './families';
 import { abilityTick, type AbilityWorld } from './creatureAbilities';
 import { cloneEquipment, reserveItemIds } from './equipment';
@@ -237,6 +238,7 @@ export class EntityManager implements EntityIndex {
       uplifted: saved.uplifted,
       equipment: cloneEquipment(saved.equipment),
       clan: saved.clan ?? null,
+      mind: saved.mind ? { ...saved.mind } : undefined,
       parentIds: saved.parentIds ? [...saved.parentIds] : undefined,
       carrying: null,
       job: saved.job,
@@ -384,7 +386,8 @@ export class EntityManager implements EntityIndex {
 
     if (!this.laws.reproduction) return;
 
-    const canReproduce = entity.age >= entity.maxAge * 0.2
+    const canReproduce = wants(entity, 'breed')
+      && entity.age >= entity.maxAge * 0.2
       && entity.age <= entity.maxAge * 0.8
       && entity.needs.hunger > 0.4;
     const fertility = traits.includes('fertile') ? 3 : 1;

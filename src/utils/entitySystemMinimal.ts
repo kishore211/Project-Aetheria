@@ -17,6 +17,7 @@ import { getPixelSpriteTexture, getPixelSpriteFrames, WALK_FRAMES, gearLook, wie
 import { armorBlock, claimSpoils, gearSpeed, wearAfterBlow, weaponCooldown, weaponDamage, weaponReach } from './equipment';
 import { emitShot, type ShotKind } from './shotBridge';
 import { handOverToLayer } from './creatureLayer';
+import { wants } from './mind';
 import { groundSpeed, stepOnGround } from './biomeEffects';
 import { canPreyOn, rollSize, sizeOf } from './size';
 import {
@@ -1105,7 +1106,7 @@ export class EntityAI {
 
     // Village orders outrank personal errands unless the unit is desperate.
     const desperate = this.entity.needs.thirst <= 0.2 || this.entity.needs.hunger <= 0.2;
-    if (this.order && !desperate) {
+    if (this.order && !desperate && wants(this.entity, 'work')) {
       const target = this.tileAt(tiles, this.order.x, this.order.y);
       if (target) {
         this.targetTile = target;
@@ -1174,7 +1175,7 @@ export class EntityAI {
     // Hunger: hunt if a predator, otherwise forage
     const bloodthirsty = this.entity.traits?.includes('bloodthirsty') ?? false;
     if (this.entity.needs.hunger <= (bloodthirsty ? 0.75 : 0.4)) {
-      if (this.isPredator()) {
+      if (this.isPredator() && wants(this.entity, 'hunt')) {
         const prey = this.findNearbyPrey();
         if (prey) {
           this.targetEntity = prey;
@@ -1197,6 +1198,7 @@ export class EntityAI {
     // Village workers fetch building material once they are fed
     if (
       this.entity.job === 'gatherer'
+      && wants(this.entity, 'work')
       && this.entity.villageId
       && !this.entity.carrying
       && this.entity.needs.hunger > 0.5
@@ -1214,7 +1216,7 @@ export class EntityAI {
 
     // Rest — creatures prefer to sleep at night
     const nightTime = simulation.timeOfDay === 'night';
-    if (this.entity.needs.rest <= (nightTime ? 0.6 : 0.2)) {
+    if (this.entity.needs.rest <= (nightTime ? 0.6 : 0.2) && wants(this.entity, 'sleep')) {
       this.currentState = 'sleeping';
       this.addStatus('sleeping');
       this.ticksSinceLastAction = 0;
@@ -1222,7 +1224,7 @@ export class EntityAI {
     }
 
     // Danger
-    if (this.isPrey()) {
+    if (this.isPrey() && wants(this.entity, 'flee')) {
       const fleeRadius = this.entity.traits?.includes('coward') ? 9 : 6;
       const threat = this.findNearbyThreat(fleeRadius);
       if (threat) {
@@ -1249,7 +1251,7 @@ export class EntityAI {
     // Company. Villagers who have eaten and drunk want to be around other
     // people, and the bonfire is where they go — which is what makes a
     // settlement look lived in rather than like empty scenery.
-    if (this.entity.needs.social <= 0.45 && this.entity.villageId) {
+    if (this.entity.needs.social <= 0.45 && this.entity.villageId && wants(this.entity, 'socialise')) {
       const gathering = simulation.gatheringPointFor?.(this.entity);
       if (gathering) {
         const spot = this.tileAt(tiles, gathering.x, gathering.y);
@@ -1274,7 +1276,7 @@ export class EntityAI {
 
     // Wander. Villagers stay near home — the old behaviour let them drift off
     // across the map and left their own village looking abandoned.
-    if (Math.random() < 0.35) {
+    if (wants(this.entity, 'wander') && Math.random() < 0.35) {
       const home = this.entity.villageId ? simulation.homePositionFor?.(this.entity) : null;
       const anchorX = home ? home.x : Math.floor(this.entity.position.x);
       const anchorY = home ? home.y : Math.floor(this.entity.position.y);
@@ -2106,6 +2108,8 @@ export class EntityAI {
 
   /** Send this unit to fight a specific enemy (used by raids). */
   engage(target: Entity): void {
+    // A creature whose fight has been switched off will not start one.
+    if (!wants(this.entity, 'fight')) return;
     this.targetEntity = target;
     this.targetTile = null;
     this.path = [];

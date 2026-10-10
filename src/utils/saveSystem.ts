@@ -67,6 +67,8 @@ export interface SavedEntity {
   /** Family name and parents. Absent in older saves. */
   clan?: string | null;
   parentIds?: string[];
+  /** Drives switched off in the mind editor. */
+  mind?: Entity['mind'];
 }
 
 export interface SavedBuilding {
@@ -210,6 +212,7 @@ export const buildSave = (options: {
       equipment: cloneEquipment(entity.equipment),
       clan: entity.clan ?? null,
       parentIds: entity.parentIds,
+      mind: entity.mind ? { ...entity.mind } : undefined,
     })),
     villages: options.villages.map(village => ({
       id: village.id,

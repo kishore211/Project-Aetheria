@@ -1,4 +1,5 @@
-import { Crown, Eye, EyeOff, MapPin, PawPrint, Shield, Skull, Sword, X } from 'lucide-react';
+import { Brain, Crown, Eye, EyeOff, MapPin, PawPrint, Shield, Skull, Sword, X } from 'lucide-react';
+import { useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import type { Entity, Resource, TraitId } from '../../types/world';
 import { TRAITS } from '../../utils/traits';
@@ -11,6 +12,7 @@ import { biomeLine, creatureLine } from '../../utils/flavour';
 import { CULTURE_TRAITS, type CultureTraitId } from '../../utils/identity';
 import { worldAccess } from '../../utils/worldAccess';
 import { levelOf } from '../../utils/entitySystemMinimal';
+import { DRIVES, toggleDrive, wants } from '../../utils/mind';
 import { describeItem, MATERIAL_COLOR, type Equipment, type Item } from '../../utils/equipment';
 
 const NeedBar = ({ label, value, tone }: { label: string; value: number; tone: string }) => (
@@ -24,6 +26,44 @@ const NeedBar = ({ label, value, tone }: { label: string; value: number; tone: s
     </div>
   </div>
 );
+
+/**
+ * The mind editor: every drive the creature acts on, each one a switch.
+ * Works on the live creature rather than the inspector's snapshot, because
+ * the point is to change what it does next.
+ */
+const MindEditor = ({ entityId }: { entityId: string }) => {
+  const [, redraw] = useState(0);
+  const live = worldAccess.current?.entities().find(e => e.id === entityId);
+  if (!live) return null;
+  return (
+    <div>
+      <h4 className="text-muted-foreground text-xs font-medium mb-1 flex items-center gap-1">
+        <Brain size={11} /> Mind
+      </h4>
+      <div className="flex flex-wrap gap-1">
+        {DRIVES.map((drive) => {
+          const on = wants(live, drive.id);
+          return (
+            <button
+              key={drive.id}
+              type="button"
+              title={`${drive.hint} — click to switch ${on ? 'off' : 'on'}`}
+              onClick={() => { toggleDrive(live, drive.id); redraw(n => n + 1); }}
+              className={`tool-btn text-xs px-2 py-0.5 rounded-full border ${
+                on
+                  ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-200'
+                  : 'bg-background/60 border-muted/50 text-muted-foreground line-through'
+              }`}
+            >
+              {drive.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
 
 const QUALITY_TONE: Record<Item['quality'], string> = {
   normal: 'text-foreground',
@@ -243,6 +283,8 @@ const InfoPanel = () => {
                 <GearList equipment={selectedEntity.equipment} />
               </div>
             )}
+
+            <MindEditor entityId={selectedEntity.id} />
 
             <div>
               <h4 className="text-muted-foreground text-xs font-medium mb-1">Attributes</h4>
