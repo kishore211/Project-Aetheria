@@ -15,6 +15,8 @@ import * as THREE from 'three';
 export type MapLayer =
   | 'natural'
   | 'political'
+  | 'alliance'
+  | 'village'
   | 'culture'
   | 'language'
   | 'religion'
@@ -46,6 +48,14 @@ export const MAP_LAYERS: MapLayerInfo[] = [
   {
     id: 'political', label: 'Borders', hint: 'Whose land is whose — the world drains to grey so the claims read.',
     legend: ['unclaimed', 'claimed'],
+  },
+  {
+    id: 'alliance', label: 'Alliances', hint: 'Who stands with whom — allied realms share one colour.',
+    legend: ['', ''],
+  },
+  {
+    id: 'village', label: 'Towns', hint: 'Which town each stretch of land answers to.',
+    legend: ['', ''],
   },
   {
     id: 'culture', label: 'Culture', hint: 'Who thinks of themselves as the same people.',
@@ -138,7 +148,7 @@ export const isDataLayer = (layer: MapLayer): layer is keyof typeof RAMPS =>
 
 /** Does this layer drain the terrain so an overlay can be read on top? */
 export const drainsTerrain = (layer: MapLayer): boolean =>
-  layer === 'political' || isIdentityLayer(layer);
+  layer === 'political' || layer === 'alliance' || layer === 'village' || isIdentityLayer(layer);
 
 export const nextLayer = (current: MapLayer, step: number): MapLayer => {
   const order = MAP_LAYERS.map(entry => entry.id);

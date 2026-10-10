@@ -188,6 +188,13 @@ export interface Kingdom {
   allies: Set<string>;
 }
 
+/** A stable, saturated colour for a town, from its id. */
+const townColour = (id: string): string => {
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return `#${new THREE.Color().setHSL(((h >>> 0) % 360) / 360, 0.65, 0.55).getHexString()}`;
+};
+
 /** How much larger a building is drawn than its recipe size. */
 const BUILDING_DRAW_SCALE = 1.7;
 
@@ -1005,6 +1012,11 @@ export class SettlementSystem {
   private tintForTile(tile: Tile, layer: MapLayer = simulation.mapLayer): THREE.Color | null {
     if (!tile.ownerId) return null;
 
+    if (layer === 'alliance') return this.allianceColor(tile.ownerId);
+    if (layer === 'village') {
+      const village = this.villageHolding(tile);
+      return village ? this.identityColor(`town:${village.id}`, townColour(village.id)) : null;
+    }
     if (!isIdentityLayer(layer)) {
       return this.kingdoms.get(tile.ownerId)?.color ?? null;
     }
@@ -1019,6 +1031,28 @@ export class SettlementSystem {
     const meta = metaById(metaId);
     if (!meta) return UNKNOWN_IDENTITY_COLOR;
     return this.identityColor(meta.id, meta.colorHex);
+  }
+
+  /**
+   * One colour per alliance: every realm in a web of alliances wears the
+   * colour of its eldest member, so a bloc reads as one shape. A realm with
+   * no allies keeps its own.
+   */
+  private allianceColor(kingdomId: string): THREE.Color | null {
+    const start = this.kingdoms.get(kingdomId);
+    if (!start) return null;
+    const seen = new Set<string>([start.id]);
+    const queue = [start];
+    let eldest = start;
+    while (queue.length > 0) {
+      const kingdom = queue.pop()!;
+      if (kingdom.age > eldest.age) eldest = kingdom;
+      for (const id of kingdom.allies) {
+        const ally = this.kingdoms.get(id);
+        if (ally && !seen.has(id)) { seen.add(id); queue.push(ally); }
+      }
+    }
+    return eldest.color;
   }
 
   /** Cached THREE.Colors, so a repaint does not allocate one per tile. */
@@ -3741,7 +3775,18 @@ export class SettlementSystem {
 
   // -- reporting ---------------------------------------------------------
 
+  /** The alliance web as a string, so the alliance layer knows when to repaint. */
+  private allianceSignature = '';
+
   private publishSummaries(): void {
+    if (simulation.mapLayer === 'alliance') {
+      const signature = Array.from(this.kingdoms.values())
+        .map(k => `${k.id}:${Array.from(k.allies).sort().join(',')}`).join('|');
+      if (signature !== this.allianceSignature) {
+        this.allianceSignature = signature;
+        this.repaintAllTerritory('alliance');
+      }
+    }
     const populations = this.entities.getEntitiesByKingdom();
     const summaries: KingdomSummary[] = [];
 
