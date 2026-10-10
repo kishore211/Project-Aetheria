@@ -286,3 +286,18 @@ describe('fighting at a distance', () => {
     clearShots();
   });
 });
+
+describe('favourites', () => {
+  it('announces a favourite’s death and stays quiet about the rest', () => {
+    const manager = new EntityManager(makeGrid(16), new THREE.Scene());
+    const lines: string[] = [];
+    manager.onLifeEvent = (m) => lines.push(m);
+    const star = manager.spawnEntity('human', 5, 5)!;
+    const other = manager.spawnEntity('human', 7, 7)!;
+    star.favourite = true;
+    manager.killEntity(other, 'health');
+    expect(lines.some(l => l.includes('favourites'))).toBe(false);
+    manager.killEntity(star, 'health');
+    expect(lines.some(l => l.includes(star.name) && l.includes('favourites'))).toBe(true);
+  });
+});

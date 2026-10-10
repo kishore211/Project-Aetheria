@@ -1,4 +1,4 @@
-import { Brain, Crown, Eye, EyeOff, MapPin, PawPrint, Shield, Skull, Sword, X } from 'lucide-react';
+import { Brain, Crown, Eye, EyeOff, MapPin, PawPrint, Shield, Skull, Star, Sword, X } from 'lucide-react';
 import { useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import type { Entity, Resource, TraitId } from '../../types/world';
@@ -26,6 +26,23 @@ const NeedBar = ({ label, value, tone }: { label: string; value: number; tone: s
     </div>
   </div>
 );
+
+/** Star a creature: it goes on the register's favourites list and its death is announced. */
+const FavouriteStar = ({ entityId }: { entityId: string }) => {
+  const [, redraw] = useState(0);
+  const live = worldAccess.current?.entities().find(e => e.id === entityId);
+  if (!live) return null;
+  return (
+    <button
+      type="button"
+      title={live.favourite ? 'Remove from favourites' : 'Add to favourites'}
+      className={`tool-btn px-2 py-1.5 rounded ${live.favourite ? 'bg-amber-400/25 text-amber-300' : 'bg-muted/60 hover:bg-muted'}`}
+      onClick={() => { live.favourite = !live.favourite || undefined; redraw(n => n + 1); }}
+    >
+      <Star size={13} fill={live.favourite ? 'currentColor' : 'none'} />
+    </button>
+  );
+};
 
 /**
  * The mind editor: every drive the creature acts on, each one a switch.
@@ -203,6 +220,7 @@ const InfoPanel = () => {
               {isFollowing ? <EyeOff size={13} /> : <Eye size={13} />}
               {isFollowing ? 'Stop following' : 'Follow'}
             </button>
+            <FavouriteStar entityId={selectedEntity.id} />
             <button
               type="button"
               title="Centre the camera here"

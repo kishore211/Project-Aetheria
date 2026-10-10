@@ -69,6 +69,7 @@ export interface SavedEntity {
   parentIds?: string[];
   /** Drives switched off in the mind editor. */
   mind?: Entity['mind'];
+  favourite?: boolean;
 }
 
 export interface SavedBuilding {
@@ -213,6 +214,7 @@ export const buildSave = (options: {
       clan: entity.clan ?? null,
       parentIds: entity.parentIds,
       mind: entity.mind ? { ...entity.mind } : undefined,
+      favourite: entity.favourite || undefined,
     })),
     villages: options.villages.map(village => ({
       id: village.id,

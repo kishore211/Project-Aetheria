@@ -401,6 +401,8 @@ export interface Entity {
   clan?: string | null;
   /** Mother and father, or the one parent of a creature that needs none. */
   parentIds?: string[];
+  /** Starred by the player: listed in the register, and mourned aloud. */
+  favourite?: boolean;
   /** Drives the player has switched off. See utils/mind.ts. */
   mind?: Partial<Record<'hunt' | 'flee' | 'sleep' | 'work' | 'socialise' | 'wander' | 'breed' | 'fight', boolean>>;
 }

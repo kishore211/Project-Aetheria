@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Crown, Home, ScrollText, Swords, X } from 'lucide-react';
+import { Crown, Home, ScrollText, Star, Swords, X } from 'lucide-react';
+import { worldAccess } from '../../utils/worldAccess';
 import { useGameStore } from '../../store/gameStore';
 
 /**
@@ -15,13 +16,14 @@ import { useGameStore } from '../../store/gameStore';
  * behaviour does not, and every row does the same thing when clicked.
  */
 
-type ListTab = 'realms' | 'villages' | 'wars' | 'plots';
+type ListTab = 'realms' | 'villages' | 'wars' | 'plots' | 'favourites';
 
 const TABS: Array<{ id: ListTab; label: string; icon: typeof Crown }> = [
   { id: 'realms', label: 'Realms', icon: Crown },
   { id: 'villages', label: 'Towns', icon: Home },
   { id: 'wars', label: 'Standing', icon: Swords },
   { id: 'plots', label: 'Plots', icon: ScrollText },
+  { id: 'favourites', label: 'Starred', icon: Star },
 ];
 
 const ListWindow = ({ open, onClose }: { open: boolean; onClose: () => void }) => {
@@ -60,11 +62,16 @@ const ListWindow = ({ open, onClose }: { open: boolean; onClose: () => void }) =
 
   if (!open) return null;
 
+  // Read live when the register opens: favourites are a property of the
+  // creatures themselves, not something the store mirrors.
+  const favourites = (worldAccess.current?.entities() ?? []).filter(e => e.favourite);
+
   const counts: Record<ListTab, number> = {
     realms: kingdoms.length,
     villages: villages.length,
     wars: opinions.length || wars.length,
     plots: plots.length,
+    favourites: favourites.length,
   };
 
   return (
@@ -147,6 +154,32 @@ const ListWindow = ({ open, onClose }: { open: boolean; onClose: () => void }) =
                         )}
                         {village.kingdomName} · {village.population} living ·{' '}
                         {village.territory} tiles
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ))}
+
+          {tab === 'favourites' && (favourites.length === 0
+            ? <p className="list-empty">Star a creature from its inspector to keep it here.</p>
+            : (
+              <ul className="space-y-1">
+                {favourites.map((creature) => (
+                  <li key={creature.id}>
+                    <button
+                      type="button"
+                      className="list-row"
+                      onClick={() => {
+                        useGameStore.getState().setSelectedEntity(creature);
+                        focusTile(Math.floor(creature.position.x), Math.floor(creature.position.y));
+                        onClose();
+                      }}
+                    >
+                      <Star size={12} className="text-amber-300 shrink-0" fill="currentColor" />
+                      <span className="list-name">{creature.name}</span>
+                      <span className="list-meta capitalize">
+                        {creature.type} · {Math.round(creature.health)} hp{(creature.kills ?? 0) > 0 ? ` · ${creature.kills} kills` : ''}
                       </span>
                     </button>
                   </li>

@@ -246,6 +246,7 @@ export class EntityManager implements EntityIndex {
       equipment: cloneEquipment(saved.equipment),
       clan: saved.clan ?? null,
       mind: saved.mind ? { ...saved.mind } : undefined,
+      favourite: saved.favourite,
       parentIds: saved.parentIds ? [...saved.parentIds] : undefined,
       carrying: null,
       job: saved.job,
@@ -497,6 +498,10 @@ export class EntityManager implements EntityIndex {
     this.disposeMesh(entity);
 
     this.onEntityDeath?.(entity, cause);
+    // A favourite's death is news whatever killed it.
+    if (entity.favourite) {
+      this.onLifeEvent?.(`\u2605 ${entity.name}, one of your favourites, is gone`, 'death', { x: Math.floor(entity.position.x), y: Math.floor(entity.position.y) });
+    }
     this.onLifeEvent?.(
       chronicle(deathTopic(cause), { name: entity.name, type: entity.type }),
       'death',
