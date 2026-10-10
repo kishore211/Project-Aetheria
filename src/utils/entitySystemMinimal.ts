@@ -569,6 +569,15 @@ export function updateEntityMesh(entity: Entity, deltaTime = 1 / 60, detailLevel
     sprite.material.rotation = twitch * 0.05;
   }
 
+  // The swing. A blow is a lunge toward the target and a lean into it, so a
+  // battle reads as people hitting each other rather than standing in a heap
+  // changing colour.
+  if (entity.status.includes('attacking')) {
+    const facing = entity.facing ?? 1;
+    sprite.position.x += facing * getEntitySize(entity) * 0.35;
+    sprite.material.rotation = -facing * 0.2;
+  }
+
   sprite.scale.set(
     spriteBase * pop * squashX * (entity.facing ?? 1),
     spriteBase * pop * squashY,
@@ -1886,6 +1895,9 @@ export class EntityAI {
   /** Deal one blow, respecting the attack cooldown. */
   private strike(target: Entity): void {
     if (this.attackCooldown > 0) return;
+    // Turn to face what it is hitting, so the lunge goes the right way.
+    const dx = target.position.x - this.entity.position.x;
+    if (Math.abs(dx) > 0.05) this.entity.facing = dx > 0 ? 1 : -1;
     const weapon = this.entity.equipment?.weapon;
     this.attackCooldown = weaponCooldown(weapon);
     if (target.status.includes('shielded')) {
