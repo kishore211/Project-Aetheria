@@ -67,6 +67,7 @@ import {
   type OpinionResult,
 } from './politics';
 import { speak } from './dialogue';
+import { buildingSprite } from './pixelAtlas';
 import { conquestOutcome, formationSlots } from './army';
 import { emitItemEvent, equip, forgeItem, forgePriority, MATERIAL_COST } from './equipment';
 import {
@@ -88,7 +89,11 @@ export type BuildingKind =
   | 'tower'
   | 'temple'
   | 'statue'
-  | 'mine';
+  | 'mine'
+  | 'windmill'
+  | 'barracks'
+  | 'smithy'
+  | 'library';
 
 export interface Building {
   id: string;
@@ -198,6 +203,10 @@ const RECIPES: BuildingRecipe[] = [
   { kind: 'hall', wood: 14, stone: 6, requires: 5, limit: 1, size: 0.85, priority: 100 },
   { kind: 'temple', wood: 10, stone: 12, requires: 9, limit: 1, size: 0.8, priority: 80 },
   { kind: 'tower', wood: 4, stone: 10, requires: 6, limit: 3, size: 0.78, priority: 70 },
+  { kind: 'barracks', wood: 8, stone: 8, requires: 8, limit: 1, size: 0.8, priority: 65 },
+  { kind: 'smithy', wood: 6, stone: 6, requires: 6, limit: 1, size: 0.72, priority: 62 },
+  { kind: 'windmill', wood: 8, stone: 2, requires: 5, limit: 1, size: 0.78, priority: 55 },
+  { kind: 'library', wood: 10, stone: 6, requires: 10, limit: 1, size: 0.78, priority: 40 },
   { kind: 'mine', wood: 4, stone: 6, requires: 7, limit: 2, size: 0.6, priority: 60 },
   { kind: 'house', wood: 7, stone: 1, requires: 2, limit: 10, size: 0.62, priority: 50 },
   { kind: 'farm', wood: 5, stone: 0, requires: 3, limit: 4, size: 0.55, priority: 45 },
@@ -208,6 +217,7 @@ const RECIPES: BuildingRecipe[] = [
 const BUILDING_HEALTH: Record<BuildingKind, number> = {
   bonfire: 120, tent: 60, house: 140, hall: 260,
   farm: 90, tower: 240, temple: 220, statue: 180, mine: 160,
+  windmill: 120, barracks: 220, smithy: 160, library: 170,
 };
 
 /**
@@ -220,6 +230,7 @@ const BUILDING_HEALTH: Record<BuildingKind, number> = {
 const CLAIM_RADIUS: Record<BuildingKind, number> = {
   bonfire: 7, tent: 3, house: 4, hall: 9,
   farm: 3, tower: 7, temple: 7, statue: 5, mine: 3,
+  windmill: 3, barracks: 5, smithy: 3, library: 5,
 };
 
 /**
@@ -308,6 +319,10 @@ const TIERS: Record<string, BuildingTier> = {
   statue: { tier: 3, footprint: 2 },
   temple: { tier: 3, footprint: 2 },
   hall: { tier: 3, footprint: 2 },
+  windmill: { tier: 2, footprint: 1 },
+  barracks: { tier: 2, footprint: 1 },
+  smithy: { tier: 2, footprint: 1 },
+  library: { tier: 3, footprint: 1 },
 };
 
 /** Tiles on a side. Derived from the kind, so no save has to carry it. */
@@ -325,6 +340,10 @@ const SITING: Record<string, Siting> = {
   temple: 'solitary',
   statue: 'solitary',
   tower: 'border',
+  windmill: 'cluster',
+  barracks: 'border',
+  smithy: 'cluster',
+  library: 'solitary',
 };
 
 /**
@@ -382,6 +401,10 @@ const BUILDING_YIELD: Record<string, number> = {
   statue: 1,
   tower: 1,
   bonfire: 0,
+  windmill: 2,
+  barracks: 0,
+  smithy: 3,
+  library: 2,
 };
 
 /** How many residents each building houses, for the homelessness term. */
@@ -421,6 +444,10 @@ const PULSE_BY_BUILDING: Record<string, number> = {
   statue: 0.2,
   tower: 0.25,
   mine: 0.4,
+  windmill: 0.6,
+  barracks: 0.25,
+  smithy: 0.5,
+  library: 0.3,
 };
 
 /** Claimed land whose village has no identity yet, on an identity layer. */
@@ -1016,8 +1043,10 @@ export class SettlementSystem {
       const martial = groupHasCultureTrait(village.id, 'warlike') ? 1.6
         : groupHasCultureTrait(village.id, 'pacifist') ? 0.45
           : 1;
+      // A barracks is somewhere to keep soldiers, so a town with one keeps more.
+      const drilled = village.buildings.some(b => b.kind === 'barracks') ? 1.5 : 1;
       const warriorTarget = members.length >= 8
-        ? Math.max(1, Math.round(members.length * (atWar ? 0.4 : 0.15) * martial))
+        ? Math.max(1, Math.round(members.length * (atWar ? 0.4 : 0.15) * martial * drilled))
         : 0;
       const appetite = groupHasCultureTrait(village.id, 'frugal') ? 0.7 : 1;
       const foragingNeed = village.store.food > 100 ? 1
@@ -1275,6 +1304,14 @@ export class SettlementSystem {
         if (tax > 0 && Math.random() < 0.04) applyScenario(resident, 'sleptRough');
       }
 
+      // A windmill grinds what the farms grow: each one turns a little of
+      // the harvest into extra bread.
+      const mills = village.buildings.filter(b => b.kind === 'windmill').length;
+      if (mills > 0) {
+        const farms = village.buildings.filter(b => b.kind === 'farm').length;
+        village.store.food += mills * Math.min(4, 1 + farms);
+      }
+
       // -- 3. the ledger --------------------------------------------------
       const homeless = Math.max(0, residents.length - this.homesIn(village));
       const warriors = residents.filter(r => r.job === 'warrior').length;
@@ -1366,7 +1403,7 @@ export class SettlementSystem {
           { x: spot.x, y: spot.y },
         );
         // A temple or a library is where a people writes itself down.
-      } else if (recipe.kind === 'temple' || recipe.kind === 'statue') {
+      } else if (recipe.kind === 'temple' || recipe.kind === 'statue' || recipe.kind === 'library') {
         const identity = groupMetas(village.id);
         if (identity) {
           const book = writeBook(spot.x, spot.y, identity);
@@ -1621,7 +1658,7 @@ export class SettlementSystem {
     position.y += size * 0.5 + 0.02;
     this.buildingCloud.set(slot, {
       position,
-      sprite: kind,
+      sprite: buildingSprite(kind, village.race),
       size,
       // Tint toward the kingdom colour so borders and buildings agree
       tint: kingdom ? new THREE.Color(0xffffff).lerp(kingdom.color, 0.22) : undefined,
@@ -2051,11 +2088,13 @@ export class SettlementSystem {
     for (const village of this.villages.values()) {
       let best = 1;
       let mines = false;
+      let smithy = false;
       for (const building of village.buildings) {
         best = Math.max(best, tierOf(building.kind));
         if (building.kind === 'mine') mines = true;
+        if (building.kind === 'smithy') smithy = true;
       }
-      tiers.set(village.id, Math.min(4, best + (mines ? 1 : 0)));
+      tiers.set(village.id, Math.min(4, best + (mines ? 1 : 0) + (smithy ? 1 : 0)));
     }
     return tiers;
   }
@@ -2623,18 +2662,24 @@ export class SettlementSystem {
       const people = byVillage.get(village.id);
       if (!people) continue;
       people.sort((a, b) => forgePriority(b) - forgePriority(a));
-      const needy = people.find(p => !p.equipment?.weapon) ?? people.find(p => !p.equipment?.armor);
-      if (!needy) continue;
-      const slot = needy.equipment?.weapon ? 'armor' : 'weapon';
-      const item = forgeItem(slot, tiers.get(village.id) ?? 1, village.race, village.name);
-      const cost = MATERIAL_COST[item.material];
-      if (village.store.wood < cost.wood || village.store.stone < cost.stone || village.store.gold < cost.gold) continue;
-      village.store.wood -= cost.wood;
-      village.store.stone -= cost.stone;
-      village.store.gold -= cost.gold;
-      equip(needy, item);
-      if (item.quality === 'legendary') emitItemEvent({ kind: 'forged', item, owner: needy });
+      // A smithy is a second pair of hands at the anvil.
+      const pieces = village.buildings.some(b => b.kind === 'smithy') ? 2 : 1;
+      for (let piece = 0; piece < pieces; piece++) this.forgeOne(village, people, tiers);
     }
+  }
+
+  private forgeOne(village: Village, people: Entity[], tiers: ReadonlyMap<string, number>): void {
+    const needy = people.find(p => !p.equipment?.weapon) ?? people.find(p => !p.equipment?.armor);
+    if (!needy) return;
+    const slot = needy.equipment?.weapon ? 'armor' : 'weapon';
+    const item = forgeItem(slot, tiers.get(village.id) ?? 1, village.race, village.name);
+    const cost = MATERIAL_COST[item.material];
+    if (village.store.wood < cost.wood || village.store.stone < cost.stone || village.store.gold < cost.gold) return;
+    village.store.wood -= cost.wood;
+    village.store.stone -= cost.stone;
+    village.store.gold -= cost.gold;
+    equip(needy, item);
+    if (item.quality === 'legendary') emitItemEvent({ kind: 'forged', item, owner: needy });
   }
 
   private residentsOf(village: Village): Entity[] {

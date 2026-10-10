@@ -235,6 +235,8 @@ const HOLY: Palette = { O: '#f6eccc', o: '#cdbd92', w: '#ece6d4', v: '#bdb59c', 
 const MONUMENT: Palette = { s: '#d2d5da', d: '#8e9299', k: OUTLINE };
 const HULL: Palette = { w: '#f4f0e4', r: '#8a5a32', y: '#ffd76a', c: '#c8964a', k: OUTLINE };
 const SHAFT: Palette = { s: '#a8aeb4', d: '#737980', r: '#7a5432', n: '#121215', k: OUTLINE };
+const MILL: Palette = { ...BUILD, c: '#ece2c6' };
+const SMITH: Palette = { ...BUILD, f: '#ff8a2b', o: '#ffe066', s: '#6d7378' };
 
 const BUILDING_ART: Record<string, AtlasEntry> = {
   bonfire: {
@@ -441,6 +443,74 @@ const BUILDING_ART: Record<string, AtlasEntry> = {
       '............',
     ],
   },
+  windmill: {
+    palette: MILL,
+    grid: [
+      'c.........c.',
+      'cc.......cc.',
+      '.cc.....cc..',
+      '..cc.k.cc...',
+      '...kkRkk....',
+      '...kRRrk....',
+      '..cckwvkcc..',
+      '.cc.kwyk.cc.',
+      'cc..kwvk..cc',
+      'c..kwwdvk..c',
+      '...kwwdvk...',
+      '...kkkkkk...',
+    ],
+  },
+  barracks: {
+    palette: BUILD,
+    grid: [
+      '..kb....kb..',
+      '..kbb...kbb.',
+      '..k.....k...',
+      '.kkkkkkkkkk.',
+      'kRRRRRrrrrrk',
+      'kkkkkkkkkkkk',
+      'kwwwwwvvvvvk',
+      'kwykwwvvkyvk',
+      'kwwwwwvvvvvk',
+      'kwwwwddvvvvk',
+      'kwwwwddvvvvk',
+      'kkkkkkkkkkkk',
+    ],
+  },
+  smithy: {
+    palette: SMITH,
+    grid: [
+      '........kk..',
+      '........ksk.',
+      '...kkkkkksk.',
+      '..kRRRRrrrk.',
+      '.kRRRRRrrrrk',
+      '.kkkkkkkkkkk',
+      '.kwwwvvkfofk',
+      '.kwywvvkoffk',
+      '.kwwwvvkkkkk',
+      '.kwwddvk.kk.',
+      '.kwwddvkkssk',
+      '.kkkkkkk....',
+    ],
+  },
+  library: {
+    palette: BUILD,
+    grid: [
+      '.....kk.....',
+      '....kRrk....',
+      '...kRRrrk...',
+      '..kRRRrrrk..',
+      '.kRRRRrrrrk.',
+      'kkkkkkkkkkkk',
+      'kwkwkwvkvkvk',
+      'kwkwkwvkvkvk',
+      'kwkwkwvkvkvk',
+      'kwwwwddvvvvk',
+      'kwwwwddvvvvk',
+      'kkkkkkkkkkkk',
+    ],
+  },
   ruins: {
     palette: MASON,
     grid: [
@@ -469,9 +539,53 @@ export const getDetailAtlas = (): Atlas => {
   return detailAtlas;
 };
 
+/**
+ * How each race builds. The same plan in a different material, which is most
+ * of what tells an elf town from a dwarf hold across the map: green leaf roofs
+ * over birch, grey slate over stone, hide over dark timber. Humans keep the
+ * terracotta the art was drawn in.
+ */
+const RACE_STYLE: Record<'elf' | 'dwarf' | 'orc', Palette> = {
+  elf: {
+    R: '#6cb85f', r: '#3f7f3f', w: '#f1e9cf', v: '#cbbd94', y: '#c8f0a0', d: '#5a4026', b: '#e8d878',
+    s: '#ddd6c0', O: '#86cf7c', o: '#4f9a50',
+  },
+  dwarf: {
+    R: '#8e939b', r: '#5d6168', w: '#bba98b', v: '#8f7f66', y: '#ffb04a', d: '#3a2a1c', b: '#d0a030',
+    s: '#9a9ea6', O: '#aab0b8', o: '#767b84',
+  },
+  orc: {
+    R: '#86643f', r: '#553d25', w: '#6e4d31', v: '#4a3320', y: '#ff8a3a', d: '#2a1a10', b: '#a0302a',
+    s: '#7e6e5c', O: '#9a6a40', o: '#6a4628',
+  },
+};
+
+/** Buildings drawn in a racial style. Everything else is the same for everyone. */
+const STYLED = ['house', 'hall', 'tower', 'temple', 'windmill', 'barracks', 'smithy', 'library'];
+
+/** The atlas name for a building of a given race, falling back to the plain one. */
+export const buildingSprite = (kind: string, race: string): string =>
+  STYLED.includes(kind) && race in RACE_STYLE ? `${kind}@${race}` : kind;
+
 /** Atlas of civilization structures (bonfire, houses, towers…). */
 export const getBuildingAtlas = (): Atlas => {
-  if (!buildingAtlas) buildingAtlas = buildAtlas(BUILDING_ART);
+  if (!buildingAtlas) {
+    const entries: Record<string, AtlasEntry> = { ...BUILDING_ART };
+    for (const kind of STYLED) {
+      const art = BUILDING_ART[kind];
+      if (!art) continue;
+      for (const [race, style] of Object.entries(RACE_STYLE)) {
+        // Only the keys this plan uses, so a smithy's iron does not turn into
+        // the race's roof colour because both happen to be called `s`.
+        const palette: Palette = { ...art.palette };
+        for (const key of Object.keys(style)) {
+          if (key in art.palette && !(art.palette === SMITH && key === 's')) palette[key] = style[key];
+        }
+        entries[`${kind}@${race}`] = { grid: art.grid, palette };
+      }
+    }
+    buildingAtlas = buildAtlas(entries);
+  }
   return buildingAtlas;
 };
 
