@@ -34,6 +34,8 @@ import { advanceFloaters, clearFloaters, floatBridge } from '../utils/floatBridg
 import { runExtraPower, PowerHazards, type PowerContext } from '../utils/extraPowers';
 import { heldDirection } from '../utils/possession';
 import { RelationLines } from '../utils/relationLines';
+import { advanceShots, clearShots, ShotLayer } from '../utils/shotBridge';
+import { describeItem, onItemEvent, type ItemEvent } from '../utils/equipment';
 import { clearImpacts, isShaking, requestFlash, requestShake, sampleShake } from '../utils/impactBridge';
 import { chronicle, toll } from '../utils/chronicle';
 import { applyScenario, type Scenario } from '../utils/scenarios';
@@ -109,6 +111,25 @@ const BRUSH_TOOLS = new Set([
 /**
  * Custom hook for the game engine logic
  */
+/**
+ * The chronicle line for an item, or null for the ones nobody would care
+ * about. A copper sword changing hands is not news; a named one is.
+ */
+const itemEventLine = (event: ItemEvent): string | null => {
+  const { item, owner } = event;
+  const notable = item.name !== null || item.quality === 'masterwork';
+  switch (event.kind) {
+    case 'forged':
+      return `${owner.name} is handed ${item.name}, a legendary ${item.material} ${item.kind === 'armor' ? 'armour' : item.kind} forged in ${item.madeIn}`;
+    case 'named':
+      return `${owner.name}'s blade has killed enough to earn a name: ${item.name}`;
+    case 'looted':
+      return notable ? `${owner.name} takes ${item.name ?? describeItem(item).toLowerCase()} from the body of ${event.from.name}` : null;
+    case 'broke':
+      return item.name ? `${item.name} shatters in the hands of ${owner.name}` : null;
+  }
+};
+
 export const useGameEngine = () => {
   const {
     worldSeed,
@@ -133,6 +154,7 @@ export const useGameEngine = () => {
   const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
   const selectionIndicatorRef = useRef<THREE.Mesh | null>(null);
   const relationLinesRef = useRef<RelationLines | null>(null);
+  const shotLayerRef = useRef<ShotLayer | null>(null);
   const lightsRef = useRef<THREE.Light[]>([]);
   const tickTimerRef = useRef<number>(0);
   const entityManagerRef = useRef<EntityManager | null>(null);
@@ -269,6 +291,11 @@ export const useGameEngine = () => {
     resetIdentity();
     relationLinesRef.current?.dispose();
     relationLinesRef.current = null;
+    if (shotLayerRef.current) scene.remove(shotLayerRef.current.lines);
+    shotLayerRef.current?.dispose();
+    shotLayerRef.current = null;
+    clearShots();
+    onItemEvent(null);
     if (selectionIndicatorRef.current) {
       scene.remove(selectionIndicatorRef.current);
       selectionIndicatorRef.current.geometry.dispose();
@@ -320,6 +347,12 @@ export const useGameEngine = () => {
     scene.add(indicator);
     relationLinesRef.current = new RelationLines();
     scene.add(relationLinesRef.current.lines);
+    shotLayerRef.current = new ShotLayer();
+    scene.add(shotLayerRef.current.lines);
+    onItemEvent((event) => {
+      const line = itemEventLine(event);
+      if (line) useGameStore.getState().addEvent(line, 'info', { ...event.owner.position });
+    });
 
     // Brush preview: shows exactly which tiles a power will touch before the
     // player commits. Area tools were previously a guess.
@@ -1773,6 +1806,7 @@ export const useGameEngine = () => {
     tickTimerRef.current += scaledDelta;
 
     entityManagerRef.current?.update(scaledDelta);
+    advanceShots(scaledDelta);
     herdRef.current?.update(scaledDelta);
     settlementRef.current?.update(scaledDelta);
 
@@ -1998,6 +2032,12 @@ export const useGameEngine = () => {
         ),
       });
     }
+
+    shotLayerRef.current?.update((x, y, out) => out.set(
+      (x - tilesRef.current.length / 2) * TILE_SIZE,
+      0.2,
+      (y - tilesRef.current.length / 2) * TILE_SIZE,
+    ));
 
     // Hover is sampled ~15x a second: often enough to feel instant, rarely
     // enough that flicking the mouse does not cost hundreds of raycasts.

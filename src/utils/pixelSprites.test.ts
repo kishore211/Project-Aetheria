@@ -142,3 +142,26 @@ describe('outfits', () => {
     expect(getPixelSpriteFrames('wolf', null, 'warrior')[0]).toBe(getPixelSpriteFrames('wolf', null, null)[0]);
   });
 });
+
+describe('gear on the sprite', () => {
+  const sword = { weapon: 'sword', weaponMaterial: 'steel', armor: null } as const;
+  it('draws a held weapon and armour as their own cached frames', () => {
+    const bare = getPixelSpriteFrames('human', null, 'warrior');
+    const armed = getPixelSpriteFrames('human', null, 'warrior', sword);
+    const plated = getPixelSpriteFrames('human', null, 'warrior', { ...sword, armor: 'iron' });
+    expect(armed[0]).not.toBe(bare[0]);
+    expect(plated[0]).not.toBe(armed[0]);
+    // Same look, same frames: the cache is keyed on what it looks like.
+    expect(getPixelSpriteFrames('human', null, 'warrior', { ...sword })[0]).toBe(armed[0]);
+  });
+
+  it('keeps every weapon inside the humanoid frame, beside the body', () => {
+    for (const kind of ['sword', 'axe', 'spear', 'hammer', 'bow'] as const) {
+      expect(() => getPixelSpriteFrames('orc', null, null, { weapon: kind, weaponMaterial: 'iron', armor: null })).not.toThrow();
+    }
+  });
+
+  it('leaves beasts unarmed whatever they are handed', () => {
+    expect(getPixelSpriteFrames('wolf', null, null, sword)[0]).toBe(getPixelSpriteFrames('wolf', null, null)[0]);
+  });
+});

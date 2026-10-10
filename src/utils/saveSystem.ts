@@ -8,6 +8,7 @@
 // Tile resources (berries, timber, ore) are intentionally regenerated rather
 // than stored: the ecology re-seeds them within seconds and they would dominate
 // the payload.
+import { cloneEquipment, type Equipment } from './equipment';
 import type {
   BiomeType,
   Entity,
@@ -61,6 +62,8 @@ export interface SavedEntity {
   size?: number;
   /** Woken into a person. Optional; absent means the kind decides. */
   uplifted?: boolean;
+  /** Weapon and armour. Absent in older saves, which load unarmed. */
+  equipment?: Equipment;
 }
 
 export interface SavedBuilding {
@@ -199,6 +202,7 @@ export const buildSave = (options: {
       subspecies: entity.subspecies ?? null,
       size: entity.size,
       uplifted: entity.uplifted,
+      equipment: cloneEquipment(entity.equipment),
     })),
     villages: options.villages.map(village => ({
       id: village.id,

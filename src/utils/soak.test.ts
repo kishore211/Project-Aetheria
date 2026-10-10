@@ -87,5 +87,8 @@ describe('a long soak with everything switched on', () => {
     expect(settlements.snapshot().villages.length).toBeGreaterThan(0);
     // ...and the world is still a world.
     expect(all.length).toBeGreaterThan(0);
+    // The smiths have been at work: somebody is carrying something.
+    const armed = all.filter(c => c.equipment?.weapon || c.equipment?.armor);
+    expect(armed.length).toBeGreaterThan(0);
   }, 60_000);
 });

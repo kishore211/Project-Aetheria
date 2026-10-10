@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { applyRamp, rampById } from './subspecies';
 import type { EntityType } from '../types/world';
+import { MATERIAL_COLOR, type Equipment, type Material, type WeaponKind } from './equipment';
 
 type Palette = Record<string, string>;
 
@@ -575,8 +576,60 @@ const OUTFITS: Record<'warrior' | 'ruler', Palette> = {
   ruler: { h: '#f2c230' },
 };
 
+/** True for creatures whose body can hold a sword: anything on the humanoid frame. */
+export const wieldsGear = (type: EntityType): boolean => (SPECS[type] ?? SPECS.human).template === 'humanoid';
+
+/**
+ * Where each weapon sits on the humanoid frame, as [x, y, cell]. The right
+ * hand is at (10, 8), so every shape is held there and stands up the empty
+ * column beside the body. `w` is the working part, drawn in the item's
+ * material; `g` is the grip.
+ */
+const WEAPON_PIXELS: Record<WeaponKind, Array<[number, number, string]>> = {
+  sword: [[11, 2, 'w'], [11, 3, 'w'], [11, 4, 'w'], [11, 5, 'w'], [11, 6, 'w'], [10, 7, 'g'], [11, 7, 'g'], [11, 8, 'g']],
+  axe: [[11, 2, 'g'], [11, 3, 'g'], [11, 4, 'g'], [11, 5, 'g'], [11, 6, 'g'], [11, 7, 'g'], [11, 8, 'g'], [10, 2, 'w'], [10, 3, 'w'], [10, 4, 'w']],
+  spear: [[11, 0, 'w'], [11, 1, 'w'], [11, 2, 'g'], [11, 3, 'g'], [11, 4, 'g'], [11, 5, 'g'], [11, 6, 'g'], [11, 7, 'g'], [11, 8, 'g']],
+  hammer: [[10, 2, 'w'], [11, 2, 'w'], [10, 3, 'w'], [11, 3, 'w'], [11, 4, 'g'], [11, 5, 'g'], [11, 6, 'g'], [11, 7, 'g'], [11, 8, 'g']],
+  bow: [[10, 3, 'w'], [11, 4, 'w'], [11, 5, 'w'], [11, 6, 'w'], [11, 7, 'w'], [10, 8, 'w']],
+};
+
+/** What a creature's gear looks like: only the parts that change the sprite. */
+export interface GearLook {
+  weapon: WeaponKind | null;
+  weaponMaterial: Material | null;
+  armor: Material | null;
+}
+
+export const gearLook = (gear: Equipment | undefined): GearLook | null => {
+  if (!gear || (!gear.weapon && !gear.armor)) return null;
+  return {
+    weapon: gear.weapon ? gear.weapon.kind as WeaponKind : null,
+    weaponMaterial: gear.weapon?.material ?? null,
+    armor: gear.armor?.material ?? null,
+  };
+};
+
+const lookKey = (look: GearLook | null): string =>
+  look ? `|${look.weapon ?? ''}.${look.weaponMaterial ?? ''}.${look.armor ?? ''}` : '';
+
+/** Darken a hex colour for the helmet, which sits in shadow under the light. */
+const helmOf = (hex: string): string => {
+  const n = parseInt(hex.slice(1), 16);
+  const k = 0.8;
+  const c = (v: number) => Math.round(v * k).toString(16).padStart(2, '0');
+  return `#${c((n >> 16) & 255)}${c((n >> 8) & 255)}${c(n & 255)}`;
+};
+
+const withWeapon = (grid: string[], kind: WeaponKind): string[] => {
+  const rows = grid.map(row => row.split(''));
+  for (const [x, y, cell] of WEAPON_PIXELS[kind]) {
+    if (rows[y] && rows[y][x] === '.') rows[y][x] = cell;
+  }
+  return rows.map(row => row.join(''));
+};
+
 export function getPixelSpriteFrames(
-  type: EntityType, subspecies?: string | null, outfit: Outfit = null,
+  type: EntityType, subspecies?: string | null, outfit: Outfit = null, gear: GearLook | null = null,
 ): THREE.CanvasTexture[] {
   // Keyed on the colouring as well as the kind, so a snow wolf and a sable one
   // are two cached sets of four rather than one set repainted per creature.
@@ -586,7 +639,8 @@ export function getPixelSpriteFrames(
   const spec = SPECS[type] ?? SPECS.human;
   // Outfits only fit the humanoid template; on anything else they are ignored.
   const worn = outfit && spec.template === 'humanoid' ? outfit : null;
-  const key = `${ramp ? `${type}:${ramp.id}` : type}${worn ? `+${worn}` : ''}`;
+  const look = spec.template === 'humanoid' ? gear : null;
+  const key = `${ramp ? `${type}:${ramp.id}` : type}${worn ? `+${worn}` : ''}${lookKey(look)}`;
 
   const cached: THREE.CanvasTexture[] = [];
   for (let frame = 0; frame < WALK_FRAMES; frame += 1) {
@@ -596,9 +650,18 @@ export function getPixelSpriteFrames(
   }
   if (cached.length === WALK_FRAMES) return cached;
 
-  const grid = TEMPLATES[spec.template];
+  const grid = look?.weapon ? withWeapon(TEMPLATES[spec.template], look.weapon) : TEMPLATES[spec.template];
   const coloured = ramp ? applyRamp(spec.palette, ramp) : spec.palette;
-  const palette = worn ? { ...coloured, ...OUTFITS[worn] } : coloured;
+  let palette = worn ? { ...coloured, ...OUTFITS[worn] } : coloured;
+  if (look) {
+    palette = { ...palette, g: '#5e3b1f' };
+    if (look.weaponMaterial) palette.w = MATERIAL_COLOR[look.weaponMaterial];
+    // Armour shows as the body in its metal, and a helmet unless a crown is worn.
+    if (look.armor) {
+      palette.b = MATERIAL_COLOR[look.armor];
+      if (worn !== 'ruler') palette.h = helmOf(MATERIAL_COLOR[look.armor]);
+    }
+  }
 
   const frames: THREE.CanvasTexture[] = [];
   for (let frame = 0; frame < WALK_FRAMES; frame += 1) {

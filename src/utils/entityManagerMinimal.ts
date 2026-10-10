@@ -1,4 +1,5 @@
 // src/utils/entityManagerMinimal.ts
+import { cloneEquipment, reserveItemIds } from './equipment';
 import * as THREE from 'three';
 import { pickRamp } from './subspecies';
 import { isAquatic } from './pathfinding';
@@ -222,9 +223,11 @@ export class EntityManager implements EntityIndex {
       subspecies: saved.subspecies ?? null,
       size: saved.size,
       uplifted: saved.uplifted,
+      equipment: cloneEquipment(saved.equipment),
       carrying: null,
       job: saved.job,
     };
+    reserveItemIds(entity.equipment);
 
     const mesh = createEntityMesh(entity);
     mesh.position.set(

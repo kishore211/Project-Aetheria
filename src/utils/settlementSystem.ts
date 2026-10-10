@@ -67,6 +67,7 @@ import {
   type OpinionResult,
 } from './politics';
 import { speak } from './dialogue';
+import { emitItemEvent, equip, forgeItem, forgePriority, MATERIAL_COST } from './equipment';
 import {
   generateKingdomName,
   generateRulerName,
@@ -499,6 +500,7 @@ export class SettlementSystem {
   private freeBoatSlots: number[] = Array.from({ length: BOAT_CAPACITY }, (_, i) => BOAT_CAPACITY - 1 - i);
   private fleetTimer = 0;
   private migrantTimer = 0;
+  private forgeTimer = 0;
   private boatPosition = new THREE.Vector3();
   private freeSlots: number[] = [];
   private nextSlot = 0;
@@ -631,6 +633,12 @@ export class SettlementSystem {
     if (this.migrantTimer >= 60) {
       this.migrantTimer = 0;
       if (this.laws.migrants) this.migrantRound();
+    }
+
+    this.forgeTimer += delta;
+    if (this.forgeTimer >= 12) {
+      this.forgeTimer = 0;
+      this.forgeRound();
     }
 
     this.fleetTimer += delta;
@@ -2570,6 +2578,41 @@ export class SettlementSystem {
       }
     }
     return best;
+  }
+
+  /**
+   * Each town's smith makes one piece a round, for whoever most deserves it
+   * and has least: the king, then the captain, the headman, then the
+   * warriors, a weapon before armour. The metal is whatever the town's craft
+   * tier works and its store can pay for, so a town that loses its hall goes
+   * back to arming people in copper.
+   */
+  private forgeRound(): void {
+    if (this.villages.size === 0) return;
+    const tiers = this.craftTiers();
+    const byVillage = new Map<string, Entity[]>();
+    for (const entity of this.entities.getAllEntities()) {
+      if (!entity.villageId || entity.health <= 0 || forgePriority(entity) <= 0) continue;
+      const list = byVillage.get(entity.villageId);
+      if (list) list.push(entity);
+      else byVillage.set(entity.villageId, [entity]);
+    }
+    for (const village of this.villages.values()) {
+      const people = byVillage.get(village.id);
+      if (!people) continue;
+      people.sort((a, b) => forgePriority(b) - forgePriority(a));
+      const needy = people.find(p => !p.equipment?.weapon) ?? people.find(p => !p.equipment?.armor);
+      if (!needy) continue;
+      const slot = needy.equipment?.weapon ? 'armor' : 'weapon';
+      const item = forgeItem(slot, tiers.get(village.id) ?? 1, village.race, village.name);
+      const cost = MATERIAL_COST[item.material];
+      if (village.store.wood < cost.wood || village.store.stone < cost.stone || village.store.gold < cost.gold) continue;
+      village.store.wood -= cost.wood;
+      village.store.stone -= cost.stone;
+      village.store.gold -= cost.gold;
+      equip(needy, item);
+      if (item.quality === 'legendary') emitItemEvent({ kind: 'forged', item, owner: needy });
+    }
   }
 
   private residentsOf(village: Village): Entity[] {

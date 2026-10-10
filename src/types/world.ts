@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { Equipment } from '../utils/equipment';
 
 // World constants
 export const MAP_SIZES = {
@@ -374,6 +375,8 @@ export interface Entity {
   traits?: TraitId[];
   /** Confirmed kills, shown in the inspector. */
   kills?: number;
+  /** What it carries into a fight. See utils/equipment.ts. */
+  equipment?: Equipment;
 }
 
 // Weather and environmental effects

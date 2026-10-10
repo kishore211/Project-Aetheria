@@ -1,4 +1,4 @@
-import { Crown, Eye, EyeOff, MapPin, PawPrint, Skull, X } from 'lucide-react';
+import { Crown, Eye, EyeOff, MapPin, PawPrint, Shield, Skull, Sword, X } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
 import type { Entity, Resource, TraitId } from '../../types/world';
 import { TRAITS } from '../../utils/traits';
@@ -10,6 +10,7 @@ import { describeSize, sizeOf } from '../../utils/size';
 import { biomeLine, creatureLine } from '../../utils/flavour';
 import { CULTURE_TRAITS, type CultureTraitId } from '../../utils/identity';
 import { worldAccess } from '../../utils/worldAccess';
+import { describeItem, MATERIAL_COLOR, type Equipment, type Item } from '../../utils/equipment';
 
 const NeedBar = ({ label, value, tone }: { label: string; value: number; tone: string }) => (
   <div>
@@ -21,6 +22,38 @@ const NeedBar = ({ label, value, tone }: { label: string; value: number; tone: s
       <div className={`${tone} h-1.5 rounded-full transition-all`} style={{ width: `${Math.max(0, Math.min(1, value)) * 100}%` }} />
     </div>
   </div>
+);
+
+const QUALITY_TONE: Record<Item['quality'], string> = {
+  normal: 'text-foreground',
+  fine: 'text-sky-300',
+  masterwork: 'text-violet-300',
+  legendary: 'text-amber-300',
+};
+
+/** Weapon and armour, with the item's own history on hover. */
+const GearList = ({ equipment }: { equipment: Equipment }) => (
+  <ul className="space-y-1 text-xs">
+    {[equipment.weapon, equipment.armor].map((item) => {
+      if (!item) return null;
+      const history = [
+        `Forged in ${item.madeIn}`,
+        item.owners.length > 1 ? `held by ${item.owners.join(' → ')}` : null,
+        item.kills > 0 ? `${item.kills} slain` : null,
+      ].filter(Boolean).join(' · ');
+      return (
+        <li key={item.id} className="flex items-center gap-1.5" title={history}>
+          {item.slot === 'weapon' ? <Sword size={11} /> : <Shield size={11} />}
+          <span
+            className="inline-block h-2 w-2 shrink-0 rounded-xs border border-black/40"
+            style={{ background: MATERIAL_COLOR[item.material] }}
+          />
+          <span className={`${QUALITY_TONE[item.quality]} truncate`}>{describeItem(item)}</span>
+          <span className="ml-auto text-muted-foreground tabular-nums">{Math.max(0, Math.round(item.durability))}%</span>
+        </li>
+      );
+    })}
+  </ul>
 );
 
 const TraitChips = ({ traits }: { traits: TraitId[] }) => (
@@ -180,6 +213,13 @@ const InfoPanel = () => {
               <div>
                 <h4 className="text-muted-foreground text-xs font-medium mb-1">Traits</h4>
                 <TraitChips traits={selectedEntity.traits ?? []} />
+              </div>
+            )}
+
+            {(selectedEntity.equipment?.weapon || selectedEntity.equipment?.armor) && (
+              <div>
+                <h4 className="text-muted-foreground text-xs font-medium mb-1">Gear</h4>
+                <GearList equipment={selectedEntity.equipment} />
               </div>
             )}
 

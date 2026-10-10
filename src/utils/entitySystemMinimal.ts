@@ -13,7 +13,9 @@ import {
   type Tile,
   type TraitId,
 } from '../types/world';
-import { getPixelSpriteTexture, getPixelSpriteFrames, WALK_FRAMES, type Outfit } from './pixelSprites';
+import { getPixelSpriteTexture, getPixelSpriteFrames, WALK_FRAMES, gearLook, wieldsGear, type Outfit } from './pixelSprites';
+import { armorBlock, claimSpoils, gearSpeed, wearAfterBlow, weaponCooldown, weaponDamage, weaponReach } from './equipment';
+import { emitShot } from './shotBridge';
 import { groundSpeed, stepOnGround } from './biomeEffects';
 import { canPreyOn, rollSize, sizeOf } from './size';
 import {
@@ -446,7 +448,7 @@ export function updateEntityMesh(entity: Entity, deltaTime = 1 / 60, detailLevel
     const stridesPerSecond = Math.max(1.6, tilesPerSecondOf(entity) * 1.9);
     entity.walkPhase = ((entity.walkPhase ?? 0) + deltaTime * stridesPerSecond) % 1;
 
-    const frames = getPixelSpriteFrames(entity.type, entity.subspecies, outfitOf(entity));
+    const frames = getPixelSpriteFrames(entity.type, entity.subspecies, outfitOf(entity), gearLook(entity.equipment));
     const frameIndex = Math.floor(entity.walkPhase * WALK_FRAMES) % frames.length;
     if (material.map !== frames[frameIndex]) {
       material.map = frames[frameIndex];
@@ -474,7 +476,7 @@ export function updateEntityMesh(entity: Entity, deltaTime = 1 / 60, detailLevel
     sprite.material.rotation = -(entity.facing ?? 1) * air * 0.07;
   } else {
     entity.walkPhase = ((entity.walkPhase ?? 0) + deltaTime * 0.35) % 1;
-    const frames = getPixelSpriteFrames(entity.type, entity.subspecies, outfitOf(entity));
+    const frames = getPixelSpriteFrames(entity.type, entity.subspecies, outfitOf(entity), gearLook(entity.equipment));
     if (material.map !== frames[0]) {
       material.map = frames[0];
       material.needsUpdate = true;
@@ -1358,6 +1360,7 @@ export class EntityAI {
     if (this.entity.status.includes('exhausted')) speed *= 0.5;
     if (this.entity.status.includes('caffeinated')) speed *= 1.9;
     else if (this.entity.status.includes('inspired')) speed *= 1.3;
+    if (this.entity.equipment) speed *= gearSpeed(this.entity.equipment);
     // A captain deliberately marches slower so its warband stays with it
     if (this.entity.status.includes('captain')) speed *= 0.72;
     // ...and the ground itself, which is most of what makes a swamp a swamp
@@ -1638,8 +1641,9 @@ export class EntityAI {
     const dy = target.position.y - this.entity.position.y;
     const distance = Math.hypot(dx, dy);
 
-    if (distance < 0.7) {
+    if (distance < weaponReach(this.entity.equipment?.weapon)) {
       this.addStatus('fighting');
+      if (distance > 1 && this.attackCooldown <= 0) emitShot(this.entity, target);
       this.strike(target);
       if (target.health <= 0) {
         this.entity.kills = (this.entity.kills ?? 0) + 1;
@@ -1767,7 +1771,8 @@ export class EntityAI {
   /** Deal one blow, respecting the attack cooldown. */
   private strike(target: Entity): void {
     if (this.attackCooldown > 0) return;
-    this.attackCooldown = 0.8;
+    const weapon = this.entity.equipment?.weapon;
+    this.attackCooldown = weaponCooldown(weapon);
     if (target.status.includes('shielded')) {
       // The blow lands on nothing. Still costs the attacker its swing.
       this.addTimedStatus('attacking');
@@ -1783,12 +1788,21 @@ export class EntityAI {
     const fury = this.entity.status.includes('inspired') || this.entity.status.includes('enraged') ? 1.4 : 1;
     const venom = this.entity.traits?.includes('venomous') ? 1.35 : 1;
     const hide = targetTraits.includes('armored') ? 0.67 : 1;
-    const blow = this.entity.attributes.strength * 0.6 * fury * venom * hide;
+    // The arm and the blade, then whatever the other side is wearing.
+    const flame = weapon?.modifier === 'flaming' ? 3 : 0;
+    const raw = (this.entity.attributes.strength * 0.6 * venom + weaponDamage(weapon) + flame) * fury * hide;
+    const blow = raw * (1 - armorBlock(target.equipment?.armor));
     target.health -= blow;
     emitDamage(target.position.x, target.position.y, blow, target.id);
+    if (weapon?.modifier === 'vampiric') {
+      this.entity.health = Math.min(this.entity.maxHealth, this.entity.health + blow * 0.3);
+    }
     this.addTimedStatus('attacking');
     if (!target.status.includes('wounded')) target.status.push('wounded');
-    if (target.health <= 0 && !target.status.includes('slain')) target.status.push('slain');
+    const killed = target.health <= 0;
+    if (killed && !target.status.includes('slain')) target.status.push('slain');
+    if (weapon || target.equipment?.armor) wearAfterBlow(this.entity, target, killed);
+    if (killed && target.equipment) claimSpoils(this.entity, target, wieldsGear(this.entity.type));
   }
 
   private handleFleeingState(tiles: Tile[][], deltaTime: number): void {
