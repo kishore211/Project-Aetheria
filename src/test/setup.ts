@@ -1,4 +1,4 @@
-import { beforeEach } from 'vitest';
+import { beforeEach, vi } from 'vitest';
 
 // jsdom has no 2D canvas backend. The atlas and sprite code is written to
 // tolerate a missing context, so stub it out quietly rather than letting jsdom
@@ -27,7 +27,22 @@ const mulberry32 = (seed: number) => () => {
 
 const SEED = 20260821;
 
+/**
+ * Entity ids come from `uuid`, which reads the crypto stream rather than
+ * Math.random — so the seed above never reached them, and anything that
+ * orders or pairs by id (wars handled once per pair, map iteration after a
+ * delete) varied from run to run. That was the source of the rare, never
+ * reproducible failures in the soak and colonisation tests. A counter makes
+ * ids as deterministic as everything else without spending any of the
+ * random stream on them.
+ */
+let nextId = 0;
+vi.mock('uuid', () => ({
+  v4: () => `test-${(nextId++).toString(36).padStart(6, '0')}`,
+}));
+
 beforeEach(() => {
   const random = mulberry32(SEED);
   Math.random = random;
+  nextId = 0;
 });
