@@ -29,6 +29,7 @@ import { simulation } from './simulation';
 import { emitDamage, emitFloater } from './floatBridge';
 import { applyStatus, clearStatus, FLASH_SECONDS, type StatusId } from './statusEffects';
 import { updateMood } from './mood';
+import { DAYLIGHT } from './daylight';
 import { applyScenario } from './scenarios';
 import { bookAt, converse, readBook } from './identity';
 import { STATUSES, type StatusDef } from './statusEffects';
@@ -541,6 +542,10 @@ function applyStatusVisuals(entity: Entity, sprite: THREE.Sprite, deltaTime: num
   } else if (entity.status.includes('blessed')) {
     material.color.setHex(0xfff3c0);
   }
+
+  // The light it is standing in, before the flash so a flash still reads
+  // as a flash at midnight.
+  material.color.multiply(DAYLIGHT.color);
 
   // The flash goes last so it overrides every status tint. Something *just
   // happened* is more urgent than what is ongoing, and the whole value of the

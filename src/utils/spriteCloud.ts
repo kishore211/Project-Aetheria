@@ -6,6 +6,7 @@
 // O(1) without rebuilding buffers: hidden slots are parked below the world.
 import * as THREE from 'three';
 import type { Atlas } from './pixelAtlas';
+import { DAYLIGHT } from './daylight';
 
 const PARKED_Y = -1000;
 
@@ -68,6 +69,8 @@ const VERTEX_SHADER = /* glsl */ `
 const FRAGMENT_SHADER = /* glsl */ `
   uniform sampler2D uAtlas;
   uniform vec2 uCells;
+  uniform vec3 uTintK;
+  uniform vec3 uTintO;
   varying float vSlot;
   varying vec3 vTint;
 
@@ -79,7 +82,7 @@ const FRAGMENT_SHADER = /* glsl */ `
     vec2 uv = (vec2(col, row) + gl_PointCoord) * cell;
     vec4 texel = texture2D(uAtlas, uv);
     if (texel.a < 0.5) discard;
-    gl_FragColor = vec4(texel.rgb * vTint, 1.0);
+    gl_FragColor = vec4(texel.rgb * vTint * uTintK + uTintO, 1.0);
   }
 `;
 
@@ -115,7 +118,11 @@ export class SpriteCloud {
   private material: THREE.ShaderMaterial;
   readonly capacity: number;
 
-  constructor(atlas: Atlas, capacity: number) {
+  /**
+   * @param lit Whether the sprites stand in the world's daylight (buildings,
+   *   boats) or float above it as interface (icons), which stays readable.
+   */
+  constructor(atlas: Atlas, capacity: number, lit = false) {
     this.atlas = atlas;
     this.capacity = capacity;
 
@@ -150,6 +157,8 @@ export class SpriteCloud {
         uScale: { value: 400 },
         uOrtho: { value: 0 },
         uWind: { value: 0 },
+        uTintK: { value: lit ? DAYLIGHT.k : new THREE.Vector3(1, 1, 1) },
+        uTintO: { value: lit ? DAYLIGHT.o : new THREE.Vector3(0, 0, 0) },
       },
       vertexShader: VERTEX_SHADER,
       fragmentShader: FRAGMENT_SHADER,

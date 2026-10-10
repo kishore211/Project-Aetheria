@@ -539,9 +539,9 @@ export class SettlementSystem {
     this.events = events;
     resetKingdomColors();
 
-    this.buildingCloud = new SpriteCloud(getBuildingAtlas(), BUILDING_CLOUD_CAPACITY);
+    this.buildingCloud = new SpriteCloud(getBuildingAtlas(), BUILDING_CLOUD_CAPACITY, true);
     scene.add(this.buildingCloud.points);
-    this.boatCloud = new SpriteCloud(getBuildingAtlas(), BOAT_CAPACITY);
+    this.boatCloud = new SpriteCloud(getBuildingAtlas(), BOAT_CAPACITY, true);
     scene.add(this.boatCloud.points);
     this.boats = new BoatSystem(tiles, {
       onCatch: (boat, food) => this.landCatch(boat, food),

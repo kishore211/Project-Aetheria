@@ -21,6 +21,7 @@ import {
 import { getBiomeColor } from './worldGenerator';
 import { drainsTerrain, isDataLayer, sampleRamp, type MapLayer } from './mapLayers';
 import { MapPainter, PX } from './mapPainter';
+import { DAYLIGHT, setDaylight } from './daylight';
 import type { Season, TimeOfDay } from '../types/world';
 
 /** Muted sea on data layers, so the coastline still reads. */
@@ -176,8 +177,8 @@ export class TerrainRenderer {
       uDetail: { value: 1 },
       uFill: { value: 0.24 },
       uBorder: { value: 0.85 },
-      uTintK: { value: new THREE.Vector3(1, 1, 1) },
-      uTintO: { value: new THREE.Vector3(0, 0, 0) },
+      uTintK: { value: DAYLIGHT.k },
+      uTintO: { value: DAYLIGHT.o },
     };
 
     // --- the picture ---
@@ -382,8 +383,7 @@ export class TerrainRenderer {
     const [kr, or] = solve(a.r, b.r, a2.r, b2.r);
     const [kg, og] = solve(a.g, b.g, a2.g, b2.g);
     const [kb, ob] = solve(a.b, b.b, a2.b, b2.b);
-    (this.uniforms.uTintK.value as THREE.Vector3).set(kr, kg, kb);
-    (this.uniforms.uTintO.value as THREE.Vector3).set(or, og, ob);
+    setDaylight(new THREE.Vector3(kr, kg, kb), new THREE.Vector3(or, og, ob));
     // The sea beyond the edge darkens with everything else — and takes the
     // same half-strength tint as the water on the map, or at dusk the world
     // floats in a maroon void.
