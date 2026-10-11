@@ -1622,3 +1622,20 @@ canvas {
 .city-factors li { display: flex; justify-content: space-between; gap: 0.5rem; color: #b8bfa6; }
 .unit-status li.is-war { color: #ff9a8a; }
 .unit-status li.is-ally { color: #8fdc6a; }
+
+/* Crossed swords over a battle, readable from the whole-map view. */
+.map-label-battle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  background: #7a1d16;
+  border: 2px solid #2a0805;
+  box-shadow: inset 2px 2px 0 rgb(255 255 255 / 0.2), 0 2px 0 rgb(0 0 0 / 0.4);
+  color: #ffe2d8;
+  animation: battlePulse 1s steps(2) infinite;
+}
+@keyframes battlePulse {
+  50% { background: #b02a1f; }
+}

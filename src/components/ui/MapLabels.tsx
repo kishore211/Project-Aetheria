@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Banner from './Banner';
-import { Crown } from 'lucide-react';
+import { Crown, Swords } from 'lucide-react';
 import { labelBridge, type MapLabel } from '../../utils/labelBridge';
 
 /**
@@ -59,12 +59,10 @@ const MapLabels = () => {
             else nodes.current.delete(label.id);
           }}
           style={{ visibility: 'hidden', willChange: 'transform' }}
-          className={
-            label.kind === 'kingdom'
-              ? 'absolute left-0 top-0 whitespace-nowrap map-label map-label-kingdom'
-              : 'absolute left-0 top-0 whitespace-nowrap map-label map-label-village'
-          }
+          className={`absolute left-0 top-0 whitespace-nowrap map-label map-label-${label.kind}`}
+          title={label.kind === 'battle' ? `${label.text} fighting` : undefined}
         >
+          {label.kind === 'battle' && <Swords size={14} strokeWidth={3} className="map-battle-icon" />}
           {label.kind === 'village' && label.capital && (
             <Crown size={10} className="mr-1 inline-block -translate-y-px text-amber-300" />
           )}
@@ -77,9 +75,11 @@ const MapLabels = () => {
               className="mr-1 align-middle -translate-y-px"
             />
           )}
-          <span style={label.kind === 'kingdom' ? { color: label.color } : undefined}>
-            {label.text}
-          </span>
+          {label.kind !== 'battle' && (
+            <span style={label.kind === 'kingdom' ? { color: label.color } : undefined}>
+              {label.text}
+            </span>
+          )}
         </div>
       ))}
     </div>

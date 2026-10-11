@@ -1345,7 +1345,28 @@ export const useGameEngine = () => {
     const settlements = settlementRef.current;
     if (!settlements) return;
 
-    const targets = settlements.labelTargets();
+    const targets: Array<Omit<MapLabel, 'screenX' | 'screenY' | 'opacity'>> = [...settlements.labelTargets()];
+    // Battles: crossed swords over every fight big enough to matter, so a war
+    // can be found from the whole-map view the way WorldBox marks them.
+    const fights = new Map<string, { n: number; x: number; y: number }>();
+    for (const entity of entityManagerRef.current?.getAllEntities() ?? []) {
+      if (entity.activity !== 'fighting' && !entity.status.includes('fighting')) continue;
+      if (!entity.kingdomId) continue;
+      const key = `${Math.floor(entity.position.x / 8)}:${Math.floor(entity.position.y / 8)}`;
+      const cell = fights.get(key) ?? { n: 0, x: 0, y: 0 };
+      cell.n += 1;
+      cell.x += entity.position.x;
+      cell.y += entity.position.y;
+      fights.set(key, cell);
+    }
+    for (const [key, cell] of fights) {
+      if (cell.n < 3) continue;
+      targets.push({
+        id: `battle:${key}`, kind: 'battle', text: String(cell.n), color: '#ff6b5a',
+        tileX: Math.floor(cell.x / cell.n), tileY: Math.floor(cell.y / cell.n),
+        capital: false, kingdomId: null, race: '',
+      });
+    }
     const existing = new Map(labelBridge.labels.map(label => [label.id, label]));
 
     let changed = targets.length !== labelBridge.labels.length;
@@ -1408,7 +1429,7 @@ export const useGameEngine = () => {
     const villageOpacity = THREE.MathUtils.clamp((0.85 - zoom) / 0.2, 0, 1);
 
     for (const label of labels) {
-      const band = label.kind === 'kingdom' ? kingdomOpacity : villageOpacity;
+      const band = label.kind === 'battle' ? 1 : label.kind === 'kingdom' ? kingdomOpacity : villageOpacity;
       if (band <= 0.01) {
         label.opacity = 0;
         continue;
