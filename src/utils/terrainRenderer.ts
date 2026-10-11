@@ -56,6 +56,7 @@ const FRAGMENT = /* glsl */ `
   uniform float uBorder;
   uniform vec3 uTintK;
   uniform vec3 uTintO;
+  uniform vec3 uDay;
   varying vec2 vTile;
 
   vec4 ownerAt(vec2 tile) {
@@ -112,8 +113,11 @@ const FRAGMENT = /* glsl */ `
     // water it lerps navy toward orange and the sea turns lavender, so water
     // takes half of it.
     // Fire is its own light: it does not darken at night.
-    float tintAmount = surface < 0.93 ? 0.5 : (surface < 0.98 ? 0.0 : 1.0);
-    col = mix(col, col * uTintK + uTintO, tintAmount);
+    // Water takes the light multiplicatively — what white becomes under it —
+    // so dusk dims and warms the sea instead of adding orange to navy, which
+    // came out a grey lilac.
+    if (surface < 0.93) col *= uDay;
+    else if (surface >= 0.98) col = col * uTintK + uTintO;
     gl_FragColor = vec4(col, 1.0);
     #include <colorspace_fragment>
   }
@@ -191,6 +195,7 @@ export class TerrainRenderer {
       uBorder: { value: 0.85 },
       uTintK: { value: DAYLIGHT.k },
       uTintO: { value: DAYLIGHT.o },
+      uDay: { value: DAYLIGHT.color },
     };
 
     // --- the picture ---
@@ -427,12 +432,10 @@ export class TerrainRenderer {
     const [kg, og] = solve(a.g, b.g, a2.g, b2.g);
     const [kb, ob] = solve(a.b, b.b, a2.b, b2.b);
     setDaylight(new THREE.Vector3(kr, kg, kb), new THREE.Vector3(or, og, ob));
-    // The sea beyond the edge darkens with everything else — and takes the
-    // same half-strength tint as the water on the map, or at dusk the world
-    // floats in a maroon void.
+    // The sea beyond the edge darkens with everything else.
+    // Multiplied by the light, like the sea on the map, so it never goes lilac.
     const deep = getBiomeColor('deep_ocean', 'day', this.season);
-    deep.lerp(getBiomeColor('deep_ocean', timeOfDay, this.season), 0.5);
-    deep.multiplyScalar(0.82);
+    deep.multiply(DAYLIGHT.color).multiplyScalar(0.82);
     (this.apron.material as THREE.MeshBasicMaterial).color.copy(deep);
   }
 
