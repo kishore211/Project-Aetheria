@@ -142,6 +142,11 @@ export class CreatureLayer {
       uniforms: { map: { value: this.atlas } },
       transparent: false,
       depthWrite: true,
+      // A creature facing left is mirrored with a negative x scale, which
+      // turns its quad's winding around. Culling back faces made every
+      // left-facing creature vanish while its health bar, shadow and icons —
+      // none of them mirrored — stayed hanging over the empty grass.
+      side: THREE.DoubleSide,
     });
     this.sprites = new THREE.Mesh(this.geometry, this.material);
     this.sprites.frustumCulled = false;
