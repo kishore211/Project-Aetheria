@@ -145,7 +145,9 @@ export class UnitIconLayer {
     this.live.clear();
 
     for (const entity of entities) {
-      if (!entity.mesh) continue;
+      // No body on screen, no badges: a creature aboard a boat used to leave
+      // its icons hanging over the water with nothing under them.
+      if (!entity.mesh || !entity.mesh.visible) continue;
       const slot = this.slotFor(entity.id);
       if (slot === null) continue;
       this.live.add(entity.id);

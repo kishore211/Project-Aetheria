@@ -1489,7 +1489,10 @@ export const useGameEngine = () => {
       );
       point.project(camera);
 
-      if (point.z > 1 || point.x < -1.15 || point.x > 1.15 || point.y < -1.15 || point.y > 1.15) {
+      // Only what is actually on screen. The old margin let a fight just below
+      // the view hang its numbers and hearts over the power bar, as if from
+      // nobody at all.
+      if (point.z > 1 || point.x < -1 || point.x > 1 || point.y < -0.92 || point.y > 1) {
         slot.opacity = 0;
         continue;
       }
@@ -2108,7 +2111,11 @@ export const useGameEngine = () => {
       }
     }
 
-    if (entityManagerRef.current) creatureLayerRef.current?.update(entityManagerRef.current.getAllEntities());
+    if (entityManagerRef.current) {
+      // At least ~14 pixels tall on screen, whatever the zoom.
+      const zoom = (camera as THREE.OrthographicCamera).isOrthographicCamera ? (camera as THREE.OrthographicCamera).zoom : 0;
+      creatureLayerRef.current?.update(entityManagerRef.current.getAllEntities(), zoom > 0 ? 14 / zoom : 0);
+    }
 
     shotLayerRef.current?.update((x, y, out) => out.set(
       (x - tilesRef.current.length / 2) * TILE_SIZE,

@@ -56,6 +56,28 @@ const FRAGMENT = /* glsl */ `
   }
 `;
 
+const SHADOW_VERTEX = /* glsl */ `
+  attribute vec3 iCenter;
+  attribute vec2 iScale;
+  varying vec2 vUv;
+  void main() {
+    vec4 mv = modelViewMatrix * vec4(iCenter, 1.0);
+    mv.xy += position.xy * iScale;
+    gl_Position = projectionMatrix * mv;
+    vUv = uv;
+  }
+`;
+
+const SHADOW_FRAGMENT = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vec2 p = vUv * 2.0 - 1.0;
+    float d = dot(p, p);
+    if (d > 1.0) discard;
+    gl_FragColor = vec4(0.05, 0.06, 0.04, 0.32 * (1.0 - d * 0.55));
+  }
+`;
+
 /** Switch a per-creature mesh's own drawing off; the layer draws it instead. */
 export const handOverToLayer = (mesh: THREE.Object3D): void => {
   mesh.traverse((child) => {
@@ -65,7 +87,15 @@ export const handOverToLayer = (mesh: THREE.Object3D): void => {
 };
 
 export class CreatureLayer {
-  readonly mesh: THREE.Mesh;
+  /** The creatures and, beneath them, their shadows. */
+  readonly mesh: THREE.Group;
+  private sprites: THREE.Mesh;
+  private shadowGeometry: THREE.InstancedBufferGeometry;
+  private shadowMaterial: THREE.ShaderMaterial;
+  private shadowCenter!: THREE.InstancedBufferAttribute;
+  private shadowScale!: THREE.InstancedBufferAttribute;
+  private shadowCapacity = 0;
+  private shadowCount = 0;
   private geometry: THREE.InstancedBufferGeometry;
   private material: THREE.ShaderMaterial;
   private canvas: HTMLCanvasElement;
@@ -113,9 +143,43 @@ export class CreatureLayer {
       transparent: false,
       depthWrite: true,
     });
-    this.mesh = new THREE.Mesh(this.geometry, this.material);
-    this.mesh.frustumCulled = false;
-    this.mesh.name = 'creatures';
+    this.sprites = new THREE.Mesh(this.geometry, this.material);
+    this.sprites.frustumCulled = false;
+    this.sprites.name = 'creatures';
+
+    // Shadows: a soft dark ellipse at every creature's feet, thrown down and
+    // to the right like everything else on the map. It is most of what keeps
+    // a green orc readable in a green wood — WorldBox's units all have one.
+    this.shadowGeometry = new THREE.InstancedBufferGeometry();
+    this.shadowGeometry.setIndex(quad.getIndex());
+    this.shadowGeometry.setAttribute('position', quad.getAttribute('position'));
+    this.shadowGeometry.setAttribute('uv', quad.getAttribute('uv'));
+    this.growShadows(1024);
+    this.shadowMaterial = new THREE.ShaderMaterial({
+      vertexShader: SHADOW_VERTEX,
+      fragmentShader: SHADOW_FRAGMENT,
+      transparent: true,
+      depthWrite: false,
+    });
+    const shadows = new THREE.Mesh(this.shadowGeometry, this.shadowMaterial);
+    shadows.frustumCulled = false;
+    shadows.renderOrder = -1;
+    shadows.name = 'creature-shadows';
+
+    this.mesh = new THREE.Group();
+    this.mesh.name = 'creature-layer';
+    this.mesh.add(shadows, this.sprites);
+  }
+
+  private growShadows(capacity: number): void {
+    this.shadowCapacity = capacity;
+    this.shadowCenter = new THREE.InstancedBufferAttribute(new Float32Array(capacity * 3), 3);
+    this.shadowScale = new THREE.InstancedBufferAttribute(new Float32Array(capacity * 2), 2);
+    this.shadowCenter.setUsage(THREE.DynamicDrawUsage);
+    this.shadowScale.setUsage(THREE.DynamicDrawUsage);
+    this.shadowGeometry.setAttribute('iCenter', this.shadowCenter);
+    this.shadowGeometry.setAttribute('iScale', this.shadowScale);
+    this.shadowGeometry.instanceCount = 0;
   }
 
   private grow(capacity: number): void {
@@ -188,10 +252,12 @@ export class CreatureLayer {
    * into the instance buffers. Reads the very objects the animation code just
    * wrote to, so it must run after the entity update each frame.
    */
-  update(entities: readonly Entity[]): number {
+  update(entities: readonly Entity[], minSize = 0): number {
     const needed = entities.length * 3;
     if (needed > this.capacity) this.grow(Math.max(needed, this.capacity * 2));
+    if (entities.length > this.shadowCapacity) this.growShadows(Math.max(entities.length, this.shadowCapacity * 2));
     this.count = 0;
+    this.shadowCount = 0;
 
     for (const entity of entities) {
       const root = entity.mesh;
@@ -200,11 +266,22 @@ export class CreatureLayer {
         if (child instanceof THREE.Sprite) {
           const material = child.material as THREE.SpriteMaterial;
           if (!material.map) continue;
+          // Never smaller than a few pixels on screen: zoomed right out a
+          // crowd should still read as people, not vanish under its icons.
+          const tall = Math.abs(child.scale.y);
+          const grow = tall > 0 && tall < minSize ? minSize / tall : 1;
+          const width = Math.abs(child.scale.x) * grow;
+          if (this.shadowCount < this.shadowCapacity) {
+            const s = this.shadowCount++;
+            this.shadowCenter.setXYZ(s, root.position.x + width * 0.08, root.position.y + 0.01, root.position.z + width * 0.18);
+            this.shadowScale.setXY(s, width * 0.62, width * 0.24);
+          }
           this.push(
             root.position.x + child.position.x,
             root.position.y + child.position.y,
-            root.position.z + child.position.z,
-            child.scale.x, child.scale.y, material.rotation,
+            // A grown sprite stands on its feet rather than sinking into them.
+            root.position.z + child.position.z - (grow > 1 ? (tall * grow - tall) * 0.5 : 0),
+            child.scale.x * grow, child.scale.y * grow, material.rotation,
             this.cellFor(material.map), material.color, material.opacity,
           );
         } else if (child.name === 'healthBar' && child.visible) {
@@ -225,6 +302,9 @@ export class CreatureLayer {
     }
 
     this.geometry.instanceCount = this.count;
+    this.shadowGeometry.instanceCount = this.shadowCount;
+    this.shadowCenter.needsUpdate = true;
+    this.shadowScale.needsUpdate = true;
     this.center.needsUpdate = true;
     this.scale.needsUpdate = true;
     this.rot.needsUpdate = true;
@@ -240,6 +320,8 @@ export class CreatureLayer {
   dispose(): void {
     this.geometry.dispose();
     this.material.dispose();
+    this.shadowGeometry.dispose();
+    this.shadowMaterial.dispose();
     this.atlas.dispose();
   }
 }
