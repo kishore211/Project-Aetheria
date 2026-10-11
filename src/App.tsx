@@ -1,6 +1,7 @@
 import { Canvas } from '@react-three/fiber';
 import GameContainer from './components/world/GameContainer';
 import PowerBar from './components/ui/PowerBar';
+import PowerCard from './components/ui/PowerCard';
 import TopBar from './components/ui/TopBar';
 import HelpOverlay from './components/ui/HelpOverlay';
 import RightRail from './components/ui/RightRail';
@@ -56,6 +57,7 @@ function App() {
         <div className="game-ui">
           {/* The bar draws its own peek button while hidden, so it always mounts */}
           <PowerBar />
+          <PowerCard />
           {!uiHidden && (
             <>
               <TopBar />

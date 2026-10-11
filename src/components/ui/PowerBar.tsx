@@ -51,7 +51,7 @@ const ICONS: Record<string, LucideIcon> = {
   Biohazard, Bird, Bomb, Bone, Brain, Bug, Cloud, CloudSnow, Coffee, Copy, Crown, Dog, Droplet, Egg, Fish, FlaskConical, Flag, Flower, Handshake, HeartHandshake, Lightbulb, Megaphone, Moon, MountainSnow, Orbit, Palmtree, Rabbit, Radiation, Shell, Shield, Snowflake, Spline, Squirrel, Sun, Sword, ThermometerSnowflake, ThermometerSun, Tornado, TreePalm, Unlink, WandSparkles, Wheat, Wind, CircleDot,
 };
 
-const Icon = ({ name, size = 20 }: { name: string; size?: number }) => {
+export const Icon = ({ name, size = 20 }: { name: string; size?: number }) => {
   const Resolved = ICONS[name] ?? Circle;
   return <Resolved size={size} />;
 };

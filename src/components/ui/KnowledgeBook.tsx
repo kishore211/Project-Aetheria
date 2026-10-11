@@ -11,7 +11,7 @@ const ALL = Object.keys(FOOD_CHAIN) as EntityType[];
 
 /** A creature's standing frame as a data URL, drawn once and kept. */
 const portraits = new Map<string, string>();
-const portraitOf = (type: EntityType): string => {
+export const portraitOf = (type: EntityType): string => {
   const hit = portraits.get(type);
   if (hit !== undefined) return hit;
   let url = '';

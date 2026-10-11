@@ -1256,3 +1256,45 @@ canvas {
   font-size: 0.7rem;
   color: rgb(241 245 249);
 }
+
+/* --- The window for the power in your hand --- */
+.power-card {
+  position: fixed;
+  left: 0.75rem;
+  bottom: 8.4rem;
+  z-index: 25;
+  width: min(21rem, calc(100vw - 1.5rem));
+  padding: 0.7rem 0.85rem 0.75rem;
+  border: 1px solid rgb(148 163 184 / 0.35);
+  border-radius: 12px;
+  background: rgb(2 6 23 / 0.94);
+  box-shadow: 0 10px 32px rgb(0 0 0 / 0.55);
+  color: #f1f5f9;
+  animation: tipIn 0.16s ease-out;
+}
+.power-card-close {
+  position: absolute;
+  right: 0.5rem;
+  top: 0.5rem;
+  color: #94a3b8;
+}
+.power-card-close:hover { color: #f8fafc; }
+.power-card-head { display: flex; gap: 0.6rem; align-items: center; padding-right: 1.25rem; }
+.power-card-icon {
+  width: 3rem; height: 3rem; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 10px;
+  background: linear-gradient(160deg, rgb(52 211 153 / 0.22), rgb(30 41 59 / 0.9));
+  border: 1px solid rgb(52 211 153 / 0.35);
+  color: #a7f3d0;
+}
+.power-card-icon img { width: 2.6rem; height: 2.6rem; }
+.power-card-head h3 { font-weight: 700; font-size: 1rem; line-height: 1.2; }
+.power-card-tab { font-size: 0.68rem; color: #94a3b8; }
+.power-card-hint { margin-top: 0.5rem; font-size: 0.8rem; line-height: 1.35; }
+.power-card-facts { margin-top: 0.4rem; font-size: 0.72rem; color: #cbd5e1; line-height: 1.4; text-transform: none; }
+.power-card-how { margin-top: 0.45rem; font-size: 0.72rem; color: #e2e8f0; list-style: disc; padding-left: 1rem; display: grid; gap: 0.15rem; }
+.power-card-quip { margin-top: 0.45rem; font-size: 0.72rem; font-style: italic; color: #fcd34d; }
+@media (max-width: 640px) {
+  .power-card { bottom: 9.5rem; }
+}
