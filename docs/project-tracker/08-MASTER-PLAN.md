@@ -388,3 +388,24 @@ A drop type turned weather, plague, blessing and seeding into four rows. A
 precondition turned random disasters into a reason to think about what you
 build. One flag doubled the bestiary. A two-stop ramp turned one wolf into a
 dozen. None of those were large; all of them changed what the world *is*.
+
+## Round 21 — the WorldBox frame (2026-10-11)
+
+- **Fixed: left-facing creatures vanished.** Mirroring is a negative x scale,
+  which reverses a quad's winding; the instanced creature material culled back
+  faces, so every creature walking left disappeared while its health bar,
+  shadow and mood icon stayed. Now `DoubleSide`, with a regression test.
+- **Unit, town and kingdom windows** open centred in one framed style (portrait,
+  traits, health with level star, stat row, facts, needs, gear, mind, actions),
+  portalled above the map's floating text. The side panel keeps plain tiles.
+- **Power bar**: icon-only tiles two rows deep in groups of three columns;
+  names live in the tooltip and the power window.
+- **Graphics**: roofs drawn in the kingdom's colour as a separate tinted roof
+  layer; trees rimmed in a dark line with a two-pixel cast shadow.
+- **Map**: crossed swords over every battle of three or more.
+- **Noise**: speech bubbles no longer draw over the power bar; the freeze line
+  is limited to once every few minutes.
+
+Still open: border paint/scissors tools, religion/culture/alliance lists,
+Conway's Game of Life toy, new biomes (blocked on the uncommitted palette edit
+in `worldGenerator.ts`).
