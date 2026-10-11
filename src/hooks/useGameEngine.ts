@@ -1457,6 +1457,10 @@ export const useGameEngine = () => {
     // information. They fade in as you come down to where you can tell who
     // is who.
     const band = THREE.MathUtils.clamp((0.62 - zoom) / 0.14, 0, 1);
+    const bar = document.querySelector('.powerbar');
+    const barTop = bar
+      ? bar.getBoundingClientRect().top - canvas.getBoundingClientRect().top - 6
+      : Infinity;
 
     for (const slot of floatBridge.slots) {
       if (slot.id === 0) continue;
@@ -1498,6 +1502,12 @@ export const useGameEngine = () => {
       }
       slot.screenX = (point.x * 0.5 + 0.5) * width;
       slot.screenY = (-point.y * 0.5 + 0.5) * height;
+      // Nor from a creature standing under the power bar: its bubble would
+      // sit on the buttons with nobody visible to have said it.
+      if (slot.screenY > barTop) {
+        slot.opacity = 0;
+        continue;
+      }
       slot.opacity = band;
     }
   }, [camera, controls, gl, inBounds]);

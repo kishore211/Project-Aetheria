@@ -145,7 +145,7 @@ let thermalPass = 0;
 /** A thermal note may be written again after ~30 passes (about a minute). */
 const thermalNoteDue = (note: string): boolean => {
   const last = noteAge.get(note);
-  if (last !== undefined && thermalPass - last < 30) return false;
+  if (last !== undefined && thermalPass - last < 240) return false;
   noteAge.set(note, thermalPass);
   return true;
 };
@@ -293,7 +293,7 @@ export const WORLD_PROCESSES: WorldProcess[] = [
         // chronicle nobody can read is a chronicle nobody reads.
         // Cold ground freezing harder is weather, not news: the poles cycle
         // between thaw and freeze all year and used to write the same line
-        // every few seconds. And no line more than once a minute regardless.
+        // every few seconds. And no line more than once every few minutes regardless.
         const routine = change.step === 'deep_freeze' && COLD_GROUND.has(before);
         if (change.note && !routine && !told.has(change.note) && thermalNoteDue(change.note)) {
           told.add(change.note);
