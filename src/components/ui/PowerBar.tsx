@@ -39,6 +39,18 @@ const portraitFor = (id: string): string | null => {
 };
 
 /**
+ * A power on the bar, preceded by a divider when it starts a new group.
+ * WorldBox lays its powers out two rows deep in little groups of a few
+ * columns, which is what keeps forty icons from reading as one long smear.
+ */
+const PowerSlot = ({ gap, children }: { gap: boolean; children: React.ReactNode }) => (
+  <>
+    {gap && <span className="powerbar-gap" aria-hidden />}
+    {children}
+  </>
+);
+
+/**
  * The bottom power bar.
  *
  * This replaces the left sidebar, which was a scrolling list of every tool at
@@ -362,9 +374,10 @@ const PowerBar = () => {
                 ? String(bound === HOTKEY_SLOTS - 1 ? 0 : bound + 1)
                 : (index < 9 && !hotkeySlots[index] ? String(index + 1) : undefined);
               return (
+                <PowerSlot key={power.id} gap={index > 0 && index % 6 === 0}>
                 <button
-                  key={power.id}
                   type="button"
+                  title={power.label}
                   className={`powerbtn tab-${power.tab} ${selectedTool === power.id ? 'is-active' : ''}`}
                   onClick={() => pickPower(power)}
                   onMouseEnter={() => setHover({
@@ -380,13 +393,15 @@ const PowerBar = () => {
                   <span className="powerbtn-label">{power.label}</span>
                   {key && <span className="powerbtn-key">{key}</span>}
                 </button>
+                </PowerSlot>
               );
             })}
 
-            {actions.map((action) => (
+            {actions.map((action, index) => (
+              <PowerSlot key={action.key} gap={index === 0 && powers.length > 0}>
               <button
-                key={action.key}
                 type="button"
+                title={action.label}
                 className={`powerbtn is-action ${action.on ? 'is-on' : ''}`}
                 onClick={() => { soundManager.uiClick(); action.run(); }}
                 onMouseEnter={() => setHover({ label: action.label, hint: action.hint, quip: action.quip })}
@@ -394,6 +409,7 @@ const PowerBar = () => {
                 <Icon name={action.icon} />
                 <span className="powerbtn-label">{action.label}</span>
               </button>
+              </PowerSlot>
             ))}
 
             {tab === 'world' && (

@@ -1,21 +1,16 @@
-import { Brain, Crown, Eye, EyeOff, MapPin, PawPrint, Shield, Skull, Star, Sword, X } from 'lucide-react';
+import { Brain, Crown, Shield, Star, Sword, X } from 'lucide-react';
 import { useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import type { Entity, Resource, TraitId } from '../../types/world';
 import { TRAITS } from '../../utils/traits';
-import { MOOD_MAX, MOOD_MIN, moodFace } from '../../utils/mood';
-import { statusDef } from '../../utils/statusEffects';
 import { BIOME_STEPS, groundSpeed } from '../../utils/biomeEffects';
-import { describeCreature } from '../../utils/subspecies';
-import { describeSize, sizeOf } from '../../utils/size';
-import { biomeLine, creatureLine } from '../../utils/flavour';
+import { biomeLine } from '../../utils/flavour';
 import { CULTURE_TRAITS, type CultureTraitId } from '../../utils/identity';
 import { worldAccess } from '../../utils/worldAccess';
-import { levelOf } from '../../utils/entitySystemMinimal';
 import { DRIVES, toggleDrive, wants } from '../../utils/mind';
 import { describeItem, MATERIAL_COLOR, type Equipment, type Item } from '../../utils/equipment';
 
-const NeedBar = ({ label, value, tone }: { label: string; value: number; tone: string }) => (
+export const NeedBar = ({ label, value, tone }: { label: string; value: number; tone: string }) => (
   <div>
     <div className="flex justify-between text-xs text-muted-foreground">
       <span>{label}</span>
@@ -28,7 +23,7 @@ const NeedBar = ({ label, value, tone }: { label: string; value: number; tone: s
 );
 
 /** Star a creature: it goes on the register's favourites list and its death is announced. */
-const FavouriteStar = ({ entityId }: { entityId: string }) => {
+export const FavouriteStar = ({ entityId }: { entityId: string }) => {
   const [, redraw] = useState(0);
   const live = worldAccess.current?.entities().find(e => e.id === entityId);
   if (!live) return null;
@@ -49,7 +44,7 @@ const FavouriteStar = ({ entityId }: { entityId: string }) => {
  * Works on the live creature rather than the inspector's snapshot, because
  * the point is to change what it does next.
  */
-const MindEditor = ({ entityId }: { entityId: string }) => {
+export const MindEditor = ({ entityId }: { entityId: string }) => {
   const [, redraw] = useState(0);
   const live = worldAccess.current?.entities().find(e => e.id === entityId);
   if (!live) return null;
@@ -90,7 +85,7 @@ const QUALITY_TONE: Record<Item['quality'], string> = {
 };
 
 /** Weapon and armour, with the item's own history on hover. */
-const GearList = ({ equipment }: { equipment: Equipment }) => (
+export const GearList = ({ equipment }: { equipment: Equipment }) => (
   <ul className="space-y-1 text-xs">
     {[equipment.weapon, equipment.armor].map((item) => {
       if (!item) return null;
@@ -114,7 +109,7 @@ const GearList = ({ equipment }: { equipment: Equipment }) => (
   </ul>
 );
 
-const TraitChips = ({ traits }: { traits: TraitId[] }) => (
+export const TraitChips = ({ traits }: { traits: TraitId[] }) => (
   <div className="flex flex-wrap gap-1">
     {traits.map((trait) => {
       const info = TRAITS[trait];
@@ -136,16 +131,13 @@ const TraitChips = ({ traits }: { traits: TraitId[] }) => (
 const InfoPanel = () => {
   const {
     selectedTile,
-    selectedEntity,
     showDebugInfo,
     setSelectedEntity,
     setSelectedTile,
-    followEntityId,
-    setFollowEntity,
-    focusTile,
   } = useGameStore();
 
-  if (!selectedTile && !selectedEntity) return null;
+  // A creature opens in the unit window in the middle of the screen.
+  if (!selectedTile) return null;
 
   const close = () => {
     setSelectedEntity(null);
@@ -154,11 +146,6 @@ const InfoPanel = () => {
 
   const village = selectedTile
     ? worldAccess.current?.villageInfo(selectedTile.x, selectedTile.y) ?? null
-    : null;
-
-  const isFollowing = selectedEntity && followEntityId === selectedEntity.id;
-  const herd = selectedEntity
-    ? worldAccess.current?.herdInfo(selectedEntity) ?? null
     : null;
 
   return (
@@ -172,197 +159,7 @@ const InfoPanel = () => {
         <X size={16} />
       </button>
 
-      {selectedEntity ? (
-        <div>
-          <h3 className="text-foreground font-medium text-lg mb-0.5 pr-6">{selectedEntity.name}</h3>
-          <p className="text-xs text-muted-foreground capitalize mb-3">
-            {/* "snow wolf" rather than "wolf": the colouring is the subspecies,
-                and a name that does not say so wastes the whole system. */}
-            {/* "a huge snow wolf": the colouring is the subspecies and the
-                band is what it can hunt, so both belong in the name rather
-                than in a stat nobody scrolls to. */}
-            {describeSize(sizeOf(selectedEntity))} {describeCreature(selectedEntity.type, selectedEntity.subspecies)}
-            {selectedEntity.uplifted ? ' · uplifted' : ''}
-            {selectedEntity.job ? ` · ${selectedEntity.job}` : ''}
-          </p>
-          {(selectedEntity.clan || selectedEntity.parentIds?.length) && (
-            <p className="text-xs text-muted-foreground -mt-2 mb-3">
-              {selectedEntity.clan && <>Of the {selectedEntity.clan} clan</>}
-              {(() => {
-                const parents = (selectedEntity.parentIds ?? [])
-                  .map(id => worldAccess.current?.entities().find(e => e.id === id)?.name)
-                  .filter(Boolean);
-                if (!selectedEntity.parentIds?.length) return null;
-                const lead = selectedEntity.clan ? ' · ' : '';
-                return parents.length > 0
-                  ? `${lead}child of ${parents.join(' and ')}`
-                  : `${lead}an orphan`;
-              })()}
-            </p>
-          )}
-          {/* What it would say for itself. Keyed on its id, so the same
-              creature always says the same thing and two of a kind standing
-              together say different things. */}
-          {creatureLine(selectedEntity.type, selectedEntity.id) && (
-            <p className="text-xs text-muted-foreground italic -mt-2 mb-3">
-              {creatureLine(selectedEntity.type, selectedEntity.id)}
-            </p>
-          )}
-
-          <div className="flex gap-2 mb-3">
-            <button
-              type="button"
-              className={`tool-btn flex-1 flex items-center justify-center gap-1.5 text-xs py-1.5 rounded ${
-                isFollowing ? 'bg-accent text-accent-foreground' : 'bg-muted/60 hover:bg-muted'
-              }`}
-              onClick={() => setFollowEntity(isFollowing ? null : selectedEntity.id)}
-            >
-              {isFollowing ? <EyeOff size={13} /> : <Eye size={13} />}
-              {isFollowing ? 'Stop following' : 'Follow'}
-            </button>
-            <FavouriteStar entityId={selectedEntity.id} />
-            <button
-              type="button"
-              title="Centre the camera here"
-              className="tool-btn px-2 py-1.5 rounded bg-muted/60 hover:bg-muted"
-              onClick={() => focusTile(Math.floor(selectedEntity.position.x), Math.floor(selectedEntity.position.y))}
-            >
-              <MapPin size={13} />
-            </button>
-          </div>
-
-          <div className="space-y-2.5 text-sm">
-            <NeedBar
-              label={`Health ${Math.round(selectedEntity.health)}/${Math.round(selectedEntity.maxHealth)}`}
-              value={selectedEntity.health / selectedEntity.maxHealth}
-              tone="bg-red-500"
-            />
-
-            {selectedEntity.happiness !== undefined && (() => {
-              const face = moodFace(selectedEntity.happiness);
-              const share = (selectedEntity.happiness - MOOD_MIN) / (MOOD_MAX - MOOD_MIN);
-              return (
-                <div className="mood-row">
-                  <span className="mood-face" title={`Happiness ${Math.round(selectedEntity.happiness!)}`}>
-                    {face.glyph}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="mood-label">{face.label}</span>
-                    {/* Centre-anchored, because the meaningful reading is which
-                        side of neutral it sits on and by how far — a bar that
-                        fills from the left makes -100 and 0 look like the same
-                        kind of thing. */}
-                    <span className="mood-track">
-                      <i className="mood-zero" />
-                      <i
-                        className={`mood-fill ${selectedEntity.happiness! >= 0 ? 'is-good' : 'is-bad'}`}
-                        style={{
-                          left: `${Math.min(50, share * 100)}%`,
-                          width: `${Math.abs(share - 0.5) * 100}%`,
-                        }}
-                      />
-                    </span>
-                  </span>
-                </div>
-              );
-            })()}
-
-            {herd && (
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <PawPrint size={11} />
-                {herd.isAlpha ? 'Leads' : 'Travels with'} a herd of {herd.size}
-              </p>
-            )}
-
-            <div className="text-xs text-muted-foreground">
-              Age {Math.round(selectedEntity.age)} of {Math.round(selectedEntity.maxAge)} years
-              {(selectedEntity.kills ?? 0) > 0 && (
-                <span className="ml-2 inline-flex items-center gap-1 text-rose-300">
-                  <Skull size={11} /> {selectedEntity.kills} kills
-                </span>
-              )}
-              {levelOf(selectedEntity) > 1 && (
-                <span className="ml-2 text-amber-300" title="Veterans hit harder: +6% a level">
-                  Level {levelOf(selectedEntity)}
-                </span>
-              )}
-            </div>
-
-            {(selectedEntity.traits?.length ?? 0) > 0 && (
-              <div>
-                <h4 className="text-muted-foreground text-xs font-medium mb-1">Traits</h4>
-                <TraitChips traits={selectedEntity.traits ?? []} />
-              </div>
-            )}
-
-            {(selectedEntity.equipment?.weapon || selectedEntity.equipment?.armor) && (
-              <div>
-                <h4 className="text-muted-foreground text-xs font-medium mb-1">Gear</h4>
-                <GearList equipment={selectedEntity.equipment} />
-              </div>
-            )}
-
-            <MindEditor entityId={selectedEntity.id} />
-
-            <div>
-              <h4 className="text-muted-foreground text-xs font-medium mb-1">Attributes</h4>
-              <ul className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-xs">
-                <li><span className="text-muted-foreground">Strength</span> {selectedEntity.attributes.strength}</li>
-                <li><span className="text-muted-foreground">Speed</span> {selectedEntity.attributes.speed}</li>
-                <li><span className="text-muted-foreground">Intellect</span> {selectedEntity.attributes.intelligence}</li>
-                <li><span className="text-muted-foreground">Resilience</span> {selectedEntity.attributes.resilience}</li>
-              </ul>
-            </div>
-
-            <div className="space-y-1.5">
-              <NeedBar label="Hunger" value={selectedEntity.needs.hunger} tone="bg-amber-500" />
-              <NeedBar label="Thirst" value={selectedEntity.needs.thirst} tone="bg-blue-500" />
-              <NeedBar label="Rest" value={selectedEntity.needs.rest} tone="bg-purple-500" />
-            </div>
-
-            {selectedEntity.carrying && (
-              <p className="text-xs text-muted-foreground">
-                Hauling {selectedEntity.carrying.quantity} {selectedEntity.carrying.type} home
-              </p>
-            )}
-
-            {selectedEntity.status.length > 0 && (
-              <div>
-                <h4 className="text-muted-foreground text-xs font-medium mb-1">Status</h4>
-                <ul className="flex flex-wrap gap-1">
-                  {selectedEntity.status.map((status: string) => {
-                    const def = statusDef(status);
-                    return (
-                      <li
-                        key={`status-${status}`}
-                        // The flavour line is the payoff of the typed table:
-                        // "wounded" tells you what; "Bleeding, and thinking
-                        // about it" tells you what it is like.
-                        title={def?.flavour}
-                        className="capitalize bg-primary/20 px-2 py-0.5 rounded-full text-xs flex items-center gap-1"
-                      >
-                        {def && <span aria-hidden>{def.glyph}</span>}
-                        {def?.label ?? status}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            )}
-
-            {selectedEntity.inventory.length > 0 && (
-              <div>
-                <h4 className="text-muted-foreground text-xs font-medium mb-1">Inventory</h4>
-                <ul className="text-xs">
-                  {selectedEntity.inventory.map((item: Resource) => (
-                    <li key={`inventory-${item.type}`} className="capitalize">{item.type} ({item.quantity})</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-        </div>
-      ) : selectedTile ? (
+      {selectedTile ? (
         <div>
           <h3 className="text-foreground font-medium text-lg mb-0.5 pr-6 capitalize">
             {selectedTile.type.replace(/_/g, ' ')}

@@ -723,7 +723,7 @@ export const levelOf = (entity: Pick<Entity, 'kills'>): number =>
   Math.min(10, 1 + Math.floor(Math.sqrt((entity.kills ?? 0) * 1.5)));
 
 /** What a creature's job and office make it wear. */
-const outfitOf = (entity: Entity): Outfit =>
+export const outfitOf = (entity: Entity): Outfit =>
   entity.status.includes('king') ? 'ruler' : entity.job === 'warrior' ? 'warrior' : null;
 
 /** Reused so the flash does not allocate a colour per creature per frame. */
