@@ -691,6 +691,20 @@ const RACE_STYLE: Record<'elf' | 'dwarf' | 'orc', Palette> = {
 /** Buildings drawn in a racial style. Everything else is the same for everyone. */
 const STYLED = ['house', 'house2', 'house3', 'hall', 'tower', 'temple', 'windmill', 'barracks', 'smithy', 'library'];
 
+/**
+ * Whether a plan has a roof the kingdom colours. WorldBox paints every roof
+ * in its realm's colour, which is what lets you read a border from the
+ * houses alone; our plans mark roofs as R (lit) and r (shade).
+ */
+const hasRoof = (art: AtlasEntry): boolean =>
+  'R' in art.palette && 'w' in art.palette && art.grid.some(row => row.includes('R'));
+
+/** The roof-mask sprite for a building's art, or null when it has none. */
+export const roofSprite = (kind: string): string | null => {
+  const art = BUILDING_ART[kind];
+  return art && hasRoof(art) ? `${kind}^roof` : null;
+};
+
 /** The atlas name for a building of a given race, falling back to the plain one. */
 export const buildingSprite = (kind: string, race: string): string =>
   STYLED.includes(kind) && race in RACE_STYLE ? `${kind}@${race}` : kind;
@@ -711,6 +725,15 @@ export const getBuildingAtlas = (): Atlas => {
         }
         entries[`${kind}@${race}`] = { grid: art.grid, palette };
       }
+    }
+    // Roof masks: just the roof, in white and grey, for the roof layer to
+    // tint in the owning kingdom's colour.
+    for (const [kind, art] of Object.entries(BUILDING_ART)) {
+      if (!hasRoof(art)) continue;
+      entries[`${kind}^roof`] = {
+        grid: art.grid.map(row => row.replace(/[^Rr]/g, '.')),
+        palette: { R: '#ffffff', r: '#a9a9a9' },
+      };
     }
     // Windows are the glowing key: towns light up after dark.
     buildingAtlas = buildAtlas(entries, 'y');

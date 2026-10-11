@@ -70,7 +70,7 @@ import { speak } from './dialogue';
 import { emitShot } from './shotBridge';
 import { emitDamage } from './floatBridge';
 import { MONSTERS } from './entitySystemMinimal';
-import { buildingSprite } from './pixelAtlas';
+import { buildingSprite, roofSprite } from './pixelAtlas';
 import { conquestOutcome, formationSlots } from './army';
 import { emitItemEvent, equip, forgeItem, forgePriority, MATERIAL_COST } from './equipment';
 import {
@@ -531,6 +531,8 @@ const FOUNDING_CLUSTER = 3;
 const FOUNDING_RADIUS = 5;
 const MIN_VILLAGE_SPACING = 16;
 const BUILDING_CLOUD_CAPACITY = 2048;
+/** Roofs are lifted a little toward white so a dark realm's houses still read. */
+const ROOF_LIGHT = new THREE.Color(0xffffff);
 /** Most boats on the water at once, across every kingdom. */
 const BOAT_CAPACITY = 96;
 /** A village needs this many people before it can spare a crew. */
@@ -562,6 +564,8 @@ export class SettlementSystem {
   private entities: EntityManager;
   private events: SettlementEvents;
   private buildingCloud: SpriteCloud;
+  /** Kingdom-coloured roofs, drawn over the buildings slot for slot. */
+  private roofCloud: SpriteCloud;
   /** Fishing boats and settler transports, and the sprites that draw them. */
   private boats: BoatSystem;
   private boatCloud: SpriteCloud;
@@ -619,6 +623,9 @@ export class SettlementSystem {
 
     this.buildingCloud = new SpriteCloud(getBuildingAtlas(), BUILDING_CLOUD_CAPACITY, true);
     scene.add(this.buildingCloud.points);
+    // Same slots, same atlas: each building's roof again, in its realm's colour.
+    this.roofCloud = new SpriteCloud(getBuildingAtlas(), BUILDING_CLOUD_CAPACITY, true);
+    scene.add(this.roofCloud.points);
     this.boatCloud = new SpriteCloud(getBuildingAtlas(), BOAT_CAPACITY, true);
     scene.add(this.boatCloud.points);
     this.boats = new BoatSystem(tiles, {
@@ -644,6 +651,7 @@ export class SettlementSystem {
 
   setViewportScale(scale: number, orthographic = false): void {
     this.buildingCloud.setViewportScale(scale, orthographic);
+    this.roofCloud.setViewportScale(scale, orthographic);
     this.boatCloud.setViewportScale(scale, orthographic);
   }
 
@@ -653,6 +661,7 @@ export class SettlementSystem {
    */
   advancePulse(delta: number): void {
     this.buildingCloud.advanceWind(delta);
+    this.roofCloud.advanceWind(delta);
     this.boatCloud.advanceWind(delta);
   }
 
@@ -1847,17 +1856,30 @@ export class SettlementSystem {
       : kind === 'farm' && simulation.season === 'autumn' ? 'farm_autumn'
         : kind === 'farm' && simulation.season === 'winter' ? 'farm_winter'
           : kind;
+    const sway = -(PULSE_BY_BUILDING[kind] ?? 0.5);
     this.buildingCloud.set(slot, {
       position,
       sprite: buildingSprite(art, village.race),
       size,
-      // Tint toward the kingdom colour so borders and buildings agree
-      tint: kingdom ? new THREE.Color(0xffffff).lerp(kingdom.color, 0.22) : undefined,
       // Negative sway means "pulse in scale" rather than "lean". A bonfire
       // breathes hardest because it is literally a fire; a hall barely moves
       // because a building that wobbles looks broken.
-      sway: -(PULSE_BY_BUILDING[kind] ?? 0.5),
+      sway,
     });
+    // The roof in the realm's colour, a hair above so it wins the depth test,
+    // pulsing on the same beat (the phase comes from x and z only).
+    const roof = roofSprite(art);
+    if (roof && kingdom) {
+      this.roofCloud.set(slot, {
+        position: position.clone().setY(position.y + 0.003),
+        sprite: roof,
+        size,
+        tint: kingdom.color.clone().lerp(ROOF_LIGHT, 0.12),
+        sway,
+      });
+    } else {
+      this.roofCloud.clear(slot);
+    }
   }
 
   /**
@@ -1933,6 +1955,7 @@ export class SettlementSystem {
 
   private removeBuilding(village: Village, building: Building): void {
     this.buildingCloud.clear(building.slot);
+    this.roofCloud.clear(building.slot);
     this.freeSlots.push(building.slot);
     const index = village.buildings.indexOf(building);
     if (index !== -1) village.buildings.splice(index, 1);
@@ -2203,6 +2226,8 @@ export class SettlementSystem {
     village.capital = true;
     village.restless = 0;
     kingdom.villageIds.push(village.id);
+    // New realm, new roofs.
+    for (const building of village.buildings) this.paintBuilding(village, building);
 
     for (const resident of residents) {
       resident.kingdomId = kingdom.id;
@@ -3635,9 +3660,8 @@ export class SettlementSystem {
     }
     village.territory.clear();
     this.claimTerritory(village);
-    // Buildings wear a wash of their kingdom's colour; repaint it.
-    const wash = new THREE.Color(0xffffff).lerp(to.color, 0.22);
-    for (const building of village.buildings) this.buildingCloud.setTint(building.slot, wash);
+    // Roofs wear their kingdom's colour; repaint them.
+    for (const building of village.buildings) this.paintBuilding(village, building);
 
     this.events.onEvent(
       `${village.name} falls to ${to.name}, and flies its banner now`,
@@ -4200,6 +4224,8 @@ export class SettlementSystem {
     if (simulation.gatheringPointFor) simulation.gatheringPointFor = undefined;
     this.buildingCloud.points.removeFromParent();
     this.buildingCloud.dispose();
+    this.roofCloud.points.removeFromParent();
+    this.roofCloud.dispose();
     this.boatCloud.points.removeFromParent();
     this.boatCloud.dispose();
     this.boats.clear();
