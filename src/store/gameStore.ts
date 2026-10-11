@@ -283,7 +283,11 @@ export type ExtraTool =
   | 'gift-strong' | 'gift-swift' | 'gift-tough' | 'gift-genius' | 'gift-immortal' | 'gift-regeneration'
   | 'gift-lucky' | 'gift-giant' | 'gift-tiny' | 'gift-fireproof' | 'gift-bloodthirsty' | 'gift-peaceful'
   | 'trait-eraser' | 'gift-arms' | 'gold-rain' | 'youth' | 'love-potion' | 'swarm' | 'cluster-bomb'
-  | 'magnet';
+  | 'magnet'
+  | 'thunder-cloud' | 'hell-cloud' | 'acid-cloud' | 'magic-cloud' | 'blood-rain' | 'life-cloud'
+  | 'dynamite' | 'antimatter' | 'tsar-bomba' | 'heat-ray'
+  | 'pickaxe' | 'spade' | 'sickle' | 'wall-stone' | 'wall-wood'
+  | 'stamp-maze' | 'stamp-spiral' | 'stamp-fort';
 
 /** Radius in tiles for area tools: 0 = single tile, 1 = 3x3, 2 = 5x5. */
 export type BrushRadius = 0 | 1 | 2;

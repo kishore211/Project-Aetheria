@@ -78,6 +78,8 @@ const AURA_TEXT: Partial<Record<EntityType, string>> = {
   robot_santa: 'Hands out weapons and armour to whoever it meets.',
   tumor: 'Spreads corruption around itself, and buds new tumors.',
   langton_ant: 'Rewrites the land by one rule, and builds a highway out of chaos.',
+  monolith: 'Inspires everyone near it, and now and then makes one of them a genius.',
+  grey_goo: 'Turns the land to waste, dissolves whatever it touches, and copies itself.',
 };
 
 const RANGED_TEXT: Record<string, string> = {

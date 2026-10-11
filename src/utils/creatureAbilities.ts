@@ -212,6 +212,40 @@ export const ABILITIES: Partial<Record<EntityType, Ability>> = {
       }
     },
   },
+  monolith: {
+    every: 8,
+    use: (_self, tile, world) => {
+      // It teaches. Whoever stands near it comes away inspired, and now and
+      // then, cleverer for good.
+      for (const other of world.near(tile.x + 0.5, tile.y + 0.5, 6)) {
+        if (!PEOPLE.has(other.type)) continue;
+        applyStatus(other, 'inspired');
+        if (world.random() < 0.05 && !(other.traits ?? []).includes('genius')) {
+          (other.traits ??= []).push('genius');
+          other.attributes.intelligence = Math.round(other.attributes.intelligence * 1.8);
+        }
+      }
+    },
+  },
+  grey_goo: {
+    every: 2,
+    use: (self, tile, world) => {
+      // Eats the world: the ground under it goes to waste, whatever stands
+      // there is dissolved, and it copies itself into the next tile.
+      if (!isWaterBiome(tile.type) && tile.type !== 'wasteland') world.setBiome?.(tile.x, tile.y, 'wasteland');
+      tile.structure = null;
+      for (const other of world.near(tile.x + 0.5, tile.y + 0.5, 1.2)) {
+        if (other.id === self.id || other.type === 'grey_goo') continue;
+        other.health -= 15;
+        if (other.health <= 0 && !other.status.includes('slain')) other.status.push('slain');
+      }
+      if (world.random() < 0.35) {
+        const dir = ANT_STEP[Math.floor(world.random() * 4)];
+        const next = world.tiles[tile.x + dir[0]]?.[tile.y + dir[1]];
+        if (next && !isWaterBiome(next.type)) world.spawn('grey_goo', next.x + 0.5, next.y + 0.5);
+      }
+    },
+  },
   crabzilla: {
     every: 1,
     use: (_self, tile, world) => {

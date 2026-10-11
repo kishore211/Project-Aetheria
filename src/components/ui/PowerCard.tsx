@@ -12,7 +12,7 @@ const BRUSH_LABEL = ['Fine (1 tile)', 'Wide (3×3)', 'Vast (5×5)'];
 /** Powers that work on whoever is standing under the brush. */
 const ON_CREATURES = /^(gift-|trait-|shield|coffee|inspire|sleep|clone|plague|madness|confusion|divine-light|dust-|youth|love-potion|gift-arms|gold-rain|uplift|blessing|curse|poke)/;
 /** Powers that strike one spot. */
-const STRIKES = /^(meteor|lightning|grenade|bomb|napalm|atomic|void-bomb|cluster-bomb|tornado|volcano|geyser|earthquake|acid|lava|swarm|fire)/;
+const STRIKES = /^(meteor|lightning|grenade|bomb|napalm|atomic|void-bomb|cluster-bomb|tornado|volcano|geyser|earthquake|acid$|lava|swarm|fire|dynamite|antimatter|tsar-bomba|heat-ray)/;
 
 /** How to use a power, in one or two plain sentences. */
 const howTo = (power: PowerEntry): string[] => {
@@ -29,6 +29,8 @@ const howTo = (power: PowerEntry): string[] => {
   if (id === 'magnet') return ['Click on creatures to lift everyone under the brush.', 'Move the mouse to carry them, then click again to set them down.'];
   if (id.startsWith('diplo-')) return ['Click on a kingdom’s land to work on that realm.'];
   if (id === 'select') return ['Click a creature or a tile to inspect it.'];
+  if (id.endsWith('-cloud') || id === 'blood-rain') return ['Click where the cloud should form. It drifts with the wind and rains as it goes.'];
+  if (id.startsWith('wall-')) return ['Click to build a wall on the tile. Nothing that walks can cross it.'];
   if (ON_CREATURES.test(id)) return ['Click on creatures. Everyone under the brush is touched.'];
   if (STRIKES.test(id)) return ['Click where it should strike.'];
   if (id.startsWith('seed-') || id.startsWith('paint-') || id.startsWith('stamp-')) return ['Click on the map to paint it. Click again to paint more.'];

@@ -224,6 +224,25 @@ const STAMPS = {
     'LLMDD',
     'LMMDD',
   ],
+  // Walls fill their tile, so a run of them joins into one rampart.
+  wall: [
+    'LLLLLLLL',
+    'LMMMDMMD',
+    'LMMMDMMD',
+    'DDDDDDDD',
+    'LMDMMMMD',
+    'LMDMMMMD',
+    'DDDDDDDD',
+  ],
+  palisade: [
+    'L.L.L.L.',
+    'LMLMLMLM',
+    'MMMMMMMM',
+    'MDMDMDMD',
+    'MDMDMDMD',
+    'MDMDMDMD',
+    'DDDDDDDD',
+  ],
 } as const;
 
 type StampKind = keyof typeof STAMPS;
@@ -867,6 +886,10 @@ const paletteFor = (kind: StampKind, ground: [number, number, number]): Palette 
     case 'boulder':
     case 'rubble':
       return fixed(ROCK_RGB);
+    case 'wall':
+      return { ...fixed([150, 146, 140]), L: [196, 192, 184], D: [88, 84, 80] };
+    case 'palisade':
+      return { ...fixed([138, 96, 56]), L: [178, 132, 82], D: [82, 56, 32] };
     case 'peak':
     case 'crag': {
       // The mountain's own rock, lit harder than the ground so the peak pops.
@@ -961,6 +984,7 @@ export const stampsFor = (tile: Tile): Stamp[] | null => {
     return [{ kind: 'bush', cx: at(13), cy: at(14) }];
   }
   if (structure === 'ruins') return [{ kind: 'rubble', cx: at(15), cy: at(16) }];
+  if (structure === 'wall') return [{ kind: tile.structure?.level === 2 ? 'palisade' : 'wall', cx: 4, cy: 4 }];
 
   switch (tile.type) {
     case 'desert': return v > 0.9 ? [{ kind: 'cactus', cx: at(17), cy: at(18) }] : null;

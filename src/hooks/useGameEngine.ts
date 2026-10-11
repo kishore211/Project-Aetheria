@@ -1540,8 +1540,13 @@ export const useGameEngine = () => {
       syncTile,
       announce: (message: string) => store.addEvent(message, 'info'),
       random: Math.random,
+      ignite: (tile: Tile) => { fireRef.current?.ignite(tile); },
+      flash: (tile: Tile) => {
+        effectsManagerRef.current?.spawnBurst(tileWorldPosition(tile), 0xeef4ff, 8, 1.6);
+        soundManager.lightning?.();
+      },
     };
-  }, [syncTile]);
+  }, [syncTile, tileWorldPosition]);
 
   const worldContext = useCallback((): WorldContext => {
     const store = useGameStore.getState();

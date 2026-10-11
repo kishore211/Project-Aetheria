@@ -158,6 +158,8 @@ export const FOOD_CHAIN: Record<EntityType, EntityType[]> = {
   jumpy_skull: ['human', 'elf', 'dwarf', 'rabbit', 'chicken'],
   robot_santa: [],
   yeti: ['human', 'elf', 'dwarf', 'orc', 'penguin', 'seal', 'goat'],
+  monolith: [],
+  grey_goo: [],
 };
 
 /**
@@ -165,7 +167,7 @@ export const FOOD_CHAIN: Record<EntityType, EntityType[]> = {
  * not eat or sleep or wander, and act only through their aura
  * (creatureAbilities.ts) — but they have health and can be torn down.
  */
-export const STRUCTURES = new Set<EntityType>(['flame_tower', 'ice_tower', 'tumor', 'langton_ant']);
+export const STRUCTURES = new Set<EntityType>(['flame_tower', 'ice_tower', 'tumor', 'langton_ant', 'monolith', 'grey_goo']);
 
 /** Reverse of FOOD_CHAIN, built once at module load. */
 const PREDATORS_OF: Partial<Record<EntityType, EntityType[]>> = {};
@@ -181,7 +183,7 @@ const SENTIENT: EntityType[] = ['human', 'elf', 'dwarf', 'orc'];
 export const MONSTERS = new Set<EntityType>([
   'dragon', 'demon', 'zombie', 'skeleton', 'elemental', 'bandit', 'ghost', 'mage', 'alien',
   'necromancer', 'fire_skull', 'cold_one', 'ufo', 'sand_spider', 'acid_blob', 'crabzilla',
-  'flame_tower', 'ice_tower', 'sandworm', 'jumpy_skull', 'tumor', 'yeti',
+  'flame_tower', 'ice_tower', 'sandworm', 'jumpy_skull', 'tumor', 'yeti', 'grey_goo',
 ]);
 export const isSentient = (type: EntityType): boolean => SENTIENT.includes(type);
 
@@ -264,6 +266,8 @@ function generateEntityName(type: EntityType): string {
     jumpy_skull: ['Boing', 'Hopper', 'Clack', 'Bounce', 'Skip', 'Rattle', 'Jitter', 'Spring', 'Pogo', 'Knock'],
     robot_santa: ['SANTA-9000', 'Unit Noel', 'Claus Prime', 'Gift Protocol', 'Ho-Ho-Bot', 'Jingle.exe', 'Kringle Mk II', 'Sleighframe', 'Elfware', 'Present Tense'],
     yeti: ['Bigfoot', 'Abominable', 'Frostfang', 'Snowshoe', 'Hairy', 'Whiteout', 'Glacier', 'Tundra', 'Avalanche', 'Mountain Uncle'],
+    monolith: ['The Monolith', 'The Slab', 'TMA-1', 'The Teacher', 'The Black Stone'],
+    grey_goo: ['Goo', 'The Grey', 'Swarm', 'Nanite', 'Replicator'],
   };
 
   const nameList = names[type] ?? ['Unknown'];
@@ -354,6 +358,8 @@ const PROFILES: Partial<Record<EntityType, TypeProfile>> = {
   jumpy_skull: { maxAge: 9999, maxHealth: 35, strength: 9, intelligence: 3, speed: 19, resilience: 6 },
   robot_santa: { maxAge: 9999, maxHealth: 300, strength: 10, intelligence: 20, speed: 10, resilience: 30 },
   yeti: { maxAge: 120, maxHealth: 320, strength: 30, intelligence: 8, speed: 10, resilience: 22 },
+  monolith: { maxAge: 9999, maxHealth: 2000, strength: 0, intelligence: 50, speed: 0, resilience: 60 },
+  grey_goo: { maxAge: 9999, maxHealth: 60, strength: 0, intelligence: 0, speed: 0, resilience: 10 },
 };
 
 const DEFAULT_PROFILE: TypeProfile = {

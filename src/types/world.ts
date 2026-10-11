@@ -262,7 +262,9 @@ export type EntityType =
   | 'candy_man'
   | 'jumpy_skull'
   | 'robot_santa'
-  | 'yeti';
+  | 'yeti'
+  | 'monolith'
+  | 'grey_goo';
 
 /** Heritable unit traits. Rolled at spawn, passed to children. */
 export type TraitId =

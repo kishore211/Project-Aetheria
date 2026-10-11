@@ -929,6 +929,106 @@ export const POWERS: PowerEntry[] = [
     quip: 'Simple rules, very complicated afternoon.',
   },
   {
+    kind: 'tool', id: 'pickaxe', tab: 'shape', label: 'Pickaxe', icon: 'Hammer',
+    hint: 'Chips mountains and hills down a step.',
+    quip: 'For when the mountain will not come to the village.',
+  },
+  {
+    kind: 'tool', id: 'spade', tab: 'shape', label: 'Spade', icon: 'Sprout',
+    hint: 'Flattens land into plain grassland.',
+    quip: 'A clean slate, one shovel at a time.',
+  },
+  {
+    kind: 'tool', id: 'wall-stone', tab: 'shape', label: 'Stone Wall', icon: 'Shield',
+    hint: 'Builds a stone wall nothing can walk through.',
+    quip: 'Good walls make good neighbours. Great walls make great ones.',
+  },
+  {
+    kind: 'tool', id: 'wall-wood', tab: 'shape', label: 'Wooden Wall', icon: 'TreePine',
+    hint: 'Builds a wooden palisade.',
+    quip: 'Keeps out wolves, mostly.',
+  },
+  {
+    kind: 'tool', id: 'stamp-maze', tab: 'shape', label: 'Maze', icon: 'ListTree',
+    hint: 'Prints a stone maze into the land.',
+    quip: 'Somebody will get lost in there, and it will be funny.',
+  },
+  {
+    kind: 'tool', id: 'stamp-spiral', tab: 'shape', label: 'Spiral', icon: 'Orbit',
+    hint: 'Prints a spiral of water and grass.',
+    quip: 'For the gods with time on their hands.',
+  },
+  {
+    kind: 'tool', id: 'stamp-fort', tab: 'shape', label: 'Star Fort', icon: 'Crown',
+    hint: 'Prints a walled fort ringed by a moat.',
+    quip: 'Move in, pull up the drawbridge, wait.',
+  },
+  {
+    kind: 'tool', id: 'sickle', tab: 'nature', label: 'Sickle', icon: 'Scissors',
+    hint: 'Cuts away bushes and young trees.',
+    quip: 'Tidy, in a brutal sort of way.',
+  },
+  {
+    kind: 'tool', id: 'thunder-cloud', tab: 'nature', label: 'Thunder Cloud', icon: 'Zap',
+    hint: 'A storm cloud whose lightning strikes and burns.',
+    quip: 'Just the one cloud. Just very angry.',
+  },
+  {
+    kind: 'tool', id: 'acid-cloud', tab: 'nature', label: 'Acid Cloud', icon: 'Droplet',
+    hint: 'Acid rain that burns the land and whoever is out in it.',
+    quip: 'Do not lick the rain.',
+  },
+  {
+    kind: 'tool', id: 'magic-cloud', tab: 'nature', label: 'Magic Cloud', icon: 'Sparkles',
+    hint: 'A shimmering rain that inspires everyone under it.',
+    quip: 'Weather, but motivational.',
+  },
+  {
+    kind: 'tool', id: 'life-cloud', tab: 'nature', label: 'Life Cloud', icon: 'Heart',
+    hint: 'A green rain that heals, cures, and brings dead ground back.',
+    quip: 'Everything grows. Everything.',
+  },
+  {
+    kind: 'tool', id: 'hell-cloud', tab: 'ruin', label: 'Hell Cloud', icon: 'Flame',
+    hint: 'A cloud that rains fire.',
+    quip: 'The forecast is regret.',
+  },
+  {
+    kind: 'tool', id: 'blood-rain', tab: 'ruin', label: 'Blood Rain', icon: 'Droplets',
+    hint: 'A red rain that drives everyone under it to rage.',
+    quip: 'It is not just the weather that turns.',
+  },
+  {
+    kind: 'tool', id: 'dynamite', tab: 'ruin', label: 'Dynamite', icon: 'Bomb',
+    hint: 'A small, cheap blast.',
+    quip: 'Mining, but faster.',
+  },
+  {
+    kind: 'tool', id: 'heat-ray', tab: 'ruin', label: 'Heat Ray', icon: 'Sun',
+    hint: 'A beam from the sky that melts whatever it touches.',
+    quip: 'Like a magnifying glass, but personal.',
+  },
+  {
+    kind: 'tool', id: 'antimatter', tab: 'ruin', label: 'Antimatter', icon: 'Radiation',
+    hint: 'Annihilates a disc of the world; the sea fills the hole.',
+    quip: 'Matter, meet your opposite.',
+  },
+  {
+    kind: 'tool', id: 'tsar-bomba', tab: 'ruin', label: 'Tsar Bomba', icon: 'Radiation',
+    hint: 'The biggest bomb there is.',
+    quip: 'Nobody needed this. You built it anyway.',
+  },
+  {
+    kind: 'tool', id: 'spawn-grey_goo', tab: 'ruin', label: 'Grey Goo', icon: 'Biohazard',
+    hint: 'Self-copying nanites that turn the world to waste.',
+    quip: 'Small, grey, and very, very hungry.',
+  },
+  {
+    kind: 'tool', id: 'spawn-monolith', tab: 'divine', label: 'Monolith', icon: 'Gem',
+    hint: 'A black slab that inspires everyone near it, and sometimes makes a genius.',
+    quip: 'It is full of stars.',
+  },
+  {
     kind: 'tool', id: 'spawn-dragon', tab: 'life', label: 'Dragon', icon: 'Flame',
     hint: 'Flies, burns, and is very hard to kill.',
     quip: 'Regards your walls as a suggestion.',

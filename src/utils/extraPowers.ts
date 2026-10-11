@@ -131,6 +131,7 @@ export const SPAWNABLE: EntityType[] = [
   'flame_tower', 'ice_tower',
   'white_mage', 'angel', 'sandworm', 'langton_ant', 'tumor', 'treant',
   'candy_man', 'jumpy_skull', 'robot_santa', 'yeti',
+  'monolith', 'grey_goo',
 ];
 
 const STATUS_POWERS: Record<string, { status: StatusId; color: number; persons?: boolean; line: string }> = {
@@ -170,6 +171,12 @@ const CLOUDS: Record<string, DropKind> = {
   'rain-cloud': 'rain',
   'snow-cloud': 'snow',
   'seed-cloud': 'seed',
+  'thunder-cloud': 'thunder',
+  'hell-cloud': 'hellfire',
+  'acid-cloud': 'acid',
+  'magic-cloud': 'magic',
+  'blood-rain': 'rage',
+  'life-cloud': 'life',
 };
 
 const BURNABLE: BiomeType[] = [
@@ -570,8 +577,10 @@ export const runExtraPower = (
       ctx.announce(`Napalm rolls across (${tile.x}, ${tile.y})${kills ? ` — ${kills} burned` : ''}`, 'disaster', at(tile));
       return true;
     }
+    case 'tsar-bomba':
     case 'atomic': {
-      const radius = 9;
+      // The Tsar Bomba is the atomic bomb with nobody holding back.
+      const radius = tool === 'tsar-bomba' ? 17 : 9;
       ctx.forEachBrushTile(tile, radius, (target, distance) => {
         const k = 1 - distance / radius;
         target.structure = null;
@@ -592,8 +601,120 @@ export const runExtraPower = (
       ctx.sound.boom();
       ctx.shake(42, 1.8);
       ctx.flash('impact', 1);
-      ctx.announce(`A second sun opens over (${tile.x}, ${tile.y}) and closes again${kills ? `. ${kills} gone` : ''}`, 'disaster', at(tile));
+      ctx.announce(
+        tool === 'tsar-bomba'
+          ? `The largest thing anyone ever built goes off over (${tile.x}, ${tile.y})${kills ? `. ${kills} gone` : ''}`
+          : `A second sun opens over (${tile.x}, ${tile.y}) and closes again${kills ? `. ${kills} gone` : ''}`,
+        'disaster', at(tile));
       return true;
+    }
+    case 'dynamite':
+      return explode(tile, ctx, { radius: 1, damage: 35, crater: 0.03, fire: 0, shake: 5, label: 'A stick of dynamite goes off' });
+    case 'antimatter': {
+      // Not a crater: a hole in the world, which the sea fills.
+      const radius = 6 + brush;
+      ctx.forEachBrushTile(tile, radius, (target, distance) => {
+        if (target.villageId) ctx.demolishAt(target.x, target.y);
+        target.structure = null;
+        ctx.reshape(target, 0.04 + (distance / radius) * 0.18, distance < radius - 1.5 ? 'deep_ocean' : 'ocean');
+      });
+      const kills = ctx.damageArea(tile.x, tile.y, radius + 1, 999);
+      ctx.fx.shockwave(tile, 0xe0d0ff, radius + 2);
+      ctx.fx.burst(tile, 0xffffff, 60, 4);
+      ctx.sound.boom();
+      ctx.shake(36, 1.4);
+      ctx.flash('divine', 0.9);
+      ctx.announce(`Matter meets its opposite at (${tile.x}, ${tile.y}), and the sea pours into the hole${kills ? `. ${kills} gone` : ''}`, 'disaster', at(tile));
+      return true;
+    }
+    case 'heat-ray': {
+      const radius = 1.5 + brush;
+      ctx.forEachBrushTile(tile, Math.ceil(radius), (target, distance) => {
+        if (distance > radius) return;
+        addHeat(target, distance < 1 ? MELT : SCORCH);
+        if (BURNABLE.includes(target.type)) ctx.ignite(target);
+      });
+      const kills = ctx.damageArea(tile.x, tile.y, radius + 0.5, 70);
+      ctx.fx.shockwave(tile, 0xff4020, radius + 1);
+      ctx.fx.burst(tile, 0xff8040, 24, 2);
+      ctx.sound.fire();
+      ctx.flash('impact', 0.3);
+      ctx.announce(`A beam of heat comes down on (${tile.x}, ${tile.y})${kills ? ` — ${kills} burned away` : ''}`, 'disaster', at(tile));
+      return true;
+    }
+
+    // -- editing tools ---------------------------------------------------------
+    case 'pickaxe': {
+      let acted = false;
+      ctx.forEachBrushTile(tile, brush, (target) => {
+        if (target.height < 0.62 || isWaterBiome(target.type)) return;
+        acted = true;
+        target.structure = null;
+        ctx.reshape(target, Math.max(0.5, target.height - 0.15));
+      });
+      if (acted) ctx.sound.terraform('stone');
+      return acted;
+    }
+    case 'spade': {
+      let acted = false;
+      ctx.forEachBrushTile(tile, brush, (target) => {
+        if (isWaterBiome(target.type) || target.villageId) return;
+        acted = true;
+        target.structure = null;
+        ctx.reshape(target, 0.45, 'grassland');
+      });
+      if (acted) ctx.sound.terraform('soil');
+      return acted;
+    }
+    case 'sickle': {
+      let cut = 0;
+      ctx.forEachBrushTile(tile, 1 + brush, (target) => {
+        const kind = target.structure?.type;
+        if (kind !== 'bush' && kind !== 'sapling' && kind !== 'young_tree') return;
+        target.structure = null;
+        ctx.sync(target);
+        cut += 1;
+      });
+      if (cut > 0) ctx.sound.terraform('forest');
+      return cut > 0;
+    }
+    case 'wall-stone':
+    case 'wall-wood': {
+      let built = 0;
+      ctx.forEachBrushTile(tile, brush, (target) => {
+        if (isWaterBiome(target.type) || target.villageId) return;
+        target.structure = { type: 'wall', health: tool === 'wall-stone' ? 400 : 160, level: tool === 'wall-stone' ? 1 : 2 };
+        target.walkable = false;
+        ctx.sync(target);
+        built += 1;
+      });
+      if (built > 0) ctx.sound.terraform('stone');
+      return built > 0;
+    }
+    case 'stamp-maze':
+    case 'stamp-spiral':
+    case 'stamp-fort': {
+      const pattern = PRINTS[tool];
+      const half = Math.floor(pattern.length / 2);
+      let drew = false;
+      pattern.forEach((row, py) => {
+        for (let px = 0; px < row.length; px++) {
+          const x = tile.x + px - half;
+          const y = tile.y + py - half;
+          if (!ctx.inBounds(x, y)) continue;
+          const target = ctx.tiles[x][y];
+          if (target.villageId) continue;
+          const cell = row[px];
+          if (cell === '#') { target.structure = null; ctx.reshape(target, 0.88, 'mountains'); drew = true; }
+          else if (cell === '~') { target.structure = null; ctx.reshape(target, 0.2, 'shallow_water'); drew = true; }
+          else if (cell === '.') { target.structure = null; ctx.reshape(target, 0.45, 'grassland'); drew = true; }
+        }
+      });
+      if (drew) {
+        ctx.sound.terraform('stone');
+        ctx.fx.burst(tile, 0xd0c8b0, 20, 2);
+      }
+      return drew;
     }
     case 'void-bomb': {
       const radius = 4 + brush;
@@ -768,6 +889,69 @@ export const runExtraPower = (
     default:
       return null;
   }
+};
+
+/**
+ * The printer: whole landscapes stamped in one click. `#` is mountain, `~`
+ * shallow water, `.` cleared grass, and a space leaves the ground alone.
+ * WorldBox's printer powers are pure toys; so are these.
+ */
+const PRINTS: Record<string, string[]> = {
+  'stamp-maze': [
+    '#################',
+    '#.......#.......#',
+    '#.#####.#.#####.#',
+    '#.#...#...#...#.#',
+    '#.#.#.#####.#.#.#',
+    '#...#.......#...#',
+    '###.#########.###',
+    '#...#.......#...#',
+    '#.###.#.#.#.###.#',
+    '#.....#...#.....#',
+    '#.#####.#.#####.#',
+    '#.#.....#.....#.#',
+    '#.#.#########.#.#',
+    '#...#.......#...#',
+    '#.###.#####.###.#',
+    '#.......#........',
+    '#################',
+  ],
+  'stamp-spiral': [
+    '~~~~~~~~~~~~~~~',
+    '~.............~',
+    '~.~~~~~~~~~~~.~',
+    '~.~.........~.~',
+    '~.~.~~~~~~~.~.~',
+    '~.~.~.....~.~.~',
+    '~.~.~.~~~.~.~.~',
+    '~.~.~.~.~.~.~.~',
+    '~.~.~...~.~.~.~',
+    '~.~.~~~~~.~.~.~',
+    '~.~.......~.~.~',
+    '~.~~~~~~~~~.~.~',
+    '~...........~.~',
+    '~~~~~~~~~~~~~.~',
+    '..............~',
+  ],
+  'stamp-fort': [
+    '      ~~~~~      ',
+    '    ~~~###~~~    ',
+    '   ~~##...##~~   ',
+    '  ~~#.......#~~  ',
+    ' ~~#.........#~~ ',
+    ' ~#...........#~ ',
+    '~~#...........#~~',
+    '~#.............#~',
+    '~#.............#~',
+    '~#.............#~',
+    '~~#...........#~~',
+    ' ~#...........#~ ',
+    ' ~~#.........#~~ ',
+    '  ~~#.......#~~  ',
+    '   ~~##...##~~   ',
+    '    ~~~#.#~~~    ',
+    '      ~~.~~      ',
+  ],
 };
 
 interface Blast {

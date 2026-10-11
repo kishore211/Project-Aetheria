@@ -423,6 +423,22 @@ const TREANT = [
   '..tt....tt..',
 ];
 
+// The monolith: s=black stone, d=edge, w=glint
+const SLAB = [
+  '....sssd....',
+  '....swsd....',
+  '....sssd....',
+  '....sssd....',
+  '....sssd....',
+  '....sssd....',
+  '....sssd....',
+  '....sssd....',
+  '....sssd....',
+  '....sssd....',
+  '...ssssdd...',
+  '..dddddddd..',
+];
+
 export const TEMPLATES: Record<string, string[]> = {
   humanoid: HUMANOID,
   quadruped: QUADRUPED,
@@ -450,6 +466,7 @@ export const TEMPLATES: Record<string, string[]> = {
   seal: SEAL,
   spire: SPIRE,
   treant: TREANT,
+  slab: SLAB,
 };
 
 interface SpriteSpec {
@@ -592,6 +609,8 @@ const SPECS: Record<EntityType, SpriteSpec> = {
   jumpy_skull: { template: 'skull', palette: { f: '#efe8d4', e: '#3a2a20', d: '#3a2a20', w: '#efe8d4' } },
   robot_santa: { template: 'humanoid', palette: { s: '#b8c0c8', h: '#d02a2a', b: '#d02a2a', p: '#2a2a2a', e: '#40f0ff' } },
   yeti: { template: 'humanoid', palette: { s: '#d8e4ec', h: '#f4f8fc', b: '#e4ecf2', p: '#c4d0dc', e: '#2a4a8a' } },
+  monolith: { template: 'slab', palette: { s: '#14141a', d: '#2c2c38', w: '#8a90b0' } },
+  grey_goo: { template: 'blob', palette: { f: '#8a8e96', d: '#5a5e66', e: '#c8ccd4', w: '#d8dce4' } },
 };
 
 const textureCache = new Map<string, THREE.CanvasTexture>();

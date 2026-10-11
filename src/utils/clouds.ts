@@ -15,7 +15,8 @@ import { isWaterBiome, type Entity, type Tile } from '../types/world';
 import { addHeat } from './thermal';
 import { applyStatus } from './statusEffects';
 
-export type DropKind = 'none' | 'rain' | 'snow' | 'plague' | 'blessing' | 'seed';
+export type DropKind = 'none' | 'rain' | 'snow' | 'plague' | 'blessing' | 'seed'
+  | 'thunder' | 'hellfire' | 'acid' | 'magic' | 'rage' | 'life';
 
 export interface DropDef {
   /** Tint for the cloud carrying it, so the sky says what is coming. */
@@ -23,7 +24,7 @@ export interface DropDef {
   /** Chance per simulated second that a tile under the cloud is touched. */
   rate: number;
   /** What it does to the ground. Returns true if the tile needs redrawing. */
-  onTile?: (tile: Tile) => boolean;
+  onTile?: (tile: Tile, world?: CloudWorld) => boolean;
   /** What it does to whoever is standing there. */
   onCreature?: (entity: Entity) => void;
   /** Chronicle line when one is summoned, or null for the ambient ones. */
@@ -102,6 +103,98 @@ export const DROPS: Record<DropKind, DropDef> = {
     },
   },
 
+  thunder: {
+    tint: 0x5a6074,
+    rate: 0.06,
+    herald: 'The sky goes dark and starts to grumble',
+    onTile: (tile, world) => {
+      // Lightning: rare, and it lands. Dry ground catches.
+      if (!isWaterBiome(tile.type) && tile.moisture < 0.6) world?.ignite?.(tile);
+      world?.flash?.(tile);
+      return false;
+    },
+    onCreature: (entity) => {
+      entity.health -= 30;
+      applyStatus(entity, 'wounded');
+    },
+  },
+
+  hellfire: {
+    tint: 0xd8502a,
+    rate: 0.25,
+    herald: 'A cloud the colour of a forge rolls in',
+    onTile: (tile, world) => {
+      if (isWaterBiome(tile.type)) return false;
+      addHeat(tile, 160);
+      world?.ignite?.(tile);
+      return false;
+    },
+    onCreature: (entity) => {
+      if (entity.traits?.includes('fireproof')) return;
+      entity.health -= 8;
+    },
+  },
+
+  acid: {
+    tint: 0x9ad83a,
+    rate: 0.45,
+    herald: 'The rain smells wrong',
+    onTile: (tile) => {
+      // Burns the life out of the ground and the leaves off the trees.
+      tile.fertility = Math.max(0, tile.fertility - 0.08);
+      if (tile.structure && (tile.structure.type === 'sapling' || tile.structure.type === 'young_tree')) {
+        tile.structure = null;
+        return true;
+      }
+      return false;
+    },
+    onCreature: (entity) => {
+      entity.health -= 5;
+      applyStatus(entity, 'wounded');
+    },
+  },
+
+  magic: {
+    tint: 0xb48cff,
+    rate: 0.45,
+    herald: 'Something shimmers overhead',
+    onCreature: (entity) => {
+      applyStatus(entity, 'inspired');
+      entity.health = Math.min(entity.maxHealth, entity.health + 4);
+    },
+  },
+
+  rage: {
+    tint: 0xa8243a,
+    rate: 0.4,
+    herald: 'Blood falls from the sky',
+    onCreature: (entity) => {
+      applyStatus(entity, 'enraged');
+    },
+  },
+
+  life: {
+    tint: 0x9cf0b0,
+    rate: 0.6,
+    herald: 'A green rain begins, and everything leans toward it',
+    onTile: (tile) => {
+      tile.fertility = Math.min(1, tile.fertility + 0.05);
+      if (tile.isOnFire) { tile.isOnFire = false; return true; }
+      if ((tile.type === 'ashland' || tile.type === 'badlands' || tile.type === 'wasteland') && !tile.villageId) {
+        tile.type = 'grassland';
+        return true;
+      }
+      return false;
+    },
+    onCreature: (entity) => {
+      entity.health = Math.min(entity.maxHealth, entity.health + 12);
+      for (const bad of ['infected', 'wounded', 'cursed'] as const) {
+        const i = entity.status.indexOf(bad);
+        if (i !== -1) entity.status.splice(i, 1);
+      }
+    },
+  },
+
   seed: {
     tint: 0x7fae5a,
     rate: 0.35,
@@ -139,6 +232,10 @@ export interface CloudWorld {
   syncTile(tile: Tile): void;
   announce(message: string): void;
   random(): number;
+  /** Set a tile alight, through the fire system. */
+  ignite?(tile: Tile): void;
+  /** A flash where lightning lands. */
+  flash?(tile: Tile): void;
 }
 
 /**
@@ -254,7 +351,7 @@ export class CloudSystem {
         const y = centreY + dy;
         if (x < 0 || y < 0 || x >= size || y >= size) continue;
         const tile = world.tiles[x][y];
-        if (def.onTile?.(tile)) world.syncTile(tile);
+        if (def.onTile?.(tile, world)) world.syncTile(tile);
         if (def.onCreature) {
           for (const creature of world.creaturesNear(x, y, 0.8)) def.onCreature(creature);
         }

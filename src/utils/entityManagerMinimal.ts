@@ -356,7 +356,7 @@ export class EntityManager implements EntityIndex {
     }
 
     // Undead do not age or breed
-    if (['skeleton', 'zombie', 'ghost', 'fire_skull', 'ufo', 'flame_tower', 'ice_tower', 'angel', 'langton_ant', 'tumor', 'jumpy_skull', 'robot_santa'].includes(entity.type)) {
+    if (['skeleton', 'zombie', 'ghost', 'fire_skull', 'ufo', 'flame_tower', 'ice_tower', 'angel', 'langton_ant', 'tumor', 'jumpy_skull', 'robot_santa', 'monolith', 'grey_goo'].includes(entity.type)) {
       if (entity.health <= 0) {
         this.killEntity(entity, entity.status.includes('slain') ? 'combat' : 'health');
       }
@@ -721,7 +721,7 @@ export class EntityManager implements EntityIndex {
       sand_spider: 20, acid_blob: 10, lil_pumpkin: 25, gummy_bear: 30, crabzilla: 1,
       flame_tower: 12, ice_tower: 12,
       white_mage: 4, angel: 4, sandworm: 2, langton_ant: 6, tumor: 30, treant: 6,
-      candy_man: 25, jumpy_skull: 15, robot_santa: 2, yeti: 6,
+      candy_man: 25, jumpy_skull: 15, robot_santa: 2, yeti: 6, monolith: 3, grey_goo: 120,
     };
     const baseMax = baseMaxCounts[type] ?? 50;
     switch (this.entityPopulationDensity) {

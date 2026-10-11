@@ -352,6 +352,14 @@ export const CREATURE_LINES: Partial<Record<EntityType, string[]>> = {
     'The snow moved, and then it had teeth.',
     'Leaves footprints the size of a door.',
   ],
+  monolith: [
+    'Nobody saw it arrive. Everybody who touches it has an idea.',
+    'Perfectly smooth, perfectly black, and humming very slightly.',
+  ],
+  grey_goo: [
+    'Microscopic, hungry, and very good at making more of itself.',
+    'There is less world every minute it is left alone.',
+  ],
 };
 
 /** Every biome has something to say about itself. */

@@ -282,3 +282,32 @@ describe('gifts and their opposites', () => {
     expect(events.some(e => /bomblet/i.test(e))).toBe(false);
   });
 });
+
+describe('the second batch of powers', () => {
+  it('builds walls nothing can walk through', () => {
+    const { ctx, hazards, tiles } = world();
+    expect(runExtraPower('wall-stone', tiles[5][5], ctx, hazards)).toBe(true);
+    expect(tiles[5][5].structure?.type).toBe('wall');
+    expect(tiles[5][5].walkable).toBe(false);
+  });
+
+  it('prints a maze of mountain walls', () => {
+    const { ctx, hazards, tiles } = world(30);
+    expect(runExtraPower('stamp-maze', tiles[15][15], ctx, hazards)).toBe(true);
+    expect(tiles.flat().filter(t => t.type === 'mountains').length).toBeGreaterThan(60);
+  });
+
+  it('opens a sea where antimatter lands', () => {
+    const { ctx, hazards, tiles } = world();
+    runExtraPower('antimatter', tiles[12][12], ctx, hazards);
+    expect(isWaterBiome(tiles[12][12].type)).toBe(true);
+  });
+
+  it('chips a mountain down with the pickaxe, and leaves the meadow alone', () => {
+    const { ctx, hazards, tiles } = world();
+    tiles[4][4].height = 0.9; tiles[4][4].type = 'mountains';
+    expect(runExtraPower('pickaxe', tiles[4][4], ctx, hazards)).toBe(true);
+    expect(tiles[4][4].height).toBeLessThan(0.9);
+    expect(runExtraPower('pickaxe', tiles[8][8], ctx, hazards)).toBe(false);
+  });
+});
