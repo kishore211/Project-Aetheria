@@ -1609,3 +1609,15 @@ canvas {
   box-shadow: 1px 0 0 rgb(255 255 255 / 0.08);
 }
 .powerbar-powers > .powerbar-inline { grid-row: 1 / span 2; }
+
+/* --- The town window, in the unit window's frame --- */
+.city-banner { width: 4rem; height: 4.6rem; filter: drop-shadow(2px 3px 0 rgb(0 0 0 / 0.35)); }
+.unit-facts.city-head { flex: 1; margin-top: 0; align-content: start; }
+.city-loyalty { display: flex; align-items: baseline; justify-content: space-between; }
+.city-loyalty-value { font-size: 1rem; font-weight: 700; }
+.city-loyalty-value.is-good, .city-factors .is-good { color: #8fdc6a; }
+.city-loyalty-value.is-mid { color: #ffd98a; }
+.city-loyalty-value.is-bad, .city-factors .is-bad { color: #ff7a6a; }
+.city-warning { font-size: 0.7rem; color: #ff9a8a; margin-top: 0.15rem; }
+.city-factors { margin-top: 0.25rem; display: grid; gap: 0.1rem; font-size: 0.7rem; }
+.city-factors li { display: flex; justify-content: space-between; gap: 0.5rem; color: #b8bfa6; }

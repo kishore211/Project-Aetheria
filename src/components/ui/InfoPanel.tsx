@@ -1,11 +1,10 @@
-import { Brain, Crown, Shield, Star, Sword, X } from 'lucide-react';
+import { Brain, Shield, Star, Sword, X } from 'lucide-react';
 import { useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import type { Entity, Resource, TraitId } from '../../types/world';
 import { TRAITS } from '../../utils/traits';
 import { BIOME_STEPS, groundSpeed } from '../../utils/biomeEffects';
 import { biomeLine } from '../../utils/flavour';
-import { CULTURE_TRAITS, type CultureTraitId } from '../../utils/identity';
 import { worldAccess } from '../../utils/worldAccess';
 import { DRIVES, toggleDrive, wants } from '../../utils/mind';
 import { describeItem, MATERIAL_COLOR, type Equipment, type Item } from '../../utils/equipment';
@@ -147,6 +146,8 @@ const InfoPanel = () => {
   const village = selectedTile
     ? worldAccess.current?.villageInfo(selectedTile.x, selectedTile.y) ?? null
     : null;
+  // A town opens in the town window in the middle of the screen.
+  if (village) return null;
 
   return (
     <div className="ui-panel-right relative w-full max-h-[46vh] overflow-y-auto bg-secondary/95 backdrop-blur-sm border border-muted/40 p-4 rounded-md shadow-lg">
@@ -167,115 +168,6 @@ const InfoPanel = () => {
           <p className="text-xs text-muted-foreground mb-3">
             Tile {selectedTile.x}, {selectedTile.y} · elevation {Math.round(selectedTile.height * 100)}%
           </p>
-
-          {village && (
-            <div className="mb-3 p-2.5 rounded-lg bg-background/50 border border-muted/40">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="w-3 h-3 rounded-sm border border-black/30" style={{ backgroundColor: village.kingdomColor }} />
-                <span className="font-medium text-sm text-foreground">{village.name}</span>
-                {village.capital && (
-                  <span className="text-[10px] uppercase tracking-wide text-amber-300">capital</span>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <Crown size={11} /> {village.kingdomName}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {village.buildings} building{village.buildings === 1 ? '' : 's'} · {village.territory} tiles claimed
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Granary: {village.store.food} food · {village.store.wood} wood · {village.store.stone} stone
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Treasury: <span className="text-amber-300">{Math.round(village.store.gold)}</span> gold
-              </p>
-              {village.identity.culture && (
-                <div className="mt-1.5 pt-1.5 border-t border-muted/30">
-                  <p className="text-xs flex items-center gap-1.5">
-                    <span
-                      className="w-2.5 h-2.5 rounded-sm border border-black/30 shrink-0"
-                      style={{ backgroundColor: village.identity.cultureColor ?? '#64748b' }}
-                    />
-                    <span className="text-foreground">{village.identity.culture}</span>
-                  </p>
-                  {village.identity.cultureTraits.length > 0 && (
-                    <ul className="flex flex-wrap gap-1 mt-1">
-                      {village.identity.cultureTraits.map((trait) => (
-                        <li
-                          key={trait}
-                          title={CULTURE_TRAITS[trait as CultureTraitId]?.description}
-                          className="capitalize text-[0.62rem] px-1.5 py-0.5 rounded-full bg-muted/50 text-muted-foreground"
-                        >
-                          {CULTURE_TRAITS[trait as CultureTraitId]?.label ?? trait}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  <p className="text-[0.68rem] text-muted-foreground mt-1">
-                    {village.identity.language}
-                    {village.identity.religion && ` · ${village.identity.religion}`}
-                  </p>
-                </div>
-              )}
-
-              {village.ruler && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Ruled by {village.ruler}
-                  {village.rulerStats && (
-                    <span className="text-muted-foreground/70">
-                      {' '}· dip {village.rulerStats.diplomacy} · stew {village.rulerStats.stewardship}
-                      {' '}· war {village.rulerStats.warfare}
-                    </span>
-                  )}
-                </p>
-              )}
-
-              {village.loyalty !== null && (
-                <div className="mt-2 pt-2 border-t border-muted/30">
-                  <div className="flex items-baseline justify-between">
-                    <h5 className="text-[0.68rem] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Loyalty
-                    </h5>
-                    <span className={`text-sm font-bold ${
-                      village.loyalty >= 40 ? 'text-emerald-300'
-                        : village.loyalty >= 0 ? 'text-amber-300' : 'text-rose-400'
-                    }`}>
-                      {village.loyalty > 0 ? '+' : ''}{village.loyalty}
-                    </span>
-                  </div>
-
-                  {village.secedesIn !== null && (
-                    <p className="text-[0.68rem] text-rose-300 mt-0.5">
-                      Secedes in {Math.ceil(village.secedesIn)}s unless something changes.
-                    </p>
-                  )}
-
-                  {/* The breakdown is the point. A number with no explanation is
-                      a number the player learns to ignore, and a rebellion you
-                      cannot see coming is indistinguishable from a bug. */}
-                  <ul className="mt-1 space-y-0.5">
-                    {village.loyaltyFactors.slice(0, 6).map((factor) => (
-                      <li key={factor.label} className="flex items-baseline gap-2 text-[0.68rem]">
-                        <span className="flex-1 min-w-0 truncate text-muted-foreground">
-                          {factor.label}
-                        </span>
-                        <span className={`font-semibold tabular-nums ${
-                          factor.value > 0 ? 'text-emerald-300' : 'text-rose-400'
-                        }`}>
-                          {factor.value > 0 ? '+' : ''}{factor.value}
-                        </span>
-                      </li>
-                    ))}
-                    {village.loyaltyFactors.length > 6 && (
-                      <li className="text-[0.66rem] text-muted-foreground/60">
-                        and {village.loyaltyFactors.length - 6} smaller
-                      </li>
-                    )}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
 
           <div className="space-y-2.5 text-sm">
             <div>

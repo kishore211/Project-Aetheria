@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useEffect, useMemo, useState } from 'react';
 import { Brain, Eye, EyeOff, Footprints, Heart, MapPin, PawPrint, Shield, Skull, Sword, X } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
@@ -93,7 +94,9 @@ const UnitWindow = () => {
     .filter(Boolean);
   const health = Math.max(0, entity.health / Math.max(1, entity.maxHealth));
 
-  return (
+  // Portalled out of the HUD layer, so it sits above the speech bubbles and
+  // numbers floating over the map rather than under them.
+  return createPortal(
     <div className="unit-window-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}>
       <div className="unit-window" role="dialog" aria-label={entity.name}>
         <div className="unit-window-title">
@@ -200,7 +203,8 @@ const UnitWindow = () => {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
 

@@ -3,6 +3,7 @@ import GameContainer from './components/world/GameContainer';
 import PowerBar from './components/ui/PowerBar';
 import PowerCard from './components/ui/PowerCard';
 import UnitWindow from './components/ui/UnitWindow';
+import CityWindow from './components/ui/CityWindow';
 import TopBar from './components/ui/TopBar';
 import HelpOverlay from './components/ui/HelpOverlay';
 import RightRail from './components/ui/RightRail';
@@ -69,6 +70,7 @@ function App() {
             </>
           )}
           <UnitWindow />
+          <CityWindow />
           <WorldLawsPanel />
           <AchievementWatcher />
           <HelpOverlay />
