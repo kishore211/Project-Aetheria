@@ -137,6 +137,19 @@ const addResource = (tile: Tile, type: 'food' | 'wood' | 'stone', cap = 10): voi
 const samplesFor = (ctx: WorldContext, per = 220): number =>
   Math.max(12, Math.floor((ctx.size * ctx.size) / per));
 
+const COLD_GROUND = new Set<string>(['snow', 'tundra', 'ice', 'glacier', 'taiga']);
+
+/** Passes of the thermal row since each note was last written. */
+const noteAge = new Map<string, number>();
+let thermalPass = 0;
+/** A thermal note may be written again after ~30 passes (about a minute). */
+const thermalNoteDue = (note: string): boolean => {
+  const last = noteAge.get(note);
+  if (last !== undefined && thermalPass - last < 30) return false;
+  noteAge.set(note, thermalPass);
+  return true;
+};
+
 export const WORLD_PROCESSES: WorldProcess[] = [
   {
     // The one that has to be frequent: everything that eats depends on it.
@@ -251,6 +264,7 @@ export const WORLD_PROCESSES: WorldProcess[] = [
       const step = 1.7;
       // One line per kind of change per pass, however many tiles it took.
       const told = new Set<string>();
+      thermalPass += 1;
       for (let i = 0; i < samples; i += 1) {
         const { tile, x, y } = sampleTile(ctx);
 
@@ -260,6 +274,7 @@ export const WORLD_PROCESSES: WorldProcess[] = [
         const neighbour = neighbourOf(ctx, x, y);
         if (neighbour && neighbour !== tile) conduct(tile, neighbour, step);
 
+        const before = tile.type;
         const change = cascade(tile);
         if (!change) continue;
         if (change.became) {
@@ -276,7 +291,11 @@ export const WORLD_PROCESSES: WorldProcess[] = [
         // Only the two ends of the ladder are worth a chronicle line. The
         // rungs in between fire hundreds of times during one eruption, and a
         // chronicle nobody can read is a chronicle nobody reads.
-        if (change.note && !told.has(change.note)) {
+        // Cold ground freezing harder is weather, not news: the poles cycle
+        // between thaw and freeze all year and used to write the same line
+        // every few seconds. And no line more than once a minute regardless.
+        const routine = change.step === 'deep_freeze' && COLD_GROUND.has(before);
+        if (change.note && !routine && !told.has(change.note) && thermalNoteDue(change.note)) {
           told.add(change.note);
           ctx.announce(change.note, { x, y });
         }
