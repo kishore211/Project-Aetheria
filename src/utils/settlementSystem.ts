@@ -3855,6 +3855,7 @@ export class SettlementSystem {
     const kingdom = this.kingdoms.get(village.kingdomId);
     return {
       name: village.name,
+      kingdomId: village.kingdomId,
       kingdomName: kingdom?.name ?? 'No kingdom',
       kingdomColor: kingdom?.colorHex ?? '#888888',
       race: village.race,

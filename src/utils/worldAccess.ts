@@ -21,6 +21,7 @@ export interface WorldAccess {
   /** Village occupying a tile, for the inspector. */
   villageInfo: (x: number, y: number) => {
     name: string;
+    kingdomId: string;
     kingdomName: string;
     kingdomColor: string;
     race: string;

@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { Crown, ChevronDown, ChevronUp, Handshake, MapPin, Shield, Swords, Sword } from 'lucide-react';
+import { useCallback, useState } from 'react';
+import { Crown, ChevronDown, ChevronUp, Shield, Swords } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
 import Banner from './Banner';
+import KingdomWindow from './KingdomWindow';
 
 /**
  * Live standings of every kingdom: territory, population and active wars.
@@ -9,11 +10,11 @@ import Banner from './Banner';
  */
 const KingdomsPanel = () => {
   const kingdoms = useGameStore((state) => state.kingdoms);
-  const focusTile = useGameStore((state) => state.focusTile);
   const [collapsed, setCollapsed] = useState(false);
   // One realm open at a time: the card is a window into a kingdom, and two
   // open cards in a panel this narrow is a wall of text.
   const [open, setOpen] = useState<string | null>(null);
+  const closeWindow = useCallback(() => setOpen(null), []);
 
   if (kingdoms.length === 0) return null;
 
@@ -38,8 +39,8 @@ const KingdomsPanel = () => {
               <button
                 type="button"
                 className="w-full flex items-center gap-2 text-left"
-                onClick={() => setOpen(open === kingdom.id ? null : kingdom.id)}
-                title="Show this realm"
+                onClick={() => setOpen(kingdom.id)}
+                title="Open this realm"
               >
                 <Banner id={kingdom.id} color={kingdom.color} race={kingdom.race} height={18} />
                 <span className="truncate font-medium text-foreground" title={kingdom.name}>
@@ -60,44 +61,11 @@ const KingdomsPanel = () => {
                   at war with {kingdom.atWarWith.join(', ')}
                 </div>
               )}
-              {open === kingdom.id && (
-                <div className="mt-1.5 ml-5 p-2 rounded-md bg-background/50 border border-muted/40 text-xs space-y-1">
-                  <div className="flex items-center gap-1.5">
-                    <Crown size={11} className="text-amber-300" />
-                    <span className="text-muted-foreground">Ruled by</span>
-                    <span className="text-foreground truncate">{kingdom.ruler ?? 'nobody yet'}</span>
-                  </div>
-                  {kingdom.capital && (
-                    <button
-                      type="button"
-                      className="flex items-center gap-1.5 hover:text-foreground text-muted-foreground"
-                      onClick={() => focusTile(kingdom.capital!.x, kingdom.capital!.y)}
-                      title="Fly to the capital"
-                    >
-                      <MapPin size={11} />
-                      Seat at <span className="text-foreground underline decoration-dotted">{kingdom.capital.name}</span>
-                    </button>
-                  )}
-                  <div className="flex items-center gap-1.5 text-muted-foreground">
-                    <Shield size={11} />
-                    {kingdom.army ?? 0} under arms{(kingdom.army ?? 0) > 0 ? `, ${kingdom.armed ?? 0} with blades` : ''}
-                  </div>
-                  {(kingdom.allies?.length ?? 0) > 0 && (
-                    <div className="flex items-center gap-1.5 text-emerald-300">
-                      <Handshake size={11} /> allied with {kingdom.allies!.join(', ')}
-                    </div>
-                  )}
-                  {kingdom.relic && (
-                    <div className="flex items-center gap-1.5 text-amber-200">
-                      <Sword size={11} /> carries the legendary {kingdom.relic}
-                    </div>
-                  )}
-                </div>
-              )}
             </li>
           ))}
         </ul>
       )}
+      {open && <KingdomWindow id={open} onClose={closeWindow} />}
     </div>
   );
 };

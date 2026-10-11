@@ -4,18 +4,7 @@ import { Coins, Crown, Hammer, Home, MapPin, Mountain, Trees, Wheat, X } from 'l
 import { useGameStore } from '../../store/gameStore';
 import { worldAccess } from '../../utils/worldAccess';
 import { CULTURE_TRAITS, type CultureTraitId } from '../../utils/identity';
-
-/** A banner in the realm's colour, standing in for the town's portrait. */
-const Banner = ({ color }: { color: string }) => (
-  <svg viewBox="0 0 12 14" className="city-banner" shapeRendering="crispEdges" aria-hidden>
-    <rect x="1" y="0" width="1" height="14" fill="#5e3b1f" />
-    <rect x="2" y="1" width="9" height="8" fill={color} />
-    <rect x="2" y="9" width="3" height="2" fill={color} />
-    <rect x="8" y="9" width="3" height="2" fill={color} />
-    <rect x="2" y="1" width="9" height="1" fill="#ffffff" opacity="0.25" />
-    <rect x="5" y="3" width="3" height="3" fill="#ffffff" opacity="0.7" />
-  </svg>
-);
+import Banner from './Banner';
 
 const Stat = ({ icon, label, value }: { icon: React.ReactNode; label: string; value: React.ReactNode }) => (
   <div className="unit-stat" title={label}>
@@ -72,7 +61,7 @@ const CityWindow = () => {
 
         <div className="unit-window-top">
           <div className="unit-portrait">
-            <Banner color={village.kingdomColor} />
+            <Banner id={village.kingdomId} color={village.kingdomColor} race={village.race} height={72} />
           </div>
           <dl className="unit-facts city-head">
             <dt>Realm</dt>
