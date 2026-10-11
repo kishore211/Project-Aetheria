@@ -101,6 +101,9 @@ const crag = (X: number, Y: number): number =>
 // and to the right onto the ground. Letters are palette slots; `.` is empty.
 //   L light   M mid   D dark   T trunk   W white   R red   Y yellow
 
+/** Vegetation that gets a dark rim, the way WorldBox outlines its trees. */
+const OUTLINED = new Set<string>(['tree', 'bigtree', 'pine', 'palm', 'acacia', 'toadstool', 'cactus']);
+
 const STAMPS = {
   tree: [
     '.LLM.',
@@ -303,6 +306,9 @@ export class MapPainter {
   private stamps: (Stamp[] | null)[];
   /** The material each pixel was painted as (255 for water), for edge passes. */
   private pixMat: Uint8Array;
+  /** Which stamp last shadowed each pixel, so one tree's shadow never doubles up on itself. */
+  private shadowed: Uint16Array;
+  private stampTick = 0;
   private decorated = true;
   private plain = false;
   private water: WaterPalette = {
@@ -324,6 +330,7 @@ export class MapPainter {
     this.fire = new Uint8Array(n);
     this.stamps = new Array(n).fill(null);
     this.pixMat = new Uint8Array(this.width * this.width).fill(255);
+    this.shadowed = new Uint16Array(this.width * this.width);
   }
 
   /**
@@ -823,18 +830,48 @@ export class MapPainter {
     const base: [number, number, number] = [this.rgb[i * 3], this.rgb[i * 3 + 1], this.rgb[i * 3 + 2]];
     const palette = this.winter ? frosted(paletteFor(stamp.kind, base), stamp.kind) : paletteFor(stamp.kind, base);
 
-    // The shadow first, one pixel down and to the right, so the canopy that
-    // follows sits on top of it.
+    this.stampTick = ((this.stampTick + 1) & 0xffff) || 1;
+    // The shadow first, down and to the right, so the canopy that follows
+    // sits on top of it. Trees throw a longer one: they stand up off the map.
+    const tall = OUTLINED.has(stamp.kind) && h >= 5;
+    const reach = tall ? 2 : 1;
     for (let sy = 0; sy < h; sy++) {
       const row = rows[sy];
       for (let sx = 0; sx < w; sx++) {
         if (row[sx] === '.' || row[sx] === 'T') continue;
-        const X = left + sx + 1;
-        const Y = top + sy + 1;
-        if (X < x0 || X >= x1 || Y < y0 || Y >= y1) continue;
-        const o = (Y * this.width + X) * 4;
-        if (this.data[o + 3] !== SURFACE.land) continue;
-        this.data[o] *= 0.66; this.data[o + 1] *= 0.66; this.data[o + 2] *= 0.7;
+        for (let k = 1; k <= reach; k++) {
+          const X = left + sx + k;
+          const Y = top + sy + k;
+          if (X < x0 || X >= x1 || Y < y0 || Y >= y1) continue;
+          const o = (Y * this.width + X) * 4;
+          if (this.data[o + 3] !== SURFACE.land) continue;
+          // Marked so overlapping shadows do not stack into black holes.
+          if (this.shadowed[Y * this.width + X] === this.stampTick) continue;
+          this.shadowed[Y * this.width + X] = this.stampTick;
+          this.data[o] *= 0.66; this.data[o + 1] *= 0.66; this.data[o + 2] *= 0.7;
+        }
+      }
+    }
+    // A dark rim round every canopy: WorldBox outlines its trees, and it is
+    // what lets one tree be told from the next in a wood instead of the
+    // whole forest reading as one mottled green.
+    if (OUTLINED.has(stamp.kind)) {
+      const solid = (sx: number, sy: number) =>
+        sx >= 0 && sy >= 0 && sx < w && sy < h && rows[sy][sx] !== '.' && rows[sy][sx] !== 'T';
+      const rim = scale(palette.D, 0.62);
+      for (let sy = -1; sy <= h; sy++) {
+        for (let sx = -1; sx <= w; sx++) {
+          if (solid(sx, sy)) continue;
+          if (!(solid(sx - 1, sy) || solid(sx + 1, sy) || solid(sx, sy - 1) || solid(sx, sy + 1))) continue;
+          // Only the lower and right edges: the lit top-left stays soft.
+          if (!(solid(sx - 1, sy) || solid(sx, sy - 1))) continue;
+          const X = left + sx;
+          const Y = top + sy;
+          if (X < x0 || X >= x1 || Y < y0 || Y >= y1) continue;
+          const o = (Y * this.width + X) * 4;
+          if (this.data[o + 3] !== SURFACE.land) continue;
+          this.write(o, rim[0], rim[1], rim[2], SURFACE.land);
+        }
       }
     }
     for (let sy = 0; sy < h; sy++) {
