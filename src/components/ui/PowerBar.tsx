@@ -24,7 +24,19 @@ import { HOTKEY_SLOTS } from '../../utils/hotkeyBindings';
 import SavePanel from './SavePanel';
 import StatsPanel from './StatsPanel';
 import ListWindow from './ListWindow';
-import KnowledgeBook from './KnowledgeBook';
+import KnowledgeBook, { portraitOf } from './KnowledgeBook';
+import { FOOD_CHAIN } from '../../utils/entitySystemMinimal';
+import type { EntityType } from '../../types/world';
+
+/**
+ * A spawner shows the creature it makes, in its own pixels, as WorldBox's
+ * bar does — a row of line icons for forty creatures was a row of puzzles.
+ */
+const portraitFor = (id: string): string | null => {
+  if (!id.startsWith('spawn-')) return null;
+  const type = id.slice(6);
+  return type in FOOD_CHAIN ? portraitOf(type as EntityType) || null : null;
+};
 
 /**
  * The bottom power bar.
@@ -353,7 +365,7 @@ const PowerBar = () => {
                 <button
                   key={power.id}
                   type="button"
-                  className={`powerbtn ${selectedTool === power.id ? 'is-active' : ''}`}
+                  className={`powerbtn tab-${power.tab} ${selectedTool === power.id ? 'is-active' : ''}`}
                   onClick={() => pickPower(power)}
                   onMouseEnter={() => setHover({
                     label: power.label,
@@ -362,7 +374,9 @@ const PowerBar = () => {
                     hotkey: key,
                   })}
                 >
-                  <Icon name={power.icon} />
+                  {portraitFor(power.id)
+                    ? <img className="powerbtn-portrait" src={portraitFor(power.id)!} alt="" />
+                    : <Icon name={power.icon} />}
                   <span className="powerbtn-label">{power.label}</span>
                   {key && <span className="powerbtn-key">{key}</span>}
                 </button>

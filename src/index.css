@@ -1298,3 +1298,98 @@ canvas {
 @media (max-width: 640px) {
   .power-card { bottom: 9.5rem; }
 }
+
+
+/* =====================================================================
+   The WorldBox skin.
+
+   Their interface is pixel art: a pixel font, square panels with a hard
+   bevel (light on the top-left edge, dark on the bottom-right), a hard drop
+   shadow rather than a soft blur, and every power as a chunky square tile.
+   Ours was a glassy web app laid over a pixel world, and the seam showed.
+   This layer restyles the shared classes rather than every component.
+   ===================================================================== */
+:root {
+  --wb-panel: rgb(24 30 44 / 0.96);
+  --wb-panel-2: rgb(34 42 60 / 0.97);
+  --wb-edge: #56688a;
+  --wb-hi: rgb(255 255 255 / 0.10);
+  --wb-lo: rgb(0 0 0 / 0.5);
+  --wb-gold: #f2c230;
+  --wb-font: 'Pixelify Sans', ui-sans-serif, system-ui, sans-serif;
+}
+
+.game-ui, .powerbar, .power-card, .floater, .map-label, .ui-topbar, .ui-modal, .ui-panel-right {
+  font-family: var(--wb-font);
+  letter-spacing: 0.01em;
+}
+
+.ui-topbar, .ui-panel-right, .ui-modal, .powerbar-body, .powerbar-tab, .power-card, .powerbar-tip, .layer-badge {
+  border-radius: 0 !important;
+  border: 2px solid var(--wb-edge) !important;
+  background: var(--wb-panel) !important;
+  backdrop-filter: none !important;
+  box-shadow:
+    inset 2px 2px 0 var(--wb-hi),
+    inset -2px -2px 0 var(--wb-lo),
+    0 4px 0 rgb(0 0 0 / 0.45) !important;
+}
+.ui-modal { background: var(--wb-panel-2) !important; }
+
+.powerbar-body { border-bottom: none !important; }
+.powerbar-tab { border-bottom: none !important; background: rgb(24 30 44 / 0.86) !important; box-shadow: inset 2px 2px 0 var(--wb-hi) !important; }
+.powerbar-tab.is-active { background: var(--wb-panel) !important; color: #fff; }
+
+/* Every power is a square tile with a bevel. */
+.powerbtn, .powerbar-chip {
+  border-radius: 0 !important;
+  border: 2px solid #3a4862 !important;
+  background: #263045 !important;
+  box-shadow: inset 2px 2px 0 rgb(255 255 255 / 0.09), inset -2px -2px 0 rgb(0 0 0 / 0.45) !important;
+}
+.powerbtn:hover, .powerbar-chip:hover {
+  background: #2f3b55 !important;
+  border-color: #6b80a8 !important;
+  transform: translateY(-1px);
+}
+.powerbtn.is-active, .powerbtn.is-action.is-on, .powerbar-chip.is-on {
+  border-color: var(--wb-gold) !important;
+  background: #3d4a2a !important;
+  box-shadow: inset 2px 2px 0 rgb(255 240 160 / 0.25), inset -2px -2px 0 rgb(0 0 0 / 0.5), 0 0 0 2px rgb(242 194 48 / 0.35) !important;
+}
+.powerbtn-label { font-size: 0.6rem; font-weight: 500; }
+.powerbtn-portrait {
+  width: 1.9rem;
+  height: 1.9rem;
+  image-rendering: pixelated;
+  filter: drop-shadow(1px 1px 0 rgb(0 0 0 / 0.6));
+}
+.powerbtn svg { filter: drop-shadow(1px 1px 0 rgb(0 0 0 / 0.55)); }
+
+/* Square corners for every button and chip inside the panels. */
+.ui-panel-right [class*="rounded"], .ui-modal [class*="rounded"], .ui-topbar [class*="rounded"], .power-card [class*="rounded"] {
+  border-radius: 2px !important;
+}
+.ui-panel-right button, .ui-modal button { font-family: var(--wb-font); }
+
+.power-card-icon { border-radius: 0 !important; border-width: 2px !important; image-rendering: pixelated; }
+.power-card-head h3, .ui-modal h2, .ui-panel-right h3 { font-weight: 700; letter-spacing: 0.02em; }
+
+.floater-speech {
+  border-radius: 0 !important;
+  border: 2px solid #1c130d !important;
+  box-shadow: 0 2px 0 rgb(0 0 0 / 0.35) !important;
+  font-family: var(--wb-font);
+}
+.map-label { font-family: var(--wb-font); font-weight: 600; }
+
+/* Line icons, made chunky and coloured by what kind of power they are. */
+.powerbtn svg { stroke-width: 2.6; stroke-linecap: square; stroke-linejoin: miter; }
+.powerbtn.tab-shape svg { color: #d9b37a; }
+.powerbtn.tab-life svg { color: #e8eef6; }
+.powerbtn.tab-nature svg { color: #8fdc6a; }
+.powerbtn.tab-ruin svg { color: #ff8a4a; }
+.powerbtn.tab-divine svg { color: #ffe066; }
+.powerbtn.tab-realm svg { color: #c49bff; }
+.powerbtn.tab-observe svg { color: #7fd0ff; }
+.powerbtn.tab-world svg { color: #b8c4d8; }
