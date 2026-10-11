@@ -208,6 +208,22 @@ const STAMPS = {
     'L.M',
     'MMD',
   ],
+  // A peak, as WorldBox draws its mountains: a little crag with a lit face,
+  // a shaded face and, high enough, a cap of snow.
+  peak: [
+    '...W...',
+    '..WLD..',
+    '.LLMDD.',
+    '.LLMDD.',
+    'LLMMMDD',
+    'LMMMDDD',
+  ],
+  crag: [
+    '..L..',
+    '.LMD.',
+    'LLMDD',
+    'LMMDD',
+  ],
 } as const;
 
 type StampKind = keyof typeof STAMPS;
@@ -266,6 +282,8 @@ export class MapPainter {
   private road: Uint8Array;
   private fire: Uint8Array;
   private stamps: (Stamp[] | null)[];
+  /** The material each pixel was painted as (255 for water), for edge passes. */
+  private pixMat: Uint8Array;
   private decorated = true;
   private plain = false;
   private water: WaterPalette = {
@@ -286,6 +304,7 @@ export class MapPainter {
     this.road = new Uint8Array(n);
     this.fire = new Uint8Array(n);
     this.stamps = new Array(n).fill(null);
+    this.pixMat = new Uint8Array(this.width * this.width).fill(255);
   }
 
   /**
@@ -401,6 +420,7 @@ export class MapPainter {
       for (let X = x0; X < x1; X++) this.paintGround(X, Y);
     }
     if (!this.decorated) return;
+    this.cliffs(x0, y0, x1, y1);
     // Stamps from one tile beyond the region too, clipped, because a canopy
     // overhangs its own tile. Row by row from the top so that nearer things
     // (further down the screen) are drawn over farther ones.
@@ -411,6 +431,46 @@ export class MapPainter {
         const list = this.stamps[ty * n + tx];
         if (!list) continue;
         for (const stamp of list) this.drawStamp(tx, ty, stamp, x0, y0, x1, y1);
+      }
+    }
+  }
+
+  /**
+   * Mountains stand up. Where rock meets lower ground its lower-right edge
+   * gets a dark line, and the ground below and to the right of it takes a
+   * two-pixel cast shadow — the same light as everything else on the map.
+   * Without it a range read as a grey stain lying flat on the grass; with it,
+   * as WorldBox's do, it reads as something you would have to climb.
+   */
+  private cliffs(x0: number, y0: number, x1: number, y1: number): void {
+    const w = this.width;
+    const isRock = (X: number, Y: number) => {
+      if (X < 0 || Y < 0 || X >= w || Y >= w) return false;
+      const m = this.pixMat[Y * w + X];
+      return m === Mat.Rock || m === Mat.Volcanic;
+    };
+    const dim = (o: number, k: number) => {
+      this.data[o] = this.data[o] * k;
+      this.data[o + 1] = this.data[o + 1] * k;
+      this.data[o + 2] = this.data[o + 2] * k;
+    };
+    for (let Y = y0; Y < y1; Y++) {
+      for (let X = x0; X < x1; X++) {
+        const i = Y * w + X;
+        const m = this.pixMat[i];
+        if (m === 255) continue;
+        const o = i * 4;
+        if (isRock(X, Y)) {
+          // Outline on the shaded sides only: lit from the top left.
+          if (!isRock(X + 1, Y) || !isRock(X, Y + 1)) dim(o, 0.58);
+          else if (!isRock(X - 1, Y) || !isRock(X, Y - 1)) {
+            this.data[o] = Math.min(255, this.data[o] * 1.12);
+            this.data[o + 1] = Math.min(255, this.data[o + 1] * 1.12);
+            this.data[o + 2] = Math.min(255, this.data[o + 2] * 1.12);
+          }
+        } else if (isRock(X - 1, Y - 1) || isRock(X - 2, Y - 1) || isRock(X - 1, Y - 2)) {
+          dim(o, 0.72);
+        }
       }
     }
   }
@@ -448,6 +508,7 @@ export class MapPainter {
     const wobble = this.plain ? 0 : (noise(X / 6, Y / 6, 1) - 0.5) * 0.34 + (hash(X, Y, 2) - 0.5) * 0.05;
     const landness = landField + wobble;
     const o = (Y * this.width + X) * 4;
+    this.pixMat[Y * this.width + X] = 255;
 
     if (landness <= 0.5) {
       this.paintWater(o, X, Y, landness, [i00, i10, i01, i11], [w00, w10, w01, w11]);
@@ -488,6 +549,7 @@ export class MapPainter {
     let g = this.rgb[best * 3 + 1];
     let b = this.rgb[best * 3 + 2];
     const mat = this.mat[best] as Mat;
+    this.pixMat[Y * this.width + X] = mat;
 
     if (this.plain) {
       // A data layer: flat colour with the barest grain, so it still reads
@@ -805,6 +867,12 @@ const paletteFor = (kind: StampKind, ground: [number, number, number]): Palette 
     case 'boulder':
     case 'rubble':
       return fixed(ROCK_RGB);
+    case 'peak':
+    case 'crag': {
+      // The mountain's own rock, lit harder than the ground so the peak pops.
+      const m = mixRgb(ground, ROCK_RGB, 0.4);
+      return { ...fixed(m), L: mixRgb(m, [236, 232, 224], 0.45), D: scale(m, 0.55), W: [246, 249, 252] };
+    }
     case 'cactus':
       return fixed(CACTUS_RGB);
     case 'crystal':
@@ -904,8 +972,15 @@ export const stampsFor = (tile: Tile): Stamp[] | null => {
     case 'mesa':
     case 'corrupted':
     case 'ashland': return v > 0.82 ? [{ kind: 'deadwood', cx: at(17), cy: at(18) }] : null;
-    case 'volcanic':
-    case 'mountains': return v > 0.92 ? [{ kind: 'rock', cx: at(17), cy: at(18) }] : null;
+    case 'volcanic': return v > 0.92 ? [{ kind: 'rock', cx: at(17), cy: at(18) }] : null;
+    case 'mountains': {
+      // Most mountain tiles carry a peak; the high ones are capped with snow.
+      if (v < 0.3) return null;
+      const high = tile.height > 0.82;
+      const list: Stamp[] = [{ kind: high ? 'peak' : 'crag', cx: at(17, 2.5, 5.5), cy: at(18, 2.5, 5) }];
+      if (v > 0.7) list.push({ kind: 'crag', cx: at(19, 1.5, 6.5), cy: at(20, 4, 6.5) });
+      return list.sort((a, b) => a.cy - b.cy);
+    }
     case 'grassland':
     case 'bloom': return v > 0.93 ? [{ kind: 'bush', cx: at(17), cy: at(18) }] : null;
     case 'snow':
