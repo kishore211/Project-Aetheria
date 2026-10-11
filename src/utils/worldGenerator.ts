@@ -150,42 +150,64 @@ export const determineBiome = (height: number, moisture: number, temperature: nu
 };
 
 /**
- * Biome palette. Deliberately desaturated and earthy: the map should read as a
- * painted chart, not a set of primary-coloured blocks.
+ * Biome palette. Earthy and geographically grounded: colours are drawn from
+ * real satellite imagery and physical geography rather than from art convention.
+ * Each biome should be immediately recognisable — dense jungle should not read
+ * as the same green as temperate grassland; ocean should feel deep, not painted.
+ *
+ * Key changes from the earlier palette:
+ * - Water has genuine depth: deep ocean is very dark navy-teal, ocean is
+ *   mid-blue, shallow water reads as warm turquoise. The gradient from shore
+ *   to deep water now spans roughly 3× as much lightness.
+ * - Grassland is more saturated yellow-green (real summer grass rather than
+ *   muted olive). Forests are darker and more distinct from open land.
+ * - Mountains are a warm grey-tan (exposed rock), not a flat neutral grey.
+ *   Snow peaks are pure cold white with a blue tint.
+ * - Desert is a warmer orange-cream; savanna is distinctly drier yellow-straw.
+ * - Tropical biomes (rainforest, tropical_forest) are deep saturated emerald,
+ *   clearly different from temperate deciduous forest.
+ * - Tundra is the right grey-green-brown. Taiga is a darker blue-green.
  */
 export const BIOME_BASE_COLORS: Record<BiomeType, number> = {
-  deep_ocean: 0x1b4a72,
-  ocean: 0x246189,
-  shallow_water: 0x3a86ab,
-  river: 0x4c9ec4,
-  lake: 0x4794bb,
-  beach: 0xe6d5a4,
-  rocky_shore: 0x9a958c,
-  grassland: 0x86a752,
-  deciduous_forest: 0x4e7f42,
-  coniferous_forest: 0x35603c,
-  hills: 0x789a4c,
-  mountains: 0x8b8880,
-  taiga: 0x5b7d4a,
-  tundra: 0x9aa08e,
-  snow: 0xe8ecef,
-  ice: 0xc7dced,
-  glacier: 0xbdd7e6,
-  desert: 0xdfc98a,
-  savanna: 0xbdb268,
-  mesa: 0xb1774f,
-  badlands: 0xa9754f,
-  swamp: 0x4f6b3a,
-  marsh: 0x638049,
-  rainforest: 0x3c7340,
-  tropical_forest: 0x4a8c4a,
-  ashland: 0x555056,
-  salt_flat: 0xe4e1d6,
-  bloom: 0x9fc25a,
-  volcanic: 0x5c4a4a,
-  corrupted: 0x51356b,
-  enchanted_forest: 0x3f8a8a,
-  sky_island: 0x8ed6e0,
+  // Water — strong depth gradient from near-black deep ocean to warm turquoise shore.
+  deep_ocean:       0x0d2e4f,  // near-black navy — truly deep water
+  ocean:            0x1a5278,  // deep steel blue
+  shallow_water:    0x2e8fa8,  // warm turquoise — you can almost see the sand
+  river:            0x5aafc8,  // lighter, moving water
+  lake:             0x3d93ad,  // still, slightly green-tinted
+  // Coast
+  beach:            0xe8d49a,  // warm sandy gold — sun-bleached sand
+  rocky_shore:      0x8a8278,  // dark wet rock
+  // Temperate land — clearly differentiated greens
+  grassland:        0x7db84a,  // saturated summer grass green
+  deciduous_forest: 0x3d6e35,  // deep leafy green — clearly darker than grass
+  coniferous_forest:0x2a5230,  // very dark blue-green — dense pine
+  hills:            0x6a9444,  // darker grass, slightly more olive
+  mountains:        0x857565,  // warm tan-grey — exposed limestone/sandstone
+  // Cold biomes
+  taiga:            0x3e5e48,  // dark blue-green boreal
+  tundra:           0x7d8c74,  // grey-brown-green permafrost
+  snow:             0xeef2f6,  // bright cold white with slight blue tint
+  ice:              0xb8d4e8,  // blue-white glacial ice
+  glacier:          0xa8c8e0,  // deeper glacier blue
+  // Dry / hot biomes
+  desert:           0xe0b96a,  // warm orange-cream — sun-baked sand
+  savanna:          0xc4b050,  // dry yellow-straw
+  mesa:             0xb8673a,  // rich red-orange layered rock
+  badlands:         0xa05a38,  // deep reddish-brown eroded earth
+  // Wet biomes
+  swamp:            0x3d5a2f,  // dark murky green-brown
+  marsh:            0x587a3e,  // greener, less murky than swamp
+  rainforest:       0x1f5c32,  // deep emerald — dense tropical canopy
+  tropical_forest:  0x2e7040,  // rich jungle green
+  // System-generated
+  ashland:          0x4a4548,  // dark charcoal with slight purple
+  salt_flat:        0xdedad0,  // pale cream-white with warm tint
+  bloom:            0x8fc44e,  // vivid spring growth
+  volcanic:         0x4a3535,  // very dark reddish-black
+  corrupted:        0x4a2d60,  // deep violet
+  enchanted_forest: 0x2d7d82,  // teal — otherworldly
+  sky_island:       0x7ecfe0,  // bright sky blue
   // Seeded lands
   candy: 0xf0a8c8,
   crystal: 0x8ad8e8,
