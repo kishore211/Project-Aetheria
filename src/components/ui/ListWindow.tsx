@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Crown, Home, ScrollText, Star, Swords, X } from 'lucide-react';
+import { Crown, Home, ScrollText, Star, Swords, Users, X } from 'lucide-react';
 import { worldAccess } from '../../utils/worldAccess';
 import { useGameStore } from '../../store/gameStore';
 
@@ -16,13 +16,14 @@ import { useGameStore } from '../../store/gameStore';
  * behaviour does not, and every row does the same thing when clicked.
  */
 
-type ListTab = 'realms' | 'villages' | 'wars' | 'plots' | 'favourites';
+type ListTab = 'realms' | 'villages' | 'wars' | 'plots' | 'clans' | 'favourites';
 
 const TABS: Array<{ id: ListTab; label: string; icon: typeof Crown }> = [
   { id: 'realms', label: 'Realms', icon: Crown },
   { id: 'villages', label: 'Towns', icon: Home },
   { id: 'wars', label: 'Standing', icon: Swords },
   { id: 'plots', label: 'Plots', icon: ScrollText },
+  { id: 'clans', label: 'Clans', icon: Users },
   { id: 'favourites', label: 'Starred', icon: Star },
 ];
 
@@ -64,13 +65,25 @@ const ListWindow = ({ open, onClose }: { open: boolean; onClose: () => void }) =
 
   // Read live when the register opens: favourites are a property of the
   // creatures themselves, not something the store mirrors.
-  const favourites = (worldAccess.current?.entities() ?? []).filter(e => e.favourite);
+  const everyone = worldAccess.current?.entities() ?? [];
+  const favourites = everyone.filter(e => e.favourite);
+  // Clans, largest first: who belongs, of what people, and who heads it
+  // (the eldest living member).
+  const clanMap = new Map<string, { name: string; race: string; members: typeof everyone }>();
+  for (const e of everyone) {
+    if (!e.clan) continue;
+    const row = clanMap.get(e.clan) ?? { name: e.clan, race: e.type, members: [] };
+    row.members.push(e);
+    clanMap.set(e.clan, row);
+  }
+  const clans = [...clanMap.values()].sort((a, b) => b.members.length - a.members.length);
 
   const counts: Record<ListTab, number> = {
     realms: kingdoms.length,
     villages: villages.length,
     wars: opinions.length || wars.length,
     plots: plots.length,
+    clans: clans.length,
     favourites: favourites.length,
   };
 
@@ -158,6 +171,35 @@ const ListWindow = ({ open, onClose }: { open: boolean; onClose: () => void }) =
                     </button>
                   </li>
                 ))}
+              </ul>
+            ))}
+
+          {tab === 'clans' && (clans.length === 0
+            ? <p className="list-empty">No clans yet. Every newcomer of the four peoples founds one.</p>
+            : (
+              <ul className="space-y-1">
+                {clans.map((clan) => {
+                  const head = clan.members.reduce((eldest, m) => (m.age > eldest.age ? m : eldest), clan.members[0]);
+                  return (
+                    <li key={clan.name}>
+                      <button
+                        type="button"
+                        className="list-row"
+                        onClick={() => {
+                          useGameStore.getState().setSelectedEntity(head);
+                          focusTile(Math.floor(head.position.x), Math.floor(head.position.y));
+                          onClose();
+                        }}
+                      >
+                        <Users size={12} className="text-amber-200 shrink-0" />
+                        <span className="list-name">The {clan.name}s</span>
+                        <span className="list-meta capitalize">
+                          {clan.race} · {clan.members.length} living · headed by {head.name.split(' ')[0]}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             ))}
 
