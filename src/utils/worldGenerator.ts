@@ -113,9 +113,12 @@ export const determineBiome = (height: number, moisture: number, temperature: nu
   // Hills
   if (height > 0.6) {
     if (temperature < 0.2) return 'taiga';
-    if (temperature > 0.7) return 'mesa';
+    // Rare, not a ring: every dry mountain used to sit in a terracotta collar
+    // of mesa and badlands, which WorldBox's maps never do. Now only the
+    // driest, hottest high ground goes to rock desert; the rest is hills.
+    if (temperature > 0.8 && moisture < 0.3) return 'mesa';
     if (moisture > 0.7) return 'hills';
-    if (moisture < 0.3) return 'badlands';
+    if (moisture < 0.12) return 'badlands';
     return 'hills';
   }
 
