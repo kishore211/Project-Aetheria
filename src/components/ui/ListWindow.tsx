@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react';
-import { Crown, Home, Languages, Shield, Sword, Palette, ScrollText, Star, Sun, Swords, Users, X } from 'lucide-react';
+import { Crown, Home, Languages, PawPrint, Shield, Sword, Palette, ScrollText, Star, Sun, Swords, Users, X } from 'lucide-react';
 import { allMetas, CULTURE_TRAITS, type MetaKind } from '../../utils/identity';
 import { FAITH_TRAITS, faithOf } from '../../utils/religion';
 import { describeItem, type Item } from '../../utils/equipment';
 import ItemIcon from './ItemIcon';
+import { portraitOf } from './KnowledgeBook';
+import { describeCreature } from '../../utils/subspecies';
 import { worldAccess } from '../../utils/worldAccess';
 import { useGameStore } from '../../store/gameStore';
 
@@ -20,11 +22,12 @@ import { useGameStore } from '../../store/gameStore';
  * behaviour does not, and every row does the same thing when clicked.
  */
 
-type ListTab = 'realms' | 'villages' | 'armies' | 'items' | 'wars' | 'plots' | 'clans' | 'faiths' | 'cultures' | 'tongues' | 'favourites';
+type ListTab = 'realms' | 'villages' | 'species' | 'armies' | 'items' | 'wars' | 'plots' | 'clans' | 'faiths' | 'cultures' | 'tongues' | 'favourites';
 
 const TABS: Array<{ id: ListTab; label: string; icon: typeof Crown }> = [
   { id: 'realms', label: 'Realms', icon: Crown },
   { id: 'villages', label: 'Towns', icon: Home },
+  { id: 'species', label: 'Species', icon: PawPrint },
   { id: 'armies', label: 'Armies', icon: Shield },
   { id: 'items', label: 'Items', icon: Sword },
   { id: 'wars', label: 'Standing', icon: Swords },
@@ -100,6 +103,15 @@ const ListWindow = ({ open, onClose }: { open: boolean; onClose: () => void }) =
       .sort((a, b) => b.followers.length - a.followers.length);
   };
   const armies = worldAccess.current?.armies?.() ?? [];
+  // Every kind of creature alive, most numerous first, split by colouring.
+  const speciesMap = new Map<string, { key: string; type: typeof everyone[number]['type']; subspecies: string | null; members: typeof everyone }>();
+  for (const e of everyone) {
+    const k = `${e.type}|${e.subspecies ?? ''}`;
+    const row = speciesMap.get(k) ?? { key: k, type: e.type, subspecies: e.subspecies ?? null, members: [] };
+    row.members.push(e);
+    speciesMap.set(k, row);
+  }
+  const species = [...speciesMap.values()].sort((a, b) => b.members.length - a.members.length);
   // Every item worth a name, best first: legends, then masterworks, then
   // anything that has killed. The rest is just kit.
   const RANK: Record<Item['quality'], number> = { legendary: 3, masterwork: 2, fine: 1, normal: 0 };
@@ -117,6 +129,7 @@ const ListWindow = ({ open, onClose }: { open: boolean; onClose: () => void }) =
   const counts: Record<ListTab, number> = {
     realms: kingdoms.length,
     villages: villages.length,
+    species: species.length,
     armies: armies.length,
     items: items.length,
     wars: opinions.length || wars.length,
@@ -236,6 +249,36 @@ const ListWindow = ({ open, onClose }: { open: boolean; onClose: () => void }) =
                         <span className="list-name">The {clan.name}s</span>
                         <span className="list-meta capitalize">
                           {clan.race} · {clan.members.length} living · headed by {head.name.split(' ')[0]}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            ))}
+
+          {tab === 'species' && (species.length === 0
+            ? <p className="list-empty">Nothing lives here yet.</p>
+            : (
+              <ul className="space-y-1">
+                {species.map((row) => {
+                  const eldest = row.members.reduce((a, b) => (b.age > a.age ? b : a), row.members[0]);
+                  const young = row.members.filter(m => m.age < m.maxAge * 0.12).length;
+                  return (
+                    <li key={row.key}>
+                      <button
+                        type="button"
+                        className="list-row"
+                        onClick={() => {
+                          useGameStore.getState().setSelectedEntity(eldest);
+                          focusTile(Math.floor(eldest.position.x), Math.floor(eldest.position.y));
+                          onClose();
+                        }}
+                      >
+                        <img src={portraitOf(row.type)} alt="" className="w-5 h-5 shrink-0" style={{ imageRendering: 'pixelated' }} />
+                        <span className="list-name capitalize">{describeCreature(row.type, row.subspecies)}</span>
+                        <span className="list-meta">
+                          {row.members.length} alive{young > 0 ? ` · ${young} young` : ''} · eldest {eldest.name.split(' ')[0]}, {Math.round(eldest.age)}
                         </span>
                       </button>
                     </li>
