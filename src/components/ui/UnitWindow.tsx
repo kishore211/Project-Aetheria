@@ -12,7 +12,52 @@ import { worldAccess } from '../../utils/worldAccess';
 import { metaById } from '../../utils/identity';
 import { levelOf, outfitOf } from '../../utils/entitySystemMinimal';
 import { gearLook, getPixelSpriteFrames } from '../../utils/pixelSprites';
-import { FavouriteStar, GearList, MindEditor, NeedBar, TraitChips } from './InfoPanel';
+import { FavouriteStar, MindEditor, NeedBar, TraitChips } from './InfoPanel';
+import ItemIcon from './ItemIcon';
+import { describeItem, MATERIAL_POWER, QUALITY_BONUS, WEAPONS, type Item, type WeaponKind } from '../../utils/equipment';
+
+const QUALITY_COLOR: Record<Item['quality'], string> = {
+  normal: '#e8e2cc', fine: '#7fd0ff', masterwork: '#c49bff', legendary: '#ffd84a',
+};
+
+/**
+ * One equipment slot, WorldBox style: the item in its frame, and on hover a
+ * card with its name, its numbers and its history.
+ */
+const ItemSlot = ({ item, empty }: { item: Item | null | undefined; empty: string }) => {
+  if (!item) {
+    return (
+      <div className="item-slot is-empty" title={`No ${empty}`}>
+        <ItemIcon kind={empty === 'armour' ? 'armor' : 'sword'} />
+      </div>
+    );
+  }
+  const power = MATERIAL_POWER[item.material] * QUALITY_BONUS[item.quality];
+  const profile = item.slot === 'weapon' ? WEAPONS[item.kind as WeaponKind] : null;
+  return (
+    <div className={`item-slot q-${item.quality}`}>
+      <ItemIcon item={item} />
+      <div className="item-card">
+        <p className="item-card-name" style={{ color: QUALITY_COLOR[item.quality] }}>{item.name ?? describeItem(item)}</p>
+        <p className="item-card-kind">{item.quality} {item.material} {item.slot === 'weapon' ? item.kind : 'armour'}</p>
+        {profile ? (
+          <>
+            <p>Damage <b>+{Math.round(power * profile.damage * 3)}</b></p>
+            <p>Attack speed <b>{(1 / profile.cooldown).toFixed(1)}/s</b></p>
+            {profile.reach > 1 && <p>Reach <b>{profile.reach} tiles</b></p>}
+          </>
+        ) : (
+          <p>Armour <b>+{Math.round(power * 4)}</b></p>
+        )}
+        {item.modifier && <p className="item-card-mod">{item.modifier}</p>}
+        <p className="item-card-history">Forged in {item.madeIn}</p>
+        {item.owners.length > 1 && <p className="item-card-history">Held by {item.owners.join(' → ')}</p>}
+        {item.kills > 0 && <p className="item-card-history">{item.kills} slain</p>}
+        <p className="item-card-history">Wear {Math.max(0, Math.round(item.durability))}%</p>
+      </div>
+    </div>
+  );
+};
 
 /** The creature as it actually looks — its colouring, office and gear — drawn once per look. */
 const portraits = new Map<string, string>();
@@ -171,12 +216,13 @@ const UnitWindow = () => {
           <NeedBar label="Rest" value={entity.needs.rest} tone="bg-purple-500" />
         </div>
 
-        {(entity.equipment?.weapon || entity.equipment?.armor) && (
-          <div className="unit-section">
-            <h4>Gear</h4>
-            <GearList equipment={entity.equipment} />
-          </div>
-        )}
+        <div className="unit-section unit-gear">
+          <ItemSlot item={entity.equipment?.weapon} empty="weapon" />
+          <ItemSlot item={entity.equipment?.armor} empty="armour" />
+          <span className="unit-gear-note">
+            {entity.equipment?.weapon || entity.equipment?.armor ? 'Hover an item for its story' : 'Unarmed: a smithy arms its town'}
+          </span>
+        </div>
 
         {entity.status.length > 0 && (
           <ul className="unit-status">

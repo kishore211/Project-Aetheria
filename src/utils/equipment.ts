@@ -82,7 +82,7 @@ export const WEAPONS: Record<WeaponKind, WeaponProfile> = {
   bow: { damage: 0.7, cooldown: 1.1, reach: 3.5 },
 };
 
-const QUALITY_BONUS: Record<Quality, number> = {
+export const QUALITY_BONUS: Record<Quality, number> = {
   normal: 1, fine: 1.2, masterwork: 1.45, legendary: 1.9,
 };
 

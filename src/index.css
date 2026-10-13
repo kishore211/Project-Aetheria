@@ -1659,3 +1659,47 @@ canvas {
   background: #23281c;
   border: 1px solid #000;
 }
+
+/* Equipment slots in the unit window, with a WorldBox-style item card. */
+.unit-gear { display: flex; align-items: center; gap: 0.4rem; }
+.unit-gear-note { font-size: 0.66rem; color: #b8bfa6; margin-left: 0.3rem; }
+.item-slot {
+  position: relative;
+  width: 2.6rem;
+  height: 2.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #2a3021;
+  border: 2px solid #1d2117;
+  box-shadow: inset 2px 2px 0 rgb(255 255 255 / 0.08), inset -2px -2px 0 rgb(0 0 0 / 0.35);
+}
+.item-slot.is-empty { opacity: 0.55; }
+.item-slot.q-fine { border-color: #3d6f8f; }
+.item-slot.q-masterwork { border-color: #6b4f9a; }
+.item-slot.q-legendary { border-color: #b8901c; box-shadow: 0 0 0 2px rgb(255 216 74 / 0.35), inset 2px 2px 0 rgb(255 255 255 / 0.12); }
+.item-card {
+  display: none;
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
+  z-index: 5;
+  width: 13rem;
+  padding: 0.45rem 0.55rem;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: #e6e9dc;
+  background: #1b1f15;
+  border: 2px solid #000;
+  box-shadow: 0 4px 0 rgb(0 0 0 / 0.45);
+  pointer-events: none;
+}
+.item-slot:hover .item-card { display: block; }
+.item-card b { color: #8fdc6a; font-weight: 700; }
+.item-card-name { font-size: 0.8rem; font-weight: 700; }
+.item-card-kind { text-transform: capitalize; color: #b8bfa6; margin-bottom: 0.2rem; }
+.item-card-mod { text-transform: capitalize; color: #ffb37a; }
+.item-card-history { color: #9aa18a; }
+.item-q-fine { color: #7fd0ff; }
+.item-q-masterwork { color: #c49bff; }
+.item-q-legendary { color: #ffd84a; }

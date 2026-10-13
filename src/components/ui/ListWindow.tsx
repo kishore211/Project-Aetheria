@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Crown, Home, Languages, Shield, Palette, ScrollText, Star, Sun, Swords, Users, X } from 'lucide-react';
+import { Crown, Home, Languages, Shield, Sword, Palette, ScrollText, Star, Sun, Swords, Users, X } from 'lucide-react';
 import { allMetas, CULTURE_TRAITS, type MetaKind } from '../../utils/identity';
 import { FAITH_TRAITS, faithOf } from '../../utils/religion';
+import { describeItem, type Item } from '../../utils/equipment';
+import ItemIcon from './ItemIcon';
 import { worldAccess } from '../../utils/worldAccess';
 import { useGameStore } from '../../store/gameStore';
 
@@ -18,12 +20,13 @@ import { useGameStore } from '../../store/gameStore';
  * behaviour does not, and every row does the same thing when clicked.
  */
 
-type ListTab = 'realms' | 'villages' | 'armies' | 'wars' | 'plots' | 'clans' | 'faiths' | 'cultures' | 'tongues' | 'favourites';
+type ListTab = 'realms' | 'villages' | 'armies' | 'items' | 'wars' | 'plots' | 'clans' | 'faiths' | 'cultures' | 'tongues' | 'favourites';
 
 const TABS: Array<{ id: ListTab; label: string; icon: typeof Crown }> = [
   { id: 'realms', label: 'Realms', icon: Crown },
   { id: 'villages', label: 'Towns', icon: Home },
   { id: 'armies', label: 'Armies', icon: Shield },
+  { id: 'items', label: 'Items', icon: Sword },
   { id: 'wars', label: 'Standing', icon: Swords },
   { id: 'plots', label: 'Plots', icon: ScrollText },
   { id: 'clans', label: 'Clans', icon: Users },
@@ -97,6 +100,16 @@ const ListWindow = ({ open, onClose }: { open: boolean; onClose: () => void }) =
       .sort((a, b) => b.followers.length - a.followers.length);
   };
   const armies = worldAccess.current?.armies?.() ?? [];
+  // Every item worth a name, best first: legends, then masterworks, then
+  // anything that has killed. The rest is just kit.
+  const RANK: Record<Item['quality'], number> = { legendary: 3, masterwork: 2, fine: 1, normal: 0 };
+  const items = everyone
+    .flatMap(owner => [owner.equipment?.weapon, owner.equipment?.armor]
+      .filter((item): item is Item => Boolean(item))
+      .map(item => ({ item, owner })))
+    .filter(({ item }) => item.quality !== 'normal' || item.kills > 0)
+    .sort((a, b) => RANK[b.item.quality] - RANK[a.item.quality] || b.item.kills - a.item.kills)
+    .slice(0, 60);
   const faiths = metaRows('religion');
   const cultures = metaRows('culture');
   const tongues = metaRows('language');
@@ -105,6 +118,7 @@ const ListWindow = ({ open, onClose }: { open: boolean; onClose: () => void }) =
     realms: kingdoms.length,
     villages: villages.length,
     armies: armies.length,
+    items: items.length,
     wars: opinions.length || wars.length,
     plots: plots.length,
     clans: clans.length,
@@ -251,6 +265,33 @@ const ListWindow = ({ open, onClose }: { open: boolean; onClose: () => void }) =
                       <span className="list-meta">
                         {army.soldiers} warriors · {army.armed} armed · led by {army.captain.split(' ')[0]}
                         {army.marchingOn ? ` · marching on ${army.marchingOn}` : ' · at home'}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ))}
+
+          {tab === 'items' && (items.length === 0
+            ? <p className="list-empty">Nothing worth a name yet. Smithies forge better pieces as their towns grow.</p>
+            : (
+              <ul className="space-y-1">
+                {items.map(({ item, owner }) => (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      className="list-row"
+                      onClick={() => {
+                        useGameStore.getState().setSelectedEntity(owner);
+                        focusTile(Math.floor(owner.position.x), Math.floor(owner.position.y));
+                        onClose();
+                      }}
+                    >
+                      <ItemIcon item={item} size={18} />
+                      <span className={`list-name item-q-${item.quality}`}>{item.name ?? describeItem(item)}</span>
+                      <span className="list-meta">
+                        {item.quality} {item.material} · held by {owner.name.split(' ')[0]}
+                        {item.kills > 0 ? ` · ${item.kills} slain` : ''} · from {item.madeIn}
                       </span>
                     </button>
                   </li>
