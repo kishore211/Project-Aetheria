@@ -609,6 +609,21 @@ export const POWERS: PowerEntry[] = [
     quip: 'A town struck by the idea that it could rule itself.',
   },
   {
+    kind: 'tool', id: 'life-soup', tab: 'world', label: 'Game of Life', icon: 'Bug',
+    hint: "Scatter Conway's living cells. They breed, starve and wander on their own.",
+    quip: 'Three neighbours to be born, two or three to live. Simple. Endless.',
+  },
+  {
+    kind: 'tool', id: 'life-glider', tab: 'world', label: 'Glider', icon: 'Rocket',
+    hint: 'One glider, sent off down and to the right forever.',
+    quip: 'Five cells, going somewhere.',
+  },
+  {
+    kind: 'tool', id: 'life-clear', tab: 'world', label: 'Clear Life', icon: 'Eraser',
+    hint: 'Wipe every living cell off the map.',
+    quip: 'Game over.',
+  },
+  {
     kind: 'tool', id: 'border-paint', tab: 'realm', label: 'Border Brush', icon: 'Spline',
     hint: 'Paint land into the nearest town. It keeps what you give it, even from a rival.',
     quip: 'Cartography, but binding.',

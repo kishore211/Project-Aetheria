@@ -43,6 +43,8 @@ export interface PowerContext {
   demolishAt: (x: number, y: number) => void;
   cancelPlotsBy: (entityId: string) => number;
   diplomacy: (act: DiplomacyAct, x: number, y: number) => string | null;
+  /** Seed Conway's Game of Life over the map, or clear it. Returns cells touched. */
+  conway?: (x: number, y: number, mode: 'soup' | 'glider' | 'clear') => number;
   /** Hand a tile to the nearest town, or free it. */
   paintBorder?: (x: number, y: number, erase: boolean) => boolean;
   summonCloud: (kind: DropKind, x: number, y: number) => void;
@@ -395,6 +397,13 @@ export const runExtraPower = (
   }
 
   // -- diplomacy -----------------------------------------------------------
+  if (tool === 'life-soup' || tool === 'life-glider' || tool === 'life-clear') {
+    const mode = tool === 'life-soup' ? 'soup' : tool === 'life-glider' ? 'glider' : 'clear';
+    const touched = ctx.conway?.(tile.x, tile.y, mode) ?? 0;
+    if (touched > 0) ctx.sound.click();
+    return touched > 0;
+  }
+
   if (tool === 'border-paint' || tool === 'border-erase') {
     let changed = false;
     ctx.forEachBrushTile(tile, brush, (target) => {

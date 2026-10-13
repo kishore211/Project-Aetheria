@@ -72,6 +72,7 @@ const terraformVoiceFor = (tile: Tile): TerraformVoice => {
 };
 import { labelBridge, publishLabels, type MapLabel } from '../utils/labelBridge';
 import { resetFaiths } from '../utils/religion';
+import { ConwayLayer } from '../utils/conway';
 import { soundManager, type TerraformVoice } from '../utils/soundManager';
 
 // Constants for game engine
@@ -163,6 +164,7 @@ export const useGameEngine = () => {
   const relationLinesRef = useRef<RelationLines | null>(null);
   const shotLayerRef = useRef<ShotLayer | null>(null);
   const creatureLayerRef = useRef<CreatureLayer | null>(null);
+  const conwayRef = useRef<ConwayLayer | null>(null);
   const magnetPointRef = useRef(new THREE.Vector3());
   const lightsRef = useRef<THREE.Light[]>([]);
   const tickTimerRef = useRef<number>(0);
@@ -304,6 +306,9 @@ export const useGameEngine = () => {
     if (creatureLayerRef.current) scene.remove(creatureLayerRef.current.mesh);
     creatureLayerRef.current?.dispose();
     creatureLayerRef.current = null;
+    if (conwayRef.current) scene.remove(conwayRef.current.mesh);
+    conwayRef.current?.dispose();
+    conwayRef.current = null;
     if (shotLayerRef.current) scene.remove(shotLayerRef.current.lines);
     shotLayerRef.current?.dispose();
     shotLayerRef.current = null;
@@ -365,6 +370,8 @@ export const useGameEngine = () => {
     scene.add(shotLayerRef.current.lines);
     creatureLayerRef.current = new CreatureLayer();
     scene.add(creatureLayerRef.current.mesh);
+    conwayRef.current = new ConwayLayer();
+    scene.add(conwayRef.current.mesh);
     onItemEvent((event) => {
       const line = itemEventLine(event);
       if (line) useGameStore.getState().addEvent(line, 'info', { ...event.owner.position });
@@ -720,6 +727,12 @@ export const useGameEngine = () => {
       cancelPlotsBy: (id) => settlementRef.current?.cancelPlotsBy(id, 'blessed') ?? 0,
       diplomacy: (act, x, y) => settlementRef.current?.intervene(act, x, y) ?? null,
       paintBorder: (x, y, erase) => settlementRef.current?.paintBorder(x, y, erase) ?? false,
+      conway: (x, y, mode) => {
+        const life = conwayRef.current;
+        if (!life) return 0;
+        if (mode === 'clear') { const n = life.count; life.clear(); return n; }
+        return life.seed(x, y, store.brushRadius, tilesRef.current.length, Math.random, mode === 'glider');
+      },
       summonCloud,
       announce: (message, kind, position) => store.addEvent(message, kind, position),
       fx: {
@@ -1920,6 +1933,7 @@ export const useGameEngine = () => {
     advanceShots(scaledDelta);
     herdRef.current?.update(scaledDelta);
     settlementRef.current?.update(scaledDelta);
+    conwayRef.current?.update(scaledDelta);
 
     // Advance the day/night cycle
     phaseTimerRef.current += scaledDelta;
