@@ -70,6 +70,7 @@ import { speak } from './dialogue';
 import { emitShot } from './shotBridge';
 import { emitDamage } from './floatBridge';
 import { MONSTERS, isSapient } from './entitySystemMinimal';
+import { isChild } from './size';
 import { buildingSprite, roofSprite } from './pixelAtlas';
 import { conquestOutcome, formationSlots } from './army';
 import { faithOf, faithRoll, foundFaith, holyWarTension } from './religion';
@@ -1239,15 +1240,17 @@ export class SettlementSystem {
       let warriors = 0;
       let gatherers = 0;
 
-      // Existing holders keep their posts where the village still needs them
+      // Existing holders keep their posts where the village still needs them.
+      // Children have no post: they play until they are grown.
       for (const member of members) {
+        if (isChild(member)) { member.job = null; continue; }
         if (member.job === 'warrior' && warriors < warriorTarget) warriors++;
         else if (member.job === 'gatherer' && gatherers < gathererTarget) gatherers++;
         else member.job = null;
       }
 
       for (const member of members) {
-        if (member.job) continue;
+        if (member.job || isChild(member)) continue;
         if (warriors < warriorTarget) {
           member.job = 'warrior';
           warriors++;

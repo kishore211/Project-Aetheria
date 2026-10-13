@@ -453,6 +453,8 @@ export class EntityManager implements EntityIndex {
       subspecies: entity.subspecies ?? null,
     });
     if (child) {
+      // Born, not arrived: it starts its life at the beginning.
+      child.age = 0;
       bornInto(child, entity, entity.loverId ? this.entities.get(entity.loverId) ?? null : null);
       recordBirth();
       child.kingdomId = entity.kingdomId ?? null;

@@ -19,7 +19,7 @@ import { emitShot, type ShotKind } from './shotBridge';
 import { handOverToLayer } from './creatureLayer';
 import { wants } from './mind';
 import { groundSpeed, stepOnGround } from './biomeEffects';
-import { canPreyOn, rollSize, sizeOf } from './size';
+import { canPreyOn, growthOf, rollSize, sizeOf } from './size';
 import {
   canSwim,
   findNearestStandable,
@@ -455,8 +455,12 @@ export function createEntityMesh(entity: Entity): THREE.Object3D {
  * Reads the creature's own size rather than a table of kinds, which is what
  * makes a crowd of wolves look like a crowd instead of a row of stamps.
  */
-function getEntitySize(entity: Pick<Entity, 'type' | 'size'>): number {
-  return sizeOf(entity);
+function getEntitySize(entity: Pick<Entity, 'type' | 'size'> & Partial<Pick<Entity, 'age' | 'maxAge'>>): number {
+  // Children are drawn small and grow into their size.
+  const growth = entity.age !== undefined && entity.maxAge !== undefined
+    ? growthOf({ age: entity.age, maxAge: entity.maxAge })
+    : 1;
+  return sizeOf(entity) * growth;
 }
 
 /**

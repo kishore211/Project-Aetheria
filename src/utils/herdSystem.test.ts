@@ -271,13 +271,18 @@ describe('survival while travelling', () => {
 
       const harness = makeHarness(60);
       spawnGroup(harness, 'sheep', HERD, 25, 25);
+      const original = new Set<string>();
       for (const animal of harness.entities.getAllEntities()) {
         animal.needs.hunger = 0.5;
+        original.add(animal.id);
       }
 
       run(harness, 200, 1);
 
-      const survivors = harness.entities.getAllEntities().filter(e => e.type === 'sheep');
+      // The animals that set out, not their lambs: births used to be counted
+      // here, and while newborns arrived as adults who bred again at once
+      // that padded the number with the very thing it was not measuring.
+      const survivors = harness.entities.getAllEntities().filter(e => e.type === 'sheep' && original.has(e.id));
       survivingFraction += survivors.length / HERD;
       if (survivors.length > 0) {
         fedFraction += survivors.filter(sheep => sheep.needs.hunger > 0.3).length / survivors.length;
@@ -286,9 +291,10 @@ describe('survival while travelling', () => {
       }
     }
 
-    // Measured at 0.78 across streams; before grazing-on-the-move existed this
-    // was near zero.
-    expect(survivingFraction / RUNS).toBeGreaterThan(0.6);
+    // Of the animals that set out, measured at 0.45-0.54 across streams once
+    // lambs are born young (old age takes some of the rest in 200 seconds);
+    // before grazing-on-the-move existed it was near zero.
+    expect(survivingFraction / RUNS).toBeGreaterThan(0.35);
     // Of those alive, most should not be starving — surviving hungry is not
     // the same as feeding itself.
     expect(fedFraction / RUNS).toBeGreaterThan(0.5);

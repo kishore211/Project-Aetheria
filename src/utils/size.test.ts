@@ -94,3 +94,17 @@ describe('who can eat whom', () => {
     expect(canPreyOn(at('wolf', 0.12), at('deer', 0.2))).toBe(false);
   });
 });
+
+describe('childhood', () => {
+  it('draws a newborn small and grows it to full size', async () => {
+    const { growthOf, isChild } = await import('./size');
+    const baby = { age: 0, maxAge: 100 };
+    const teen = { age: 9, maxAge: 100 };
+    const adult = { age: 30, maxAge: 100 };
+    expect(isChild(baby)).toBe(true);
+    expect(isChild(adult)).toBe(false);
+    expect(growthOf(baby)).toBeCloseTo(0.55);
+    expect(growthOf(teen)).toBeGreaterThan(growthOf(baby));
+    expect(growthOf(adult)).toBe(1);
+  });
+});

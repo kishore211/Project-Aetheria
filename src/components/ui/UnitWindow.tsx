@@ -6,7 +6,7 @@ import type { Entity } from '../../types/world';
 import { moodFace } from '../../utils/mood';
 import { statusDef } from '../../utils/statusEffects';
 import { describeCreature } from '../../utils/subspecies';
-import { describeSize, sizeOf } from '../../utils/size';
+import { describeSize, isChild, sizeOf } from '../../utils/size';
 import { creatureLine } from '../../utils/flavour';
 import { worldAccess } from '../../utils/worldAccess';
 import { metaById } from '../../utils/identity';
@@ -159,7 +159,7 @@ const UnitWindow = () => {
           </div>
           <div className="unit-window-who">
             <p className="unit-kind">
-              {describeSize(sizeOf(entity))} {describeCreature(entity.type, entity.subspecies)}
+              {isChild(entity) ? 'young ' : ''}{describeSize(sizeOf(entity))} {describeCreature(entity.type, entity.subspecies)}
               {entity.uplifted ? ' · uplifted' : ''}
             </p>
             {line && <p className="unit-line">{line}</p>}

@@ -125,3 +125,21 @@ export const canPreyOn = (
   hunter: Pick<Entity, 'type' | 'size'>,
   quarry: Pick<Entity, 'type' | 'size'>,
 ): boolean => sizeTier(sizeOf(hunter)) + 1 >= sizeTier(sizeOf(quarry));
+
+/** The share of a life spent as a child. */
+export const CHILDHOOD = 0.12;
+
+/** True while a creature is still growing up. */
+export const isChild = (entity: Pick<Entity, 'age' | 'maxAge'>): boolean =>
+  entity.maxAge > 0 && entity.age < entity.maxAge * CHILDHOOD;
+
+/**
+ * How big a creature is drawn for its age: a newborn at a little over half
+ * size, growing to full size by the end of childhood. WorldBox's babies are
+ * small, and a town with children in it reads as one that has a future.
+ */
+export const growthOf = (entity: Pick<Entity, 'age' | 'maxAge'>): number => {
+  if (!isChild(entity)) return 1;
+  const share = entity.age / (entity.maxAge * CHILDHOOD);
+  return 0.55 + 0.45 * Math.max(0, Math.min(1, share));
+};
