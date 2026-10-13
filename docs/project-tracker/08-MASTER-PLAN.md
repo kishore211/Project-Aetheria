@@ -409,3 +409,28 @@ dozen. None of those were large; all of them changed what the world *is*.
 Still open: border paint/scissors tools, religion/culture/alliance lists,
 Conway's Game of Life toy, new biomes (blocked on the uncommitted palette edit
 in `worldGenerator.ts`).
+
+## Round 22 — the systems you can see (2026-10-13)
+
+Most of WorldBox's civilisation systems already existed here; what was missing
+was being able to *see* them. This round made them visible, and deepened the
+ones that were thin.
+
+- **Religion** (`religion.ts`): every faith rolls two traits with real effects
+  (mending prayer, holy fire, divine shield, harvest blessing, zealotry,
+  missionaries, ascetic, martyrdom), records its founder and holy city, and
+  every temple keeps a priest who works them. Zealotry feeds a "Holy war"
+  opinion factor. Faith draws use their own dice so the shared random stream
+  (and the tests pinned to it) is untouched.
+- **Armies**: summarised per captain, flying the kingdom banner with a warrior
+  count on the map, listed in an Armies tab with strength, arms and target.
+- **Buildings**: hall → stone hall → castle (castles shoot), stockpile,
+  training dummies that drill warriors.
+- **Items**: pixel equipment slots with WorldBox-style item cards; Items tab.
+- **Register**: Species, Armies, Items, Faiths, Cultures, Tongues tabs.
+- **Kingdom window** diplomacy buttons; **border brush/eraser** (saved).
+- **Conway's Game of Life** on its own layer.
+- **Traits**: fifteen more, two earned (veteran, scarred).
+- **Childhood**: newborns start at age zero, small, and grow up; no jobs or
+  armies until grown.
+- **Realms over time** graph in the world stats.
