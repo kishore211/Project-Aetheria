@@ -1639,3 +1639,22 @@ canvas {
 @keyframes battlePulse {
   50% { background: #b02a1f; }
 }
+
+/* An army's banner over its captain, with the count of swords behind it. */
+.map-label-army {
+  display: flex;
+  align-items: flex-end;
+  filter: drop-shadow(1px 2px 0 rgb(0 0 0 / 0.5));
+}
+.map-label-army img { margin-right: 0 !important; }
+.map-army-count {
+  order: 2;
+  margin-left: -2px;
+  padding: 0 3px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: #fff;
+  background: #23281c;
+  border: 1px solid #000;
+}

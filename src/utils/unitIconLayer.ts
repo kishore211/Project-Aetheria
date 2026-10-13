@@ -258,6 +258,7 @@ export class UnitIconLayer {
     if (entity.status.includes('king')) return 'king';
     if (entity.status.includes('leader')) return 'leader';
     if (entity.status.includes('captain')) return 'captain';
+    if (entity.status.includes('priest')) return 'priest';
     if (entity.job === 'warrior') return 'warrior';
     return null;
   }

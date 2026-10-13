@@ -69,9 +69,10 @@ import {
 import { speak } from './dialogue';
 import { emitShot } from './shotBridge';
 import { emitDamage } from './floatBridge';
-import { MONSTERS } from './entitySystemMinimal';
+import { MONSTERS, isSapient } from './entitySystemMinimal';
 import { buildingSprite, roofSprite } from './pixelAtlas';
 import { conquestOutcome, formationSlots } from './army';
+import { faithOf, faithRoll, foundFaith, holyWarTension } from './religion';
 import { emitItemEvent, equip, forgeItem, forgePriority, MATERIAL_COST } from './equipment';
 import {
   generateKingdomName,
@@ -99,7 +100,9 @@ export type BuildingKind =
   | 'library'
   | 'well'
   | 'market'
-  | 'dock';
+  | 'dock'
+  | 'stockpile'
+  | 'dummy';
 
 export interface Building {
   id: string;
@@ -204,6 +207,8 @@ interface BuildingRecipe {
   stone: number;
   /** Minimum number of existing buildings before this unlocks. */
   requires: number;
+  /** A building that has to stand first. */
+  needs?: BuildingKind;
   /** How many of this building one village may hold. */
   limit: number;
   size: number;
@@ -226,6 +231,8 @@ const RECIPES: BuildingRecipe[] = [
   { kind: 'market', wood: 9, stone: 4, requires: 8, limit: 1, size: 0.78, priority: 48 },
   { kind: 'dock', wood: 8, stone: 0, requires: 5, limit: 1, size: 0.7, priority: 58 },
   { kind: 'mine', wood: 4, stone: 6, requires: 7, limit: 2, size: 0.6, priority: 60 },
+  { kind: 'stockpile', wood: 4, stone: 0, requires: 3, limit: 1, size: 0.6, priority: 56 },
+  { kind: 'dummy', wood: 3, stone: 0, requires: 9, limit: 2, size: 0.5, priority: 47, needs: 'barracks' },
   { kind: 'house', wood: 7, stone: 1, requires: 2, limit: 10, size: 0.62, priority: 50 },
   { kind: 'farm', wood: 5, stone: 0, requires: 3, limit: 4, size: 0.55, priority: 45 },
   { kind: 'statue', wood: 2, stone: 12, requires: 11, limit: 2, size: 0.7, priority: 30 },
@@ -236,6 +243,7 @@ const BUILDING_HEALTH: Record<BuildingKind, number> = {
   bonfire: 120, tent: 60, house: 140, hall: 260,
   farm: 90, tower: 240, temple: 220, statue: 180, mine: 160,
   windmill: 120, barracks: 220, smithy: 160, library: 170, well: 90, market: 140, dock: 110,
+  stockpile: 80, dummy: 40,
 };
 
 /**
@@ -249,6 +257,7 @@ const CLAIM_RADIUS: Record<BuildingKind, number> = {
   bonfire: 7, tent: 3, house: 4, hall: 9,
   farm: 3, tower: 7, temple: 7, statue: 5, mine: 3,
   windmill: 3, barracks: 5, smithy: 3, library: 5, well: 2, market: 4, dock: 3,
+  stockpile: 2, dummy: 1,
 };
 
 /**
@@ -344,6 +353,8 @@ const TIERS: Record<string, BuildingTier> = {
   well: { tier: 1, footprint: 1 },
   market: { tier: 2, footprint: 1 },
   dock: { tier: 1, footprint: 1 },
+  stockpile: { tier: 1, footprint: 1 },
+  dummy: { tier: 2, footprint: 1 },
 };
 
 /** Tiles on a side. Derived from the kind, so no save has to carry it. */
@@ -368,6 +379,8 @@ const SITING: Record<string, Siting> = {
   well: 'cluster',
   market: 'cluster',
   dock: 'shore',
+  stockpile: 'cluster',
+  dummy: 'border',
 };
 
 /**
@@ -433,6 +446,8 @@ const BUILDING_YIELD: Record<string, number> = {
   // A market is where the town's money changes hands, and some of it stays.
   market: 5,
   dock: 2,
+  stockpile: 1,
+  dummy: 0,
 };
 
 /** How far a watchtower's archers reach, and how hard an arrow hits. */
@@ -440,6 +455,11 @@ const TOWER_RANGE = 5;
 const TOWER_DAMAGE = 9;
 
 /** What it costs to rebuild a house at the next level. */
+const HALL_UPGRADE: Record<number, { wood: number; stone: number; gold: number }> = {
+  2: { wood: 12, stone: 18, gold: 0 },
+  3: { wood: 16, stone: 36, gold: 30 },
+};
+
 const HOUSE_UPGRADE: Record<number, { wood: number; stone: number; gold: number }> = {
   2: { wood: 6, stone: 6, gold: 0 },
   3: { wood: 8, stone: 12, gold: 10 },
@@ -489,6 +509,8 @@ const PULSE_BY_BUILDING: Record<string, number> = {
   well: 0.2,
   market: 0.45,
   dock: 0.15,
+  stockpile: 0.2,
+  dummy: 0.6,
 };
 
 /** Claimed land whose village has no identity yet, on an identity layer. */
@@ -574,6 +596,7 @@ export class SettlementSystem {
   private fleetTimer = 0;
   private migrantTimer = 0;
   private forgeTimer = 0;
+  private faithTimer = 0;
   private towerTimer = 0;
   private paintedSeason: string = simulation.season;
   private boatPosition = new THREE.Vector3();
@@ -731,11 +754,18 @@ export class SettlementSystem {
       this.towerVolley();
     }
 
+    this.faithTimer += delta;
+    if (this.faithTimer >= 4) {
+      this.faithTimer = 0;
+      this.faithRound();
+    }
+
     this.forgeTimer += delta;
     if (this.forgeTimer >= 12) {
       this.forgeTimer = 0;
       this.forgeRound();
       this.upgradeRound();
+      this.drillRound();
     }
 
     this.fleetTimer += delta;
@@ -874,10 +904,12 @@ export class SettlementSystem {
     if (inherited) {
       setGroupMetas(village.id, inherited);
     } else {
+      const faith = mintMeta('religion');
+      foundFaith(faith, founders[0]?.name ?? null, village.name);
       const minted = {
         culture: mintMeta('culture').id,
         language: mintMeta('language').id,
-        religion: mintMeta('religion').id,
+        religion: faith.id,
       };
       setGroupMetas(kingdom.id, minted);
       setGroupMetas(village.id, minted);
@@ -1294,7 +1326,7 @@ export class SettlementSystem {
       const kingdom = this.kingdoms.get(village.kingdomId);
       if (!kingdom) continue;
       for (const tower of village.buildings) {
-        if (tower.kind !== 'tower') continue;
+        if (tower.kind !== 'tower' && !(tower.kind === 'hall' && (tower.level ?? 1) >= 3)) continue;
         let target: Entity | null = null;
         let best = TOWER_RANGE * TOWER_RANGE;
         for (const other of this.entities.query(tower.x + 0.5, tower.y + 0.5, TOWER_RANGE)) {
@@ -1311,6 +1343,91 @@ export class SettlementSystem {
         emitDamage(target.position.x, target.position.y, TOWER_DAMAGE, target.id);
         if (!target.status.includes('wounded')) target.status.push('wounded');
         if (target.health <= 0 && !target.status.includes('slain')) target.status.push('slain');
+      }
+    }
+  }
+
+  /**
+   * Faith at work. Every town with a temple keeps a priest — its sharpest
+   * mind who holds no other office — and the priest works the religion's
+   * traits on the people around the temple: healing, holy fire, shields,
+   * blessed harvests, converts and fasting.
+   */
+  private faithRound(): void {
+    const byVillage = this.entities.getEntitiesByVillage();
+    for (const village of this.villages.values()) {
+      const residents = byVillage.get(village.id) ?? [];
+      const temple = village.buildings.find(b => b.kind === 'temple');
+      if (!temple) {
+        for (const resident of residents) if (resident.status.includes('priest')) clearStatus(resident, 'priest');
+        continue;
+      }
+      const religion = groupMetas(village.id)?.religion ?? null;
+      const faith = faithOf(religion);
+      if (!religion || !faith) continue;
+
+      let priest = residents.find(e => e.status.includes('priest') && e.health > 0) ?? null;
+      if (!priest) {
+        const candidates = residents.filter(e => e.health > 0 && e.religionId === religion
+          && !e.status.includes('king') && !e.status.includes('leader') && !e.status.includes('captain') && e.job !== 'warrior');
+        candidates.sort((x, y) => y.attributes.intelligence - x.attributes.intelligence);
+        priest = candidates[0] ?? null;
+        if (priest) {
+          applyStatus(priest, 'priest');
+          emitFloater({ kind: 'speech', text: speak('blessed', faithRoll()), x: priest.position.x, y: priest.position.y, entityId: priest.id });
+        }
+      }
+
+      const kingdom = this.kingdoms.get(village.kingdomId);
+      const cx = priest ? priest.position.x : temple.x + 0.5;
+      const cy = priest ? priest.position.y : temple.y + 0.5;
+      const near = this.entities.query(cx, cy, 6);
+
+      for (const trait of faith.traits) {
+        switch (trait) {
+          case 'harvest_blessing':
+            village.store.food += 3;
+            break;
+          case 'ascetic':
+            for (const e of residents) if (e.religionId === religion) e.needs.hunger = Math.min(1, e.needs.hunger + 0.03);
+            break;
+          case 'divine_shield':
+            for (const e of residents) {
+              if (e.religionId === religion && e.status.includes('fighting')) applyStatus(e, 'shielded');
+            }
+            break;
+          case 'mending_prayer':
+            if (!priest) break;
+            for (const e of near) {
+              if (e.religionId !== religion || e.health <= 0 || e.health >= e.maxHealth) continue;
+              const healed = Math.min(8, e.maxHealth - e.health);
+              e.health += healed;
+              emitFloater({ kind: 'heal', text: `+${Math.round(healed)}`, x: e.position.x, y: e.position.y, entityId: e.id });
+            }
+            break;
+          case 'holy_fire': {
+            if (!priest) break;
+            const foe = near.find(e => e.health > 0 && (MONSTERS.has(e.type)
+              || (e.kingdomId != null && kingdom != null && kingdom.atWar.has(e.kingdomId))));
+            if (!foe) break;
+            emitShot({ position: { x: priest.position.x, y: priest.position.y } }, foe);
+            foe.health -= 18;
+            emitDamage(foe.position.x, foe.position.y, 18, foe.id);
+            applyStatus(foe, 'wounded');
+            if (foe.health <= 0) applyStatus(foe, 'slain');
+            break;
+          }
+          case 'missionaries':
+            if (!priest) break;
+            for (const e of near) {
+              if (!isSapient(e) || e.religionId === religion || faithRoll() > 0.2) continue;
+              setMetaOf(e, 'religion', religion);
+              emitFloater({ kind: 'speech', text: 'I have seen the light.', x: e.position.x, y: e.position.y, entityId: e.id });
+            }
+            break;
+          default:
+            break;
+        }
       }
     }
   }
@@ -1353,6 +1470,7 @@ export class SettlementSystem {
     this.stripStatus(entity, 'king');
     this.stripStatus(entity, 'leader');
     this.stripStatus(entity, 'captain');
+    this.stripStatus(entity, 'priest');
   }
 
   /** Villages feed their residents from the granary. */
@@ -1416,6 +1534,13 @@ export class SettlementSystem {
     for (const village of this.villages.values()) {
       const residents = members.get(village.id) ?? [];
       if (residents.length === 0) continue;
+
+      // A stockpile keeps what the gatherers bring in from spoiling or
+      // walking off: a little wood and stone saved every round.
+      if (village.buildings.some(b => b.kind === 'stockpile')) {
+        village.store.wood += 1;
+        village.store.stone += 1;
+      }
 
       // -- 1. buildings earn --------------------------------------------
       let yield_ = 0;
@@ -1573,6 +1698,7 @@ export class SettlementSystem {
       if (count < recipe.requires) continue;
       const existing = village.buildings.filter(b => b.kind === recipe.kind).length;
       if (existing >= recipe.limit) continue;
+      if (recipe.needs && !village.buildings.some(b => b.kind === recipe.needs)) continue;
       if (village.store.wood < recipe.wood || village.store.stone < recipe.stone) continue;
       // Mines only make sense on or beside stone
       if (recipe.kind === 'mine' && !this.hasRockNearby(village)) continue;
@@ -1852,7 +1978,7 @@ export class SettlementSystem {
     position.y += size * 0.5 + 0.02;
     // Fields follow the year: green while growing, gold at harvest, bare and
     // frosted in winter.
-    const art = kind === 'house' && (building.level ?? 1) > 1 ? `house${building.level}`
+    const art = (kind === 'house' || kind === 'hall') && (building.level ?? 1) > 1 ? `${kind}${building.level}`
       : kind === 'farm' && simulation.season === 'autumn' ? 'farm_autumn'
         : kind === 'farm' && simulation.season === 'winter' ? 'farm_winter'
           : kind;
@@ -1891,6 +2017,7 @@ export class SettlementSystem {
   private upgradeRound(): void {
     for (const village of this.villages.values()) {
       const has = (kind: BuildingKind) => village.buildings.some(b => b.kind === kind);
+      this.upgradeHall(village, has);
       const ceiling = !has('hall') ? 1 : has('temple') || has('library') ? 3 : 2;
       if (ceiling === 1) continue;
       const house = village.buildings
@@ -1908,6 +2035,55 @@ export class SettlementSystem {
       house.maxHealth = Math.round(BUILDING_HEALTH.house * (1 + (next - 1) * 0.5));
       house.health = house.maxHealth;
       this.paintBuilding(village, house);
+    }
+  }
+
+  /**
+   * The hall grows with the town: rebuilt in stone once there are houses to
+   * govern, and raised into a castle once the town keeps a temple and a
+   * barracks. A castle stands stronger, claims further and shoots.
+   */
+  private upgradeHall(village: Village, has: (kind: BuildingKind) => boolean): void {
+    const hall = village.buildings.find(b => b.kind === 'hall');
+    if (!hall) return;
+    const level = hall.level ?? 1;
+    const houses = village.buildings.filter(b => b.kind === 'house').length;
+    const next = level === 1 && houses >= 5 ? 2
+      : level === 2 && has('temple') && has('barracks') ? 3 : 0;
+    if (!next) return;
+    const cost = HALL_UPGRADE[next];
+    if (village.store.wood < cost.wood || village.store.stone < cost.stone || village.store.gold < cost.gold) return;
+    village.store.wood -= cost.wood;
+    village.store.stone -= cost.stone;
+    village.store.gold -= cost.gold;
+    hall.level = next;
+    hall.maxHealth = Math.round(BUILDING_HEALTH.hall * (1 + (next - 1) * 0.75));
+    hall.health = hall.maxHealth;
+    this.paintBuilding(village, hall);
+    this.events.onEvent(
+      next === 3 ? `${village.name} raises a castle` : `${village.name} rebuilds its hall in stone`,
+      'kingdom',
+      { x: hall.x, y: hall.y },
+    );
+  }
+
+  /**
+   * Drill. Warriors of a town with training dummies grow a little stronger
+   * each round, up to a point: WorldBox's dummies are why a garrison town's
+   * soldiers beat a fresh levy.
+   */
+  private drillRound(): void {
+    const byVillage = this.entities.getEntitiesByVillage();
+    for (const village of this.villages.values()) {
+      const dummies = village.buildings.filter(b => b.kind === 'dummy').length;
+      if (dummies === 0) continue;
+      for (const warrior of byVillage.get(village.id) ?? []) {
+        if (warrior.job !== 'warrior') continue;
+        const drilled = warrior.drilled ?? 0;
+        if (drilled >= 4 * dummies) continue;
+        warrior.drilled = drilled + 1;
+        warrior.attributes.strength += 1;
+      }
     }
   }
 
@@ -2674,6 +2850,10 @@ export class SettlementSystem {
         // splitting off usually keeps its gods for a while.
         const culture = mintMeta('culture');
         const religion = Math.random() < 0.45 ? mintMeta('religion') : null;
+        if (religion) {
+          const prophet = this.entities.getAllEntities().find(e => e.villageId === village.id && e.status.includes('priest'));
+          foundFaith(religion, prophet?.name ?? null, village.name);
+        }
         const after = {
           culture: culture.id,
           language: before.language,
@@ -2749,6 +2929,7 @@ export class SettlementSystem {
       sameCulture: compare(set => set?.culture),
       sameLanguage: compare(set => set?.language),
       sameReligion: compare(set => set?.religion),
+      holyWar: holyWarTension(mine?.religion ?? null, theirs?.religion ?? null),
       atWar: a.atWar.has(b.id),
       allied: a.allies.has(b.id),
       foughtBefore: this.warTimers.has(pairKey(a.id, b.id)),
@@ -3846,6 +4027,60 @@ export class SettlementSystem {
       villages: Array.from(this.villages.values()),
       kingdoms: Array.from(this.kingdoms.values()),
     };
+  }
+
+  /**
+   * Every standing army: a town's captain and the warriors anchored to it,
+   * where it is, and where it is going. What the Armies list and the army
+   * banners on the map are drawn from.
+   */
+  armySummaries(): Array<{
+    id: string; captainId: string; captain: string; kingdomId: string; kingdom: string; color: string;
+    race: string; home: string; soldiers: number; armed: number; x: number; y: number;
+    marchingOn: string | null;
+  }> {
+    const rows = [];
+    const byVillage = this.entities.getEntitiesByVillage();
+    for (const village of this.villages.values()) {
+      const captain = this.entities.getEntityById(this.captains.get(village.id) ?? '');
+      if (!captain || captain.health <= 0) continue;
+      const kingdom = this.kingdoms.get(village.kingdomId);
+      if (!kingdom) continue;
+      const warriors = (byVillage.get(village.id) ?? []).filter(e => e.job === 'warrior' && e.health > 0);
+      const front = kingdom.atWar.size > 0 ? this.warFrontVillage(kingdom.id, captain) : null;
+      rows.push({
+        id: `army:${village.id}`,
+        captainId: captain.id,
+        captain: captain.name,
+        kingdomId: kingdom.id,
+        kingdom: kingdom.name,
+        color: kingdom.colorHex,
+        race: village.race,
+        home: village.name,
+        soldiers: warriors.length,
+        armed: warriors.filter(w => w.equipment?.weapon).length,
+        x: captain.position.x,
+        y: captain.position.y,
+        marchingOn: front?.name ?? null,
+      });
+    }
+    return rows.sort((a, b) => b.soldiers - a.soldiers);
+  }
+
+  /** The enemy town an army would march on. */
+  private warFrontVillage(kingdomId: string, from: Entity): Village | null {
+    const kingdom = this.kingdoms.get(kingdomId);
+    if (!kingdom) return null;
+    let best: Village | null = null;
+    let bestDistance = Infinity;
+    for (const enemyId of kingdom.atWar) {
+      const enemy = this.kingdoms.get(enemyId);
+      const town = enemy ? this.nearestVillage(enemy, from.position.x, from.position.y) : null;
+      if (!town) continue;
+      const d = Math.hypot(town.centerX - from.position.x, town.centerY - from.position.y);
+      if (d < bestDistance) { bestDistance = d; best = town; }
+    }
+    return best;
   }
 
   /** Human-readable village details for the inspector. */

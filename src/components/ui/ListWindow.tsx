@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Crown, Home, ScrollText, Star, Swords, Users, X } from 'lucide-react';
+import { Crown, Home, Languages, Shield, Palette, ScrollText, Star, Sun, Swords, Users, X } from 'lucide-react';
+import { allMetas, CULTURE_TRAITS, type MetaKind } from '../../utils/identity';
+import { FAITH_TRAITS, faithOf } from '../../utils/religion';
 import { worldAccess } from '../../utils/worldAccess';
 import { useGameStore } from '../../store/gameStore';
 
@@ -16,14 +18,18 @@ import { useGameStore } from '../../store/gameStore';
  * behaviour does not, and every row does the same thing when clicked.
  */
 
-type ListTab = 'realms' | 'villages' | 'wars' | 'plots' | 'clans' | 'favourites';
+type ListTab = 'realms' | 'villages' | 'armies' | 'wars' | 'plots' | 'clans' | 'faiths' | 'cultures' | 'tongues' | 'favourites';
 
 const TABS: Array<{ id: ListTab; label: string; icon: typeof Crown }> = [
   { id: 'realms', label: 'Realms', icon: Crown },
   { id: 'villages', label: 'Towns', icon: Home },
+  { id: 'armies', label: 'Armies', icon: Shield },
   { id: 'wars', label: 'Standing', icon: Swords },
   { id: 'plots', label: 'Plots', icon: ScrollText },
   { id: 'clans', label: 'Clans', icon: Users },
+  { id: 'faiths', label: 'Faiths', icon: Sun },
+  { id: 'cultures', label: 'Cultures', icon: Palette },
+  { id: 'tongues', label: 'Tongues', icon: Languages },
   { id: 'favourites', label: 'Starred', icon: Star },
 ];
 
@@ -78,12 +84,33 @@ const ListWindow = ({ open, onClose }: { open: boolean; onClose: () => void }) =
   }
   const clans = [...clanMap.values()].sort((a, b) => b.members.length - a.members.length);
 
+  // Religions, cultures and languages, most followed first. Counted live off
+  // the creatures, because that is what WorldBox's meta windows count.
+  const metaRows = (kind: MetaKind) => {
+    const field = kind === 'culture' ? 'cultureId' : kind === 'language' ? 'languageId' : 'religionId';
+    return allMetas(kind)
+      .map((meta) => {
+        const followers = everyone.filter(e => e[field] === meta.id);
+        return { meta, followers };
+      })
+      .filter(row => row.followers.length > 0)
+      .sort((a, b) => b.followers.length - a.followers.length);
+  };
+  const armies = worldAccess.current?.armies?.() ?? [];
+  const faiths = metaRows('religion');
+  const cultures = metaRows('culture');
+  const tongues = metaRows('language');
+
   const counts: Record<ListTab, number> = {
     realms: kingdoms.length,
     villages: villages.length,
+    armies: armies.length,
     wars: opinions.length || wars.length,
     plots: plots.length,
     clans: clans.length,
+    faiths: faiths.length,
+    cultures: cultures.length,
+    tongues: tongues.length,
     favourites: favourites.length,
   };
 
@@ -202,6 +229,74 @@ const ListWindow = ({ open, onClose }: { open: boolean; onClose: () => void }) =
                 })}
               </ul>
             ))}
+
+          {tab === 'armies' && (armies.length === 0
+            ? <p className="list-empty">No armies yet. A town with a barracks trains warriors, and the strongest takes the banner.</p>
+            : (
+              <ul className="space-y-1">
+                {armies.map((army) => (
+                  <li key={army.id}>
+                    <button
+                      type="button"
+                      className="list-row"
+                      onClick={() => {
+                        const captain = everyone.find(e => e.id === army.captainId);
+                        if (captain) useGameStore.getState().setSelectedEntity(captain);
+                        focusTile(Math.floor(army.x), Math.floor(army.y));
+                        onClose();
+                      }}
+                    >
+                      <Shield size={12} className="shrink-0" style={{ color: army.color }} />
+                      <span className="list-name">Army of {army.home}</span>
+                      <span className="list-meta">
+                        {army.soldiers} warriors · {army.armed} armed · led by {army.captain.split(' ')[0]}
+                        {army.marchingOn ? ` · marching on ${army.marchingOn}` : ' · at home'}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ))}
+
+          {(['faiths', 'cultures', 'tongues'] as const).map((kind) => {
+            if (tab !== kind) return null;
+            const rows = kind === 'faiths' ? faiths : kind === 'cultures' ? cultures : tongues;
+            if (rows.length === 0) return <p key={kind} className="list-empty">Nobody holds one yet. Towns found their own.</p>;
+            return (
+              <ul key={kind} className="space-y-1">
+                {rows.map(({ meta, followers }) => {
+                  const faith = kind === 'faiths' ? faithOf(meta.id) : null;
+                  const elder = followers.reduce((eldest, m) => (m.age > eldest.age ? m : eldest), followers[0]);
+                  const traits = faith
+                    ? faith.traits.map(t => `${FAITH_TRAITS[t].glyph} ${FAITH_TRAITS[t].label}`)
+                    : kind === 'cultures' ? meta.traits.map(t => CULTURE_TRAITS[t]?.label ?? t) : [];
+                  return (
+                    <li key={meta.id}>
+                      <button
+                        type="button"
+                        className="list-row"
+                        title={faith ? traits.join(' · ') : undefined}
+                        onClick={() => {
+                          useGameStore.getState().setSelectedEntity(elder);
+                          focusTile(Math.floor(elder.position.x), Math.floor(elder.position.y));
+                          onClose();
+                        }}
+                      >
+                        <span className="w-2.5 h-2.5 shrink-0 border border-black/40" style={{ background: meta.colorHex }} />
+                        <span className="list-name" style={{ color: meta.colorHex }}>{meta.name}</span>
+                        <span className="list-meta">
+                          {followers.length} {kind === 'faiths' ? 'faithful' : kind === 'cultures' ? 'people' : 'speakers'}
+                          {faith?.founder ? ` · founded by ${faith.founder.split(' ')[0]}` : ''}
+                          {faith?.holyCity ? ` in ${faith.holyCity}` : ''}
+                          {traits.length > 0 ? ` · ${traits.join(', ')}` : ''}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            );
+          })}
 
           {tab === 'favourites' && (favourites.length === 0
             ? <p className="list-empty">Star a creature from its inspector to keep it here.</p>

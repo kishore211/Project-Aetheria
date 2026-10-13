@@ -293,6 +293,8 @@ export interface OpinionInput {
   sameCulture: boolean | null;
   sameLanguage: boolean | null;
   sameReligion: boolean | null;
+  /** How hard a zealous faith on either side pushes toward holy war. */
+  holyWar?: number;
   atWar: boolean;
   allied: boolean;
   /** True if these two have made peace before. */
@@ -340,6 +342,7 @@ export const opinionBetween = (input: OpinionInput): OpinionResult => {
   if (input.sameCulture !== null) add('Shared culture', input.sameCulture ? 20 : -12);
   if (input.sameLanguage !== null) add('Shared language', input.sameLanguage ? 15 : -10);
   if (input.sameReligion !== null) add('Shared faith', input.sameReligion ? 20 : -18);
+  if (input.holyWar) add('Holy war', -input.holyWar * 4);
 
   // Two diplomats find a way. Two warlords do not.
   if (input.ourKing && input.theirKing) {

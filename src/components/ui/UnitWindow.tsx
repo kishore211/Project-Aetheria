@@ -9,6 +9,7 @@ import { describeCreature } from '../../utils/subspecies';
 import { describeSize, sizeOf } from '../../utils/size';
 import { creatureLine } from '../../utils/flavour';
 import { worldAccess } from '../../utils/worldAccess';
+import { metaById } from '../../utils/identity';
 import { levelOf, outfitOf } from '../../utils/entitySystemMinimal';
 import { gearLook, getPixelSpriteFrames } from '../../utils/pixelSprites';
 import { FavouriteStar, GearList, MindEditor, NeedBar, TraitChips } from './InfoPanel';
@@ -144,6 +145,18 @@ const UnitWindow = () => {
           {face && <Row label="Mood">{face.label}</Row>}
           {entity.job && <Row label="Job">{entity.job}</Row>}
           {entity.clan && <Row label="Clan">{entity.clan}</Row>}
+          {(() => {
+            const faith = metaById(entity.religionId);
+            const culture = metaById(entity.cultureId);
+            const tongue = metaById(entity.languageId);
+            return (
+              <>
+                {faith && <Row label="Faith"><span style={{ color: faith.colorHex }}>{faith.name}</span></Row>}
+                {culture && <Row label="Culture"><span style={{ color: culture.colorHex }}>{culture.name}</span></Row>}
+                {tongue && <Row label="Speaks">{tongue.name}</Row>}
+              </>
+            );
+          })()}
           {place && <Row label="Realm"><span style={{ color: place.kingdomColor }}>{place.kingdomName}</span></Row>}
           {place && <Row label="Town">{place.name}</Row>}
           {children > 0 && <Row label="Children">{children}</Row>}

@@ -367,6 +367,78 @@ const BUILDING_ART: Record<string, AtlasEntry> = {
       '............',
     ],
   },
+  // The town hall rebuilt in stone, then raised into a castle: WorldBox's
+  // hall tiers, and the clearest sign on the map that a town has made it.
+  hall2: {
+    palette: MASONRY,
+    grid: [
+      '.....kb.....',
+      '.....kbb....',
+      '..kkkkkkkk..',
+      '.kRRRRRrrrk.',
+      'kRRRRRRrrrrk',
+      'kkkkkkkkkkkk',
+      'kssssssnnnnk',
+      'ksysysnnynyk',
+      'kssssssnnnnk',
+      'ksssddnnnnnk',
+      'ksssddnnnnnk',
+      'kkkkkkkkkkkk',
+    ],
+  },
+  hall3: {
+    palette: MASONRY,
+    grid: [
+      '.....kb.....',
+      'k.k..kbb.k.k',
+      'kkk.kkkk.kkk',
+      'ksk.kRrk.ksk',
+      'ksk.kRrk.ksk',
+      'kskkkkkkkksk',
+      'ksssssnnnnsk',
+      'ksysssnnynsk',
+      'ksssssnnnnsk',
+      'ksssddnnnnsk',
+      'ksssddnnnnsk',
+      'kkkkkkkkkkkk',
+    ],
+  },
+  // Crates and a log pile: where a town keeps what it has gathered.
+  stockpile: {
+    palette: { c: '#c08a4a', d: '#86592c', l: '#9c6b3c', e: '#e0b98a', s: '#9aa0a6', k: OUTLINE },
+    grid: [
+      '............',
+      '............',
+      '..kkkk......',
+      '..kcck..kkk.',
+      '..kdck..ksk.',
+      '.kkkkkk.ksk.',
+      '.kccdck.kkk.',
+      '.kcddck.....',
+      'kkkkkkkkkkk.',
+      'kellllllllk.',
+      'keellllllek.',
+      'kkkkkkkkkkk.',
+    ],
+  },
+  // A straw man on a post, for the barracks to hit.
+  dummy: {
+    palette: { y: '#e8c860', l: '#9c6b3c', r: '#c8452f', k: OUTLINE },
+    grid: [
+      '............',
+      '.....kk.....',
+      '....kyyk....',
+      '....kyyk....',
+      '.kkkkrrkkkk.',
+      '.kllllllllk.',
+      '.kkkkllkkkk.',
+      '.....kl.....',
+      '.....kl.....',
+      '.....kl.....',
+      '....kkkk....',
+      '............',
+    ],
+  },
   tower: {
     palette: MASON,
     grid: [
@@ -689,7 +761,7 @@ const RACE_STYLE: Record<'elf' | 'dwarf' | 'orc', Palette> = {
 };
 
 /** Buildings drawn in a racial style. Everything else is the same for everyone. */
-const STYLED = ['house', 'house2', 'house3', 'hall', 'tower', 'temple', 'windmill', 'barracks', 'smithy', 'library'];
+const STYLED = ['house', 'house2', 'house3', 'hall', 'hall2', 'hall3', 'tower', 'temple', 'windmill', 'barracks', 'smithy', 'library'];
 
 /**
  * Whether a plan has a roof the kingdom colours. WorldBox paints every roof
@@ -1181,6 +1253,24 @@ const ICON_ART: Record<string, AtlasEntry> = {
       '..oooooooo..',
       '............',
       '............',
+      '............',
+      '............',
+    ],
+  },
+  // A gold sun-cross: the temple's keeper.
+  priest: {
+    palette: ICON_INK,
+    grid: [
+      '....oooo....',
+      '....oyyo....',
+      '.ooooyyoooo.',
+      '.oyyyyyyyyo.',
+      '.ooooyyoooo.',
+      '....oyyo....',
+      '....oyyo....',
+      '....oyyo....',
+      '....oyyo....',
+      '....oooo....',
       '............',
       '............',
     ],

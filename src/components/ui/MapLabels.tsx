@@ -63,6 +63,7 @@ const MapLabels = () => {
           title={label.kind === 'battle' ? `${label.text} fighting` : undefined}
         >
           {label.kind === 'battle' && <Swords size={14} strokeWidth={3} className="map-battle-icon" />}
+          {label.kind === 'army' && <span className="map-army-count">{label.text}</span>}
           {label.kind === 'village' && label.capital && (
             <Crown size={10} className="mr-1 inline-block -translate-y-px text-amber-300" />
           )}
@@ -71,11 +72,11 @@ const MapLabels = () => {
               id={label.kingdomId}
               color={label.color}
               race={label.race}
-              height={label.kind === 'kingdom' ? 18 : 12}
+              height={label.kind === 'kingdom' ? 18 : label.kind === 'army' ? 20 : 12}
               className="mr-1 align-middle -translate-y-px"
             />
           )}
-          {label.kind !== 'battle' && (
+          {label.kind !== 'battle' && label.kind !== 'army' && (
             <span style={label.kind === 'kingdom' ? { color: label.color } : undefined}>
               {label.text}
             </span>

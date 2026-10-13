@@ -25,7 +25,7 @@ export type StatusId =
   | 'attacking' | 'fighting' | 'fleeing' | 'wounded' | 'exhausted'
   | 'slain' | 'dead'
   // -- office --
-  | 'leader' | 'king' | 'captain'
+  | 'leader' | 'king' | 'captain' | 'priest'
   // -- mood, and the contagious social ones --
   | 'happy' | 'content' | 'sad' | 'miserable'
   | 'laughing' | 'crying' | 'singing'
@@ -82,6 +82,7 @@ export const STATUSES: Record<StatusId, StatusDef> = {
   leader: define('leader', 'Leader', '\u{1F396}', 0, 1, false, 'Somebody has to decide things.'),
   king: define('king', 'Ruler', '\u{1F451}', 0, 2, false, 'Wears the seal, sleeps badly.'),
   captain: define('captain', 'Captain', '\u{1F6E1}', 0, 0.5, false, 'Answers for the warriors.'),
+  priest: define('priest', 'Priest', '\u{1F64F}', 0, 1, false, 'Keeps the temple, and the faith.'),
 
   happy: define('happy', 'Happy', '\u{1F60A}', 0, 0, false, 'Things are going well and it has noticed.'),
   content: define('content', 'Content', '\u{1F642}', 0, 0, false, 'No complaints worth making.'),

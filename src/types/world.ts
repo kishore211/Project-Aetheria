@@ -417,6 +417,8 @@ export interface Entity {
   clan?: string | null;
   /** Mother and father, or the one parent of a creature that needs none. */
   parentIds?: string[];
+  /** Rounds of drill at the training dummies; each was a point of strength. */
+  drilled?: number;
   /** Starred by the player: listed in the register, and mourned aloud. */
   favourite?: boolean;
   /** Drives the player has switched off. See utils/mind.ts. */

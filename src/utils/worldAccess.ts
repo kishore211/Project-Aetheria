@@ -18,6 +18,12 @@ export interface WorldAccess {
   captureSave: (label: string) => SaveGame;
   /** Herd this creature travels with, for the inspector. */
   herdInfo: (entity: Entity) => { size: number; isAlpha: boolean } | null;
+  /** Every standing army, for the register and the map banners. */
+  armies?: () => Array<{
+    id: string; captainId: string; captain: string; kingdomId: string; kingdom: string; color: string;
+    race: string; home: string; soldiers: number; armed: number; x: number; y: number;
+    marchingOn: string | null;
+  }>;
   /** Village occupying a tile, for the inspector. */
   villageInfo: (x: number, y: number) => {
     name: string;

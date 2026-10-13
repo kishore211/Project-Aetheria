@@ -71,6 +71,7 @@ const terraformVoiceFor = (tile: Tile): TerraformVoice => {
   return 'soil';
 };
 import { labelBridge, publishLabels, type MapLabel } from '../utils/labelBridge';
+import { resetFaiths } from '../utils/religion';
 import { soundManager, type TerraformVoice } from '../utils/soundManager';
 
 // Constants for game engine
@@ -297,6 +298,7 @@ export const useGameEngine = () => {
     resetStats();
     resetPlotIds();
     resetIdentity();
+    resetFaiths();
     relationLinesRef.current?.dispose();
     relationLinesRef.current = null;
     if (creatureLayerRef.current) scene.remove(creatureLayerRef.current.mesh);
@@ -543,6 +545,7 @@ export const useGameEngine = () => {
       },
       herdInfo: (entity) => herds.describe(entity),
       villageInfo: (x: number, y: number) => settlements.describeVillage(x, y),
+      armies: () => settlements.armySummaries(),
     });
 
     // Apply a queued save on top of the freshly generated world
@@ -1367,6 +1370,15 @@ export const useGameEngine = () => {
         capital: false, kingdomId: null, race: '',
       });
     }
+    // Armies: the kingdom's banner over each captain with two or more behind it.
+    for (const army of settlements.armySummaries()) {
+      if (army.soldiers < 2) continue;
+      targets.push({
+        id: army.id, kind: 'army', text: String(army.soldiers), color: army.color,
+        tileX: Math.floor(army.x), tileY: Math.floor(army.y),
+        capital: false, kingdomId: army.kingdomId, race: army.race, entityId: army.captainId,
+      });
+    }
     const existing = new Map(labelBridge.labels.map(label => [label.id, label]));
 
     let changed = targets.length !== labelBridge.labels.length;
@@ -1383,6 +1395,7 @@ export const useGameEngine = () => {
         if (previous.kingdomId !== target.kingdomId) changed = true;
         previous.kingdomId = target.kingdomId;
         previous.race = target.race;
+        previous.entityId = target.entityId;
         return previous;
       }
       changed = true;
@@ -1429,7 +1442,15 @@ export const useGameEngine = () => {
     const villageOpacity = THREE.MathUtils.clamp((0.85 - zoom) / 0.2, 0, 1);
 
     for (const label of labels) {
-      const band = label.kind === 'battle' ? 1 : label.kind === 'kingdom' ? kingdomOpacity : villageOpacity;
+      const band = label.kind === 'battle' || label.kind === 'army' ? 1 : label.kind === 'kingdom' ? kingdomOpacity : villageOpacity;
+      // An army's banner rides with its captain, not on the tile it was last seen.
+      if (label.entityId) {
+        const leader = entityManagerRef.current?.getEntityById(label.entityId);
+        if (leader) {
+          label.tileX = Math.floor(leader.position.x);
+          label.tileY = Math.floor(leader.position.y);
+        }
+      }
       if (band <= 0.01) {
         label.opacity = 0;
         continue;

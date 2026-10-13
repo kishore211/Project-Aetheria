@@ -9,7 +9,7 @@
 // here: the engine mutates these objects in place every frame, and the
 // component reads x/y off the very same objects in its own animation loop, so
 // following the camera never goes through React.
-export type LabelKind = 'kingdom' | 'village' | 'battle';
+export type LabelKind = 'kingdom' | 'village' | 'battle' | 'army';
 
 export interface MapLabel {
   id: string;
@@ -30,6 +30,8 @@ export interface MapLabel {
   /** Whose banner to fly beside the name. */
   kingdomId: string | null;
   race: string;
+  /** Follows this creature every frame instead of sitting on a tile (an army's captain). */
+  entityId?: string;
 }
 
 /**
