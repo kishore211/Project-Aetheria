@@ -52,3 +52,13 @@ describe('religion', () => {
     expect(holy.factors.some(f => f.label === 'Holy war')).toBe(true);
   });
 });
+
+describe('religion trait spread', () => {
+  it('does not hand neighbouring ids the same first trait', () => {
+    resetIdentity();
+    resetFaiths();
+    const firsts = new Set<string>();
+    for (let i = 0; i < 12; i++) firsts.add(faithOf(mintMeta('religion', i / 12).id)!.traits[0]);
+    expect(firsts.size).toBeGreaterThanOrEqual(4);
+  });
+});

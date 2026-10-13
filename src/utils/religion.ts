@@ -54,10 +54,13 @@ export const faithRoll = (): number => {
   return dice / 4294967296;
 };
 
+/** A well-mixed 0-1 from an id, so religion-1 and religion-2 roll unlike each other. */
 const idRoll = (id: string): number => {
-  let seed = 0;
-  for (let i = 0; i < id.length; i++) seed = (seed * 31 + id.charCodeAt(i)) % 100003;
-  return (seed % 997) / 997;
+  let h = 0x811c9dc5;
+  for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 0x01000193);
+  h = Math.imul(h ^ (h >>> 16), 0x85ebca6b);
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 };
 
 /** Two distinct traits, seeded so a test can pin them. */

@@ -568,7 +568,8 @@ canvas {
 .floater-host {
   position: fixed;
   inset: 0;
-  z-index: 12;
+  /* Under the HUD (10): speech belongs to the world, not on top of panels. */
+  z-index: 9;
   pointer-events: none;
   overflow: hidden;
 }

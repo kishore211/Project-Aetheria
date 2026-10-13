@@ -124,7 +124,7 @@ const ListWindow = ({ open, onClose }: { open: boolean; onClose: () => void }) =
           </button>
         </div>
 
-        <div className="flex gap-1 px-5 pt-2.5">
+        <div className="flex flex-wrap gap-1 px-5 pt-2.5">
           {TABS.map((entry) => {
             const Glyph = entry.icon;
             return (
