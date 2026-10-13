@@ -280,6 +280,7 @@ export type ExtraTool =
   | 'divine-light' | 'shield' | 'coffee' | 'inspire' | 'sleep' | 'clone'
   | 'dust-culture' | 'dust-language' | 'dust-religion' | 'dust-everything'
   | 'diplo-spite' | 'diplo-friendship' | 'diplo-whisper' | 'diplo-unity' | 'diplo-discord' | 'diplo-inspiration'
+  | 'border-paint' | 'border-erase'
   | 'gift-strong' | 'gift-swift' | 'gift-tough' | 'gift-genius' | 'gift-immortal' | 'gift-regeneration'
   | 'gift-lucky' | 'gift-giant' | 'gift-tiny' | 'gift-fireproof' | 'gift-bloodthirsty' | 'gift-peaceful'
   | 'trait-eraser' | 'gift-arms' | 'gold-rain' | 'youth' | 'love-potion' | 'swarm' | 'cluster-bomb'

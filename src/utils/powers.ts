@@ -609,6 +609,16 @@ export const POWERS: PowerEntry[] = [
     quip: 'A town struck by the idea that it could rule itself.',
   },
   {
+    kind: 'tool', id: 'border-paint', tab: 'realm', label: 'Border Brush', icon: 'Spline',
+    hint: 'Paint land into the nearest town. It keeps what you give it, even from a rival.',
+    quip: 'Cartography, but binding.',
+  },
+  {
+    kind: 'tool', id: 'border-erase', tab: 'realm', label: 'Border Eraser', icon: 'Eraser',
+    hint: 'Strip land from whatever town holds it. Its buildings will not claim it back.',
+    quip: 'Nobody owns this now. Good luck explaining that.',
+  },
+  {
     kind: 'tool', id: 'spawn-wolf', tab: 'life', label: 'Wolf', icon: 'Dog',
     hint: 'Hunts in packs.',
     quip: 'Doing arithmetic about you, and finishing it quickly.',

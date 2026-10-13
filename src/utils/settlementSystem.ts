@@ -137,6 +137,10 @@ export interface Village {
   store: VillageStore;
   /** Tile instance ids currently claimed. */
   territory: Set<number>;
+  /** Tiles the player's border brush gave it, held whatever its buildings reach. */
+  painted?: Set<number>;
+  /** Tiles the border eraser took away, never reclaimed by its buildings. */
+  erased?: Set<number>;
   founded: { year: number; season: string };
   /** The kingdom's first settlement. Capitals never send the last settlers. */
   capital: boolean;
@@ -999,10 +1003,14 @@ export class SettlementSystem {
           // Never take a tile another kingdom already owns; borders only
           // change through war.
           if (tile.ownerId && tile.ownerId !== kingdom.id) continue;
-          claimed.add(this.instanceId(tile));
+          const id = this.instanceId(tile);
+          if (village.erased?.has(id)) continue;
+          claimed.add(id);
         }
       }
     }
+    // What the god painted in stays painted.
+    for (const id of village.painted ?? []) claimed.add(id);
 
     // Only the difference needs repainting. Claims are recomputed every time a
     // building goes up or a border creeps outward, and a mature village holds
@@ -1031,6 +1039,45 @@ export class SettlementSystem {
     // one-tile skirt around everything that changed hands.
     for (const tile of gained) this.refreshOwnershipAround(tile);
     for (const tile of lost) this.refreshOwnershipAround(tile);
+  }
+
+  /**
+   * The border brush and eraser. Painting hands a tile to the nearest town
+   * (taking it from whoever held it); erasing frees it, and the town's own
+   * buildings will not take it back. Returns whether anything changed.
+   */
+  paintBorder(x: number, y: number, erase: boolean): boolean {
+    const tile = this.tileAt(x, y);
+    if (!tile || isWaterBiome(tile.type)) return false;
+    const id = this.instanceId(tile);
+    const holder = this.villageHolding(tile);
+    if (erase) {
+      if (!holder) return false;
+      holder.territory.delete(id);
+      holder.painted?.delete(id);
+      (holder.erased ??= new Set()).add(id);
+      tile.ownerId = null;
+      this.refreshOwnershipAround(tile);
+      return true;
+    }
+    let best: Village | null = null;
+    let bestDistance = 24 * 24;
+    for (const village of this.villages.values()) {
+      const d = (village.centerX - x) ** 2 + (village.centerY - y) ** 2;
+      if (d < bestDistance) { bestDistance = d; best = village; }
+    }
+    if (!best || holder === best) return false;
+    if (holder) {
+      holder.territory.delete(id);
+      holder.painted?.delete(id);
+      (holder.erased ??= new Set()).add(id);
+    }
+    best.erased?.delete(id);
+    (best.painted ??= new Set()).add(id);
+    best.territory.add(id);
+    tile.ownerId = best.kingdomId;
+    this.refreshOwnershipAround(tile);
+    return true;
   }
 
   private refreshOwnershipAround(tile: Tile): void {
@@ -3971,6 +4018,8 @@ export class SettlementSystem {
         founded: { year: 0, season: simulation.season },
         capital: saved.capital ?? false,
         claimBonus: saved.claimBonus ?? 0,
+        painted: saved.painted ? new Set(saved.painted) : undefined,
+        erased: saved.erased ? new Set(saved.erased) : undefined,
         age: 600,
         emptyFor: 0,
         restless: 0,

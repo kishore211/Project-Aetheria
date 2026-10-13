@@ -310,4 +310,14 @@ describe('the second batch of powers', () => {
     expect(tiles[4][4].height).toBeLessThan(0.9);
     expect(runExtraPower('pickaxe', tiles[8][8], ctx, hazards)).toBe(false);
   });
+
+  it('hands painted ground to a town and takes erased ground away', () => {
+    const { ctx, hazards, tiles } = world();
+    const calls: Array<[number, number, boolean]> = [];
+    ctx.paintBorder = (x, y, erase) => { calls.push([x, y, erase]); return true; };
+    expect(runExtraPower('border-paint', tiles[6][6], ctx, hazards)).toBe(true);
+    expect(runExtraPower('border-erase', tiles[6][6], ctx, hazards)).toBe(true);
+    expect(calls.some(([, , erase]) => !erase)).toBe(true);
+    expect(calls.some(([, , erase]) => erase)).toBe(true);
+  });
 });

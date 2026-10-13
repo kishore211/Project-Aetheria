@@ -43,6 +43,8 @@ export interface PowerContext {
   demolishAt: (x: number, y: number) => void;
   cancelPlotsBy: (entityId: string) => number;
   diplomacy: (act: DiplomacyAct, x: number, y: number) => string | null;
+  /** Hand a tile to the nearest town, or free it. */
+  paintBorder?: (x: number, y: number, erase: boolean) => boolean;
   summonCloud: (kind: DropKind, x: number, y: number) => void;
   announce: (message: string, kind: 'divine' | 'disaster' | 'info', at?: { x: number; y: number }) => void;
   fx: {
@@ -393,6 +395,15 @@ export const runExtraPower = (
   }
 
   // -- diplomacy -----------------------------------------------------------
+  if (tool === 'border-paint' || tool === 'border-erase') {
+    let changed = false;
+    ctx.forEachBrushTile(tile, brush, (target) => {
+      if (ctx.paintBorder?.(target.x, target.y, tool === 'border-erase')) changed = true;
+    });
+    if (changed) ctx.sound.click();
+    return changed;
+  }
+
   const act = DIPLOMACY[tool];
   if (act) {
     const line = ctx.diplomacy(act, tile.x, tile.y);

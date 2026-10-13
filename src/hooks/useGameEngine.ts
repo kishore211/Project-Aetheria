@@ -719,6 +719,7 @@ export const useGameEngine = () => {
       demolishAt: (x, y) => { settlementRef.current?.demolishAt(x, y); },
       cancelPlotsBy: (id) => settlementRef.current?.cancelPlotsBy(id, 'blessed') ?? 0,
       diplomacy: (act, x, y) => settlementRef.current?.intervene(act, x, y) ?? null,
+      paintBorder: (x, y, erase) => settlementRef.current?.paintBorder(x, y, erase) ?? false,
       summonCloud,
       announce: (message, kind, position) => store.addEvent(message, kind, position),
       fx: {

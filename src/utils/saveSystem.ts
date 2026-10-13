@@ -101,6 +101,9 @@ export interface SavedVillage {
   capital?: boolean;
   /** Territory the village has worked up beyond its buildings' base claim. */
   claimBonus?: number;
+  /** Tile instance ids the border brush gave it, and the eraser took. */
+  painted?: number[];
+  erased?: number[];
 }
 
 export interface SavedKingdom {
@@ -226,6 +229,8 @@ export const buildSave = (options: {
       store: { ...village.store },
       capital: village.capital,
       claimBonus: village.claimBonus,
+      painted: village.painted?.size ? [...village.painted] : undefined,
+      erased: village.erased?.size ? [...village.erased] : undefined,
       buildings: village.buildings.map(building => ({
         id: building.id,
         kind: building.kind,
