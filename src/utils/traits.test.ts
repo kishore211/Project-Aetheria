@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { TRAITS, applyTraits, hasTrait, inheritTraits, rollTraits } from './traits';
+import { TRAITS, applyTraits, earnTraits, grantTrait, hasTrait, inheritTraits, rollTraits, traitDamageFactor } from './traits';
 import { createEntity } from './entitySystemMinimal';
 
 describe('trait effects', () => {
@@ -61,6 +61,50 @@ describe('inheritance', () => {
       for (const trait of rollTraits()) {
         expect(TRAITS[trait]).toBeDefined();
       }
+    }
+  });
+});
+
+describe('the wider trait list', () => {
+  it('weakens the weak, the fragile and the slow', () => {
+    const plain = createEntity('human', 0, 0, []);
+    const poor = createEntity('human', 0, 0, ['weak', 'fragile', 'slow']);
+    expect(poor.attributes.strength).toBeLessThan(plain.attributes.strength);
+    expect(poor.maxHealth).toBeLessThan(plain.maxHealth);
+    expect(poor.attributes.speed).toBeLessThan(plain.attributes.speed);
+  });
+
+  it('cancels an opposite rather than stacking it', () => {
+    const e = createEntity('human', 0, 0, ['strong']);
+    grantTrait(e, 'weak');
+    expect(hasTrait(e, 'strong')).toBe(false);
+    expect(hasTrait(e, 'weak')).toBe(true);
+  });
+
+  it('makes a hurt berserker and a night child hit harder when it counts', () => {
+    const berserker = createEntity('orc', 0, 0, ['berserker']);
+    expect(traitDamageFactor(berserker, false)).toBe(1);
+    berserker.health = berserker.maxHealth * 0.2;
+    expect(traitDamageFactor(berserker, false)).toBeGreaterThan(1);
+    const night = createEntity('elf', 0, 0, ['nightchild']);
+    expect(traitDamageFactor(night, true)).toBeGreaterThan(traitDamageFactor(night, false));
+  });
+
+  it('earns veteran at ten kills and a scar from near death, once each', () => {
+    const e = createEntity('human', 0, 0, []);
+    e.kills = 10;
+    expect(earnTraits(e)).toBe('veteran');
+    expect(earnTraits(e)).toBeNull();
+    e.health = e.maxHealth * 0.1;
+    expect(earnTraits(e)).toBe('scarred');
+    expect(earnTraits(e)).toBeNull();
+  });
+
+  it('never rolls an earned trait at birth', () => {
+    for (let i = 0; i < 2000; i++) {
+      const rolled = rollTraits();
+      expect(rolled).not.toContain('veteran');
+      expect(rolled).not.toContain('scarred');
     }
   });
 });

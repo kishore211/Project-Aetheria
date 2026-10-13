@@ -287,7 +287,22 @@ export type TraitId =
   | 'lucky'
   | 'nimble'
   | 'glutton'
-  | 'armored';
+  | 'armored'
+  | 'weak'
+  | 'fragile'
+  | 'slow'
+  | 'fat'
+  | 'stupid'
+  | 'short_lived'
+  | 'berserker'
+  | 'thorns'
+  | 'battle_reflexes'
+  | 'precise'
+  | 'nightchild'
+  | 'sunblessed'
+  | 'unlucky'
+  | 'veteran'
+  | 'scarred';
 
 // Race types for civilizations
 export type Race = 'human' | 'elf' | 'dwarf' | 'orc';

@@ -9,7 +9,7 @@ import { isAquatic } from './pathfinding';
 import { setEntanglewood } from './biomeEffects';
 import { TILE_SIZE, type Tile, type Entity, type EntityType } from '../types/world';
 import { createEntity, createEntityMesh, updateEntityMesh, EntityAI, type AIOrder } from './entitySystemMinimal';
-import { inheritTraits } from './traits';
+import { earnTraits, inheritTraits } from './traits';
 import { simulation } from './simulation';
 import { emitDamage, emitFloater } from './floatBridge';
 import { chronicle, deathTopic } from './chronicle';
@@ -377,7 +377,16 @@ export class EntityManager implements EntityIndex {
       entity.health = Math.min(entity.maxHealth, entity.health + entity.maxHealth * 0.02 * delta);
     }
 
-    if (Math.random() < this.deathProbability * delta) {
+    // Earned traits: checked here because both kills and wounds land elsewhere.
+    if ((entity.kills ?? 0) >= 10 || entity.health < entity.maxHealth * 0.15) {
+      const earned = earnTraits(entity);
+      if (earned) {
+        emitFloater({ kind: 'speech', text: earned === 'veteran' ? 'I have done this before.' : 'That one will leave a mark.', x: entity.position.x, y: entity.position.y, entityId: entity.id });
+      }
+    }
+
+    const accidents = traits.includes('unlucky') ? 2 : 1;
+    if (Math.random() < this.deathProbability * delta * accidents) {
       // Lucky: half of the accidents that would have happened, do not.
       if (!(traits.includes('lucky') && Math.random() < 0.5)) {
         this.killEntity(entity, 'random');

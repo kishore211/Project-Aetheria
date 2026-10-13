@@ -28,7 +28,7 @@ import {
   isShoreTile,
   isWalkableForEntity,
 } from './pathfinding';
-import { applyTraits, rollTraitsForType } from './traits';
+import { applyTraits, rollTraitsForType, traitDamageFactor } from './traits';
 import { simulation } from './simulation';
 import { emitDamage, emitFloater } from './floatBridge';
 import { applyStatus, clearStatus, FLASH_SECONDS, type StatusId } from './statusEffects';
@@ -1989,15 +1989,25 @@ export class EntityAI {
       this.addTimedStatus('attacking');
       return;
     }
+    if (targetTraits.includes('battle_reflexes') && Math.random() < 1 / 7) {
+      this.addTimedStatus('attacking');
+      return;
+    }
     const fury = this.entity.status.includes('inspired') || this.entity.status.includes('enraged') ? 1.4 : 1;
     const venom = this.entity.traits?.includes('venomous') ? 1.35 : 1;
     const hide = targetTraits.includes('armored') ? 0.67 : 1;
     // The arm and the blade, then whatever the other side is wearing.
     const flame = weapon?.modifier === 'flaming' ? 3 : 0;
     const veteran = 1 + (levelOf(this.entity) - 1) * 0.06;
-    const raw = (this.entity.attributes.strength * 0.6 * venom + weaponDamage(weapon) + flame) * fury * hide * veteran;
+    const gifted = traitDamageFactor(this.entity, simulation.timeOfDay === 'night');
+    const crit = this.entity.traits?.includes('precise') && Math.random() < 0.125 ? 2 : 1;
+    const raw = (this.entity.attributes.strength * 0.6 * venom + weaponDamage(weapon) + flame) * fury * hide * veteran * gifted * crit;
     const blow = raw * (1 - armorBlock(target.equipment?.armor));
     target.health -= blow;
+    if (targetTraits.includes('thorns')) {
+      this.entity.health -= blow * 0.25;
+      if (this.entity.health <= 0 && !this.entity.status.includes('slain')) this.entity.status.push('slain');
+    }
     emitDamage(target.position.x, target.position.y, blow, target.id);
     if (weapon?.modifier === 'vampiric') {
       this.entity.health = Math.min(this.entity.maxHealth, this.entity.health + blow * 0.3);

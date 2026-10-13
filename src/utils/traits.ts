@@ -30,6 +30,21 @@ export const TRAITS: Record<TraitId, TraitInfo> = {
   nimble: { id: 'nimble', label: 'Nimble', description: 'Dodges one blow in four.', tone: 'text-cyan-300' },
   glutton: { id: 'glutton', label: 'Glutton', description: 'Always hungry, and it shows.', tone: 'text-orange-200' },
   armored: { id: 'armored', label: 'Thick-skinned', description: 'Shrugs off a third of every wound.', tone: 'text-stone-300' },
+  weak: { id: 'weak', label: 'Weak', description: 'Hits a good deal softer than its kind.', tone: 'text-slate-400' },
+  fragile: { id: 'fragile', label: 'Fragile', description: 'Breaks easily: much less health.', tone: 'text-slate-400' },
+  slow: { id: 'slow', label: 'Slow', description: 'Gets there eventually.', tone: 'text-slate-400' },
+  fat: { id: 'fat', label: 'Fat', description: 'Hard to knock down, harder to hurry.', tone: 'text-amber-200' },
+  stupid: { id: 'stupid', label: 'Dim', description: 'Not the sharpest. Notices less.', tone: 'text-slate-400' },
+  short_lived: { id: 'short_lived', label: 'Short-lived', description: 'Burns out early.', tone: 'text-slate-400' },
+  berserker: { id: 'berserker', label: 'Berserker', description: 'Hits half again as hard when badly hurt.', tone: 'text-red-400' },
+  thorns: { id: 'thorns', label: 'Thorns', description: 'Whoever strikes it is cut by a quarter of the blow.', tone: 'text-lime-300' },
+  battle_reflexes: { id: 'battle_reflexes', label: 'Battle Reflexes', description: 'Turns aside one blow in seven.', tone: 'text-cyan-200' },
+  precise: { id: 'precise', label: 'Precise', description: 'One blow in eight is a critical hit for double.', tone: 'text-yellow-200' },
+  nightchild: { id: 'nightchild', label: 'Night Child', description: 'Stronger in the dark.', tone: 'text-indigo-300' },
+  sunblessed: { id: 'sunblessed', label: 'Sunblessed', description: 'Stronger in daylight.', tone: 'text-yellow-300' },
+  unlucky: { id: 'unlucky', label: 'Unlucky', description: 'Accidents find it twice as often.', tone: 'text-slate-400' },
+  veteran: { id: 'veteran', label: 'Veteran', description: 'Earned with ten kills: a fifth stronger.', tone: 'text-orange-300' },
+  scarred: { id: 'scarred', label: 'Scarred', description: 'Survived a near death, and is tougher for it.', tone: 'text-rose-300' },
 };
 
 const ALL_TRAITS = Object.keys(TRAITS) as TraitId[];
@@ -56,6 +71,22 @@ const WEIGHTS: Record<TraitId, number> = {
   nimble: 5,
   glutton: 6,
   armored: 4,
+  weak: 5,
+  fragile: 4,
+  slow: 4,
+  fat: 4,
+  stupid: 5,
+  short_lived: 3,
+  berserker: 3,
+  thorns: 2,
+  battle_reflexes: 3,
+  precise: 3,
+  nightchild: 3,
+  sunblessed: 3,
+  unlucky: 3,
+  // Earned, never born with.
+  veteran: 0,
+  scarred: 0,
 };
 
 const pickWeighted = (): TraitId => {
@@ -108,6 +139,9 @@ export const grantTrait = (entity: Entity, trait: TraitId): boolean => {
   // Opposites cancel rather than stack: a giant made tiny is merely ordinary.
   const opposite: Partial<Record<TraitId, TraitId>> = {
     giant: 'tiny', tiny: 'giant', peaceful: 'bloodthirsty', bloodthirsty: 'peaceful', coward: 'bloodthirsty',
+    weak: 'strong', strong: 'weak', fragile: 'tough', tough: 'fragile', slow: 'swift', swift: 'slow',
+    stupid: 'genius', genius: 'stupid', short_lived: 'longevity', longevity: 'short_lived',
+    unlucky: 'lucky', lucky: 'unlucky', nightchild: 'sunblessed', sunblessed: 'nightchild',
   };
   const clash = opposite[trait];
   if (clash && traits.includes(clash)) traits.splice(traits.indexOf(clash), 1);
@@ -147,6 +181,33 @@ const applyTrait = (entity: Entity, trait: TraitId): void => {
         entity.health = entity.maxHealth;
         entity.attributes.speed = Math.round(entity.attributes.speed * 1.2);
         break;
+      case 'weak':
+        entity.attributes.strength = Math.max(1, Math.round(entity.attributes.strength * 0.6));
+        break;
+      case 'fragile':
+        entity.maxHealth = Math.max(1, Math.round(entity.maxHealth * 0.6));
+        entity.health = Math.min(entity.health, entity.maxHealth);
+        break;
+      case 'slow':
+        entity.attributes.speed = Math.max(1, Math.round(entity.attributes.speed * 0.65));
+        break;
+      case 'fat':
+        entity.maxHealth = Math.round(entity.maxHealth * 1.25);
+        entity.health = Math.min(entity.maxHealth, entity.health * 1.25);
+        entity.attributes.speed = Math.max(1, Math.round(entity.attributes.speed * 0.8));
+        break;
+      case 'stupid':
+        entity.attributes.intelligence = Math.max(1, Math.round(entity.attributes.intelligence * 0.5));
+        break;
+      case 'short_lived':
+        entity.maxAge = Math.round(entity.maxAge * 0.6);
+        break;
+      case 'veteran':
+        entity.attributes.strength = Math.round(entity.attributes.strength * 1.2);
+        break;
+      case 'scarred':
+        entity.maxHealth = Math.round(entity.maxHealth * 1.1);
+        break;
       default:
         break;
     }
@@ -155,6 +216,33 @@ const applyTrait = (entity: Entity, trait: TraitId): void => {
 
 export const hasTrait = (entity: Entity, trait: TraitId): boolean =>
   entity.traits?.includes(trait) ?? false;
+
+/**
+ * How much harder a creature hits right now, from its traits: berserkers
+ * when badly hurt, night children after dark, the sunblessed by day.
+ */
+export const traitDamageFactor = (entity: Entity, isNight: boolean): number => {
+  const traits = entity.traits;
+  if (!traits || traits.length === 0) return 1;
+  let factor = 1;
+  if (traits.includes('berserker') && entity.health < entity.maxHealth * 0.4) factor *= 1.5;
+  if (traits.includes('nightchild')) factor *= isNight ? 1.3 : 0.9;
+  if (traits.includes('sunblessed')) factor *= isNight ? 0.9 : 1.25;
+  return factor;
+};
+
+/** Traits a life earns: ten kills makes a veteran, surviving near death leaves a scar. */
+export const earnTraits = (entity: Entity): TraitId | null => {
+  if ((entity.kills ?? 0) >= 10 && !hasTrait(entity, 'veteran')) {
+    grantTrait(entity, 'veteran');
+    return 'veteran';
+  }
+  if (entity.health > 0 && entity.health < entity.maxHealth * 0.15 && !hasTrait(entity, 'scarred')) {
+    grantTrait(entity, 'scarred');
+    return 'scarred';
+  }
+  return null;
+};
 
 /** Sentient races get slightly better odds of an interesting trait. */
 export const rollTraitsForType = (type: EntityType): TraitId[] => {
