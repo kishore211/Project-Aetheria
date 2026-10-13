@@ -546,6 +546,7 @@ export const useGameEngine = () => {
       herdInfo: (entity) => herds.describe(entity),
       villageInfo: (x: number, y: number) => settlements.describeVillage(x, y),
       armies: () => settlements.armySummaries(),
+      intervene: (act, x, y) => settlements.intervene(act, x, y),
     });
 
     // Apply a queued save on top of the freshly generated world

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Handshake, Home, MapPin, Shield, Sword, Swords, Users, X } from 'lucide-react';
+import { HeartHandshake, Handshake, Home, MapPin, Megaphone, Shield, Sword, Swords, Unlink, Users, X } from 'lucide-react';
+import { worldAccess } from '../../utils/worldAccess';
 import { useGameStore, type KingdomSummary } from '../../store/gameStore';
 import Banner from './Banner';
 
@@ -78,6 +79,27 @@ const KingdomWindow = ({ id, onClose }: { id: string; onClose: () => void }) => 
             ? <ul className="unit-status">{kingdom.allies!.map((name) => <li key={name} className="is-ally">{name}</li>)}</ul>
             : <p className="unit-line">Nobody has sworn to them.</p>}
         </div>
+
+        {kingdom.capital && (
+          <div className="unit-actions kingdom-acts">
+            {([
+              ['whisper', 'Whisper of war: set it on the neighbour it resents most', Swords],
+              ['friendship', 'Friendship: end its wars and calm every grudge', Handshake],
+              ['unity', 'Unity: ally it with its nearest neighbour', HeartHandshake],
+              ['discord', 'Discord: break its alliances', Unlink],
+              ['spite', 'Spite: make every realm resent it', Megaphone],
+            ] as const).map(([act, title, Icon]) => (
+              <button
+                key={act}
+                type="button"
+                title={title}
+                onClick={() => worldAccess.current?.intervene?.(act, kingdom.capital!.x, kingdom.capital!.y)}
+              >
+                <Icon size={18} />
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="unit-actions">
           {kingdom.capital && (

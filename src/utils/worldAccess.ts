@@ -18,6 +18,8 @@ export interface WorldAccess {
   captureSave: (label: string) => SaveGame;
   /** Herd this creature travels with, for the inspector. */
   herdInfo: (entity: Entity) => { size: number; isAlpha: boolean } | null;
+  /** The diplomacy powers, aimed at a kingdom from its window. */
+  intervene?: (act: 'spite' | 'friendship' | 'whisper' | 'unity' | 'discord', x: number, y: number) => string | null;
   /** Every standing army, for the register and the map banners. */
   armies?: () => Array<{
     id: string; captainId: string; captain: string; kingdomId: string; kingdom: string; color: string;
