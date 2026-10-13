@@ -15,6 +15,7 @@ import { emitDamage, emitFloater } from './floatBridge';
 import { chronicle, deathTopic } from './chronicle';
 import { recordBirth } from './worldStats';
 import { applyStatus, clearStatus, forgetStatuses } from './statusEffects';
+import { faithHas } from './religion';
 import { seedMood } from './mood';
 import { viewFraction } from './cameraView';
 import { applyScenario } from './scenarios';
@@ -492,6 +493,12 @@ export class EntityManager implements EntityIndex {
       x: entity.position.x, y: entity.position.y,
     });
     this.mournFor(entity);
+    // Martyrdom: a faithful who falls in battle stirs the faithful around it.
+    if (cause === 'combat' && entity.religionId && faithHas(entity.religionId, 'martyrdom')) {
+      for (const other of this.query(entity.position.x, entity.position.y, 5)) {
+        if (other.id !== entity.id && other.religionId === entity.religionId && other.health > 0) applyStatus(other, 'enraged');
+      }
+    }
 
     const ix = Math.floor(entity.position.x);
     const iy = Math.floor(entity.position.y);
