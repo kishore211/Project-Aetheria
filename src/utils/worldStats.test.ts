@@ -118,3 +118,19 @@ describe('world statistics', () => {
     expect(readStats().deathsByCause.combat).toBe(1);
   });
 });
+
+describe('realm history', () => {
+  it('keeps a line per realm, and a fallen realm drops to zero', async () => {
+    const stats = await import('./worldStats');
+    stats.resetStats();
+    let realms = [{ id: 'k1', name: 'A', color: '#f00', population: 5 }, { id: 'k2', name: 'B', color: '#00f', population: 3 }];
+    stats.setRealmSource(() => realms);
+    stats.sampleWorld(stats.SAMPLE_INTERVAL, 8);
+    realms = [{ id: 'k1', name: 'A', color: '#f00', population: 7 }];
+    stats.sampleWorld(stats.SAMPLE_INTERVAL, 7);
+    const history = stats.readStats().realmHistory;
+    expect(history.find(r => r.id === 'k1')?.values).toEqual([5, 7]);
+    expect(history.find(r => r.id === 'k2')?.values).toEqual([3, 0]);
+    stats.setRealmSource(() => []);
+  });
+});

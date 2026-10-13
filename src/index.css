@@ -1703,3 +1703,7 @@ canvas {
 .item-q-fine { color: #7fd0ff; }
 .item-q-masterwork { color: #c49bff; }
 .item-q-legendary { color: #ffd84a; }
+.stats-realms { height: 5rem; }
+.stats-legend { display: flex; flex-wrap: wrap; gap: 0.2rem 0.8rem; margin-top: 0.35rem; font-size: 0.7rem; color: #cbd5e1; }
+.stats-legend li { display: flex; align-items: center; gap: 0.3rem; }
+.stats-legend b { color: #fff; }

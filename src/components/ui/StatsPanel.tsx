@@ -48,6 +48,28 @@ const Sparkline = ({ values }: { values: number[] }) => {
   );
 };
 
+/** One line per realm, on a shared scale, the way WorldBox graphs its kingdoms. */
+const RealmGraph = ({ realms }: { realms: WorldStats['realmHistory'] }) => {
+  const length = Math.max(0, ...realms.map(r => r.values.length));
+  if (length < 2) return <div className="stats-spark-empty">The realms need a little history first.</div>;
+  const peak = Math.max(1, ...realms.flatMap(r => r.values));
+  const width = 100;
+  const height = 40;
+  const step = width / (length - 1);
+  return (
+    <svg className="stats-spark stats-realms" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
+      {realms.map((realm) => {
+        // Right-aligned: a realm founded late starts partway along.
+        const offset = length - realm.values.length;
+        const points = realm.values
+          .map((v, i) => `${((offset + i) * step).toFixed(2)},${(height - (v / peak) * height).toFixed(2)}`)
+          .join(' ');
+        return <polyline key={realm.id} points={points} fill="none" stroke={realm.color} strokeWidth="1.6" vectorEffect="non-scaling-stroke" />;
+      })}
+    </svg>
+  );
+};
+
 const StatsPanel = ({ open, onClose }: { open: boolean; onClose: () => void }) => {
   const population = useGameStore((state) => state.population);
   const kingdoms = useGameStore((state) => state.kingdoms);
@@ -114,6 +136,21 @@ const StatsPanel = ({ open, onClose }: { open: boolean; onClose: () => void }) =
             && ' — well below its high water mark'}
           {population > 0 && population >= stats.peakPopulation && ' — and still climbing'}
         </p>
+
+        {stats.realmHistory.length > 0 && (
+          <>
+            <h3 className="stats-heading mt-4">Realms over time</h3>
+            <RealmGraph realms={stats.realmHistory} />
+            <ul className="stats-legend">
+              {stats.realmHistory.map((realm) => (
+                <li key={realm.id}>
+                  <i className="stats-swatch" style={{ background: realm.color }} />
+                  {realm.name} <b>{realm.values[realm.values.length - 1] ?? 0}</b>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
 
         <h3 className="stats-heading mt-4">
           <Skull size={13} className="text-red-300" />

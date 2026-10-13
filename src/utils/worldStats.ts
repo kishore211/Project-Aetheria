@@ -46,6 +46,8 @@ export interface WorldStats {
   populationHistory: number[];
   /** Seconds of simulated time since this world was made. */
   age: number;
+  /** Each kingdom's population at every sample, aligned with populationHistory's tail. */
+  realmHistory: Array<{ id: string; name: string; color: string; values: number[] }>;
 }
 
 const emptyCauses = (): Record<DeathCause, number> => ({
@@ -62,6 +64,13 @@ const samples = new Array<number>(SAMPLE_COUNT).fill(0);
 let sampleHead = 0;
 let sampleFilled = 0;
 let sampleTimer = 0;
+
+/** Per-realm population, one entry per sample since the realm appeared. */
+const realms = new Map<string, { name: string; color: string; values: number[] }>();
+let realmSource: () => Array<{ id: string; name: string; color: string; population: number }> = () => [];
+
+/** Where the realm populations are read from at each sample. */
+export const setRealmSource = (source: typeof realmSource): void => { realmSource = source; };
 
 export const recordBirth = (): void => { births += 1; };
 
@@ -90,6 +99,26 @@ export const sampleWorld = (delta: number, population: number): void => {
   samples[sampleHead] = population;
   sampleHead = (sampleHead + 1) % SAMPLE_COUNT;
   sampleFilled = Math.min(SAMPLE_COUNT, sampleFilled + 1);
+
+  // Realms: a fallen kingdom keeps its line, flat at zero, so its rise and
+  // fall stay on the graph.
+  const seen = new Set<string>();
+  for (const realm of realmSource()) {
+    seen.add(realm.id);
+    const row = realms.get(realm.id) ?? { name: realm.name, color: realm.color, values: [] };
+    row.name = realm.name;
+    row.color = realm.color;
+    row.values.push(realm.population);
+    if (row.values.length > SAMPLE_COUNT) row.values.shift();
+    realms.set(realm.id, row);
+  }
+  for (const [id, row] of realms) {
+    if (seen.has(id)) continue;
+    row.values.push(0);
+    if (row.values.length > SAMPLE_COUNT) row.values.shift();
+    // Forgotten once it has been dead for the whole window.
+    if (row.values.every(v => v === 0)) realms.delete(id);
+  }
 };
 
 export const readStats = (): WorldStats => {
@@ -108,6 +137,7 @@ export const readStats = (): WorldStats => {
     peakPopulation,
     populationHistory: history,
     age,
+    realmHistory: [...realms].map(([id, row]) => ({ id, name: row.name, color: row.color, values: [...row.values] })),
   };
 };
 
@@ -117,6 +147,7 @@ export const resetStats = (): void => {
   deathsByCause = emptyCauses();
   peakPopulation = 0;
   age = 0;
+  realms.clear();
   samples.fill(0);
   sampleHead = 0;
   sampleFilled = 0;

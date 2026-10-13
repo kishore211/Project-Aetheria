@@ -48,7 +48,7 @@ import { resetPlotIds } from '../utils/plots';
 import { resetIdentity } from '../utils/identity';
 import { viewFraction, visibleWorldSpan } from '../utils/cameraView';
 import { ageBridge } from '../utils/ageBridge';
-import { recordDeath, resetStats, sampleWorld } from '../utils/worldStats';
+import { recordDeath, resetStats, sampleWorld, setRealmSource } from '../utils/worldStats';
 
 /** Mirrors entitySystemMinimal: only the sentient races get bubbles. */
 const SPEAKING_RACES = new Set<string>(['human', 'elf', 'dwarf', 'orc']);
@@ -372,6 +372,7 @@ export const useGameEngine = () => {
     scene.add(creatureLayerRef.current.mesh);
     conwayRef.current = new ConwayLayer();
     scene.add(conwayRef.current.mesh);
+    setRealmSource(() => useGameStore.getState().kingdoms.map(k => ({ id: k.id, name: k.name, color: k.color, population: k.population })));
     onItemEvent((event) => {
       const line = itemEventLine(event);
       if (line) useGameStore.getState().addEvent(line, 'info', { ...event.owner.position });
