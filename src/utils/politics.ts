@@ -299,6 +299,12 @@ export interface OpinionInput {
   allied: boolean;
   /** True if these two have made peace before. */
   foughtBefore: boolean;
+  /** How warlike the two peoples are by nature (orcs most of all). */
+  temperament?: number;
+  /** Either realm has filled its land and wants its neighbour's. */
+  landHungry?: boolean;
+  /** Their caravans have been on each other's roads lately. */
+  tradePartners?: boolean;
 }
 
 export interface OpinionResult {
@@ -352,6 +358,9 @@ export const opinionBetween = (input: OpinionInput): OpinionResult => {
   }
 
   if (input.foughtBefore) add('Old grievances', -12);
+  if (input.temperament) add('Bloodlust', -input.temperament);
+  if (input.landHungry) add('Land hunger', -18);
+  if (input.tradePartners) add('Trade partners', 16);
 
   factors.sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
   const total = factors.reduce((sum, factor) => sum + factor.value, 0);

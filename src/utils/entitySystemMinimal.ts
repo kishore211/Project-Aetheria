@@ -3,6 +3,7 @@
 // Creature creation, rendering and the needs-driven AI state machine.
 // Every creature is autonomous: it drinks, forages, hunts, flees, fights,
 // sleeps, breeds and dies without any central script.
+import { depositOf, isOre } from './oreVeins';
 import * as THREE from 'three';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -79,15 +80,21 @@ export interface AIOrder {
   kind: 'goto';
   x: number;
   y: number;
-  purpose: 'deliver' | 'build' | 'raid' | 'return' | 'herd' | 'settle';
+  purpose: 'deliver' | 'build' | 'raid' | 'return' | 'herd' | 'settle' | 'farm' | 'trade';
 }
+
+const TREE_STRUCTURES = new Set(['mature_tree', 'ancient_tree', 'young_tree']);
+const isStandingTree = (tile: Tile): boolean => TREE_STRUCTURES.has(tile.structure?.type ?? '');
+const hasWood = (tile: Tile): boolean => tile.resources.some(r => r.type === 'wood' && r.quantity > 0);
+/** Woods that turn to open grass once their last tree comes down. */
+const FELLED_TO_CLEARING = new Set<string>(['deciduous_forest', 'coniferous_forest', 'tropical_forest', 'rainforest', 'taiga']);
 
 // Predator-Prey relationships
 export const FOOD_CHAIN: Record<EntityType, EntityType[]> = {
   human: ['rabbit', 'deer', 'fish', 'sheep', 'chicken'],
   elf: ['fish', 'deer'],
   dwarf: ['fish'],
-  orc: ['human', 'elf', 'rabbit', 'deer', 'fish', 'sheep'],
+  orc: ['rabbit', 'deer', 'fish', 'sheep', 'pig', 'cow'],
   wolf: ['rabbit', 'deer', 'sheep', 'chicken', 'goat'],
   bear: ['fish', 'rabbit', 'deer', 'human', 'sheep'],
   deer: [],
@@ -1285,9 +1292,33 @@ export class EntityAI {
       }
     }
 
+    // Woodcutters fell trees and miners dig ore. These are the trades that
+    // change the map: a wood thins out round a busy town, and a vein of gold
+    // in the hills is worked until there is nothing left of it.
+    if (
+      (this.entity.job === 'woodcutter' || this.entity.job === 'miner')
+      && wants(this.entity, 'work')
+      && this.entity.villageId
+      && !this.entity.carrying
+      && this.entity.needs.hunger > 0.35
+    ) {
+      const workTile = this.entity.job === 'miner'
+        ? this.findNearbyTile(tiles, 18, tile => depositOf(tile) !== null)
+          ?? this.findNearbyTile(tiles, 10, tile => tile.resources.some(r => r.type === 'stone' && r.quantity > 0))
+        : this.findNearbyTile(tiles, 14, tile => isStandingTree(tile) && hasWood(tile))
+          ?? this.findNearbyTile(tiles, 10, hasWood);
+      if (workTile) {
+        this.targetTile = workTile;
+        this.path = [];
+        this.currentState = 'moving';
+        this.ticksSinceLastAction = 0;
+        return;
+      }
+    }
+
     // Village workers fetch building material once they are fed
     if (
-      this.entity.job === 'gatherer'
+      (this.entity.job === 'gatherer' || this.entity.job === 'builder')
       && wants(this.entity, 'work')
       && this.entity.villageId
       && !this.entity.carrying
@@ -1721,8 +1752,12 @@ export class EntityAI {
 
   /** Anything this unit would stop to pick up. */
   private hasHarvestableResource(tile: Tile): boolean {
+    if (this.entity.villageId && this.entity.job === 'miner') {
+      return depositOf(tile) !== null || tile.resources.some(r => r.type === 'stone' && r.quantity > 0);
+    }
+    if (this.entity.villageId && this.entity.job === 'woodcutter' && hasWood(tile)) return true;
     if (tile.resources.some(r => r.type === 'food' && r.quantity > 0)) return true;
-    if (this.entity.job !== 'gatherer' || !this.entity.villageId) return false;
+    if ((this.entity.job !== 'gatherer' && this.entity.job !== 'builder') || !this.entity.villageId) return false;
     return tile.resources.some(r => (r.type === 'wood' || r.type === 'stone') && r.quantity > 0);
   }
 
@@ -1731,9 +1766,17 @@ export class EntityAI {
       this.currentState = 'idle';
       return;
     }
-    if (this.ticksSinceLastAction < 0.8) return;
+    const job = this.entity.villageId ? this.entity.job : null;
+    // A swing of the pick takes longer than picking berries.
+    if (this.ticksSinceLastAction < (job === 'miner' ? 2.2 : job === 'woodcutter' ? 1.6 : 0.8)) return;
 
     const tile = this.targetTile;
+    if ((job === 'miner' || job === 'woodcutter') && !this.entity.carrying) {
+      this.work(tile, job);
+      this.currentState = 'idle';
+      this.ticksSinceLastAction = 0;
+      return;
+    }
     const food = tile.resources.find(r => r.type === 'food' && r.quantity > 0);
     if (food) {
       food.quantity -= 1;
@@ -1752,7 +1795,7 @@ export class EntityAI {
     }
 
     // Village workers also fell timber and quarry stone
-    if (this.entity.job === 'gatherer' && this.entity.villageId && !this.entity.carrying) {
+    if ((this.entity.job === 'gatherer' || this.entity.job === 'builder') && this.entity.villageId && !this.entity.carrying) {
       const haul = tile.resources.find(r => (r.type === 'wood' || r.type === 'stone') && r.quantity > 0);
       if (haul) {
         haul.quantity -= 1;
@@ -1766,6 +1809,38 @@ export class EntityAI {
 
     this.currentState = 'idle';
     this.ticksSinceLastAction = 0;
+  }
+
+  /**
+   * One stroke of a trade: a load of ore or timber off the tile and into the
+   * worker's arms. When the tile gives out the map changes with it — the ore
+   * patch is gone, the tree is a clearing — and it is repainted.
+   */
+  private work(tile: Tile, job: 'miner' | 'woodcutter'): void {
+    if (job === 'miner') {
+      const ore = tile.resources.find(r => r.quantity > 0 && isOre(r.type))
+        ?? tile.resources.find(r => r.type === 'stone' && r.quantity > 0);
+      if (!ore) return;
+      ore.quantity -= 1;
+      this.entity.carrying = { type: ore.type, quantity: isOre(ore.type) ? 1 : 2 };
+      if (ore.quantity <= 0) {
+        tile.resources.splice(tile.resources.indexOf(ore), 1);
+        if (isOre(ore.type)) simulation.syncTile?.(tile.x, tile.y);
+      }
+      return;
+    }
+    const wood = tile.resources.find(r => r.type === 'wood' && r.quantity > 0);
+    if (!wood) return;
+    wood.quantity -= 2;
+    this.entity.carrying = { type: 'wood', quantity: 3 };
+    if (wood.quantity > 0) return;
+    tile.resources.splice(tile.resources.indexOf(wood), 1);
+    if (isStandingTree(tile)) {
+      // Felled. A forest tile with nothing left standing becomes a clearing.
+      tile.structure = null;
+      if (FELLED_TO_CLEARING.has(tile.type)) simulation.setBiome?.(tile.x, tile.y, 'grassland');
+      simulation.syncTile?.(tile.x, tile.y);
+    }
   }
 
   private handleHuntingState(tiles: Tile[][], deltaTime: number): void {

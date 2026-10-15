@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import SimplexNoise from './simplexNoise';
 import seedrandom from 'seedrandom';
+import { seedOreVeins } from './oreVeins';
 import {
   MIN_TILE_HEIGHT,
   TILE_SIZE,
@@ -344,7 +345,7 @@ export const getBiomeColor = (
 const calculateResourceProbabilities = (
   biome: BiomeType,
   elevation: number,
-): Record<ResourceTypeName, number> => {
+): Partial<Record<ResourceTypeName, number>> => {
   const baseProbabilities = {
     wood: 0.1,
     stone: 0.1,
@@ -710,6 +711,11 @@ export const generateWorld = ({
   // --- Coastlines -------------------------------------------------------
   // Run after biomes, because it rewrites the types they assigned.
   shapeCoastlines(tilesData, mapSize);
+
+  // --- Ore ----------------------------------------------------------------
+  // Last, because it reads the final biomes: veins of visible ore in the
+  // hills and mountains in place of minerals scattered everywhere unseen.
+  seedOreVeins(tilesData, seed);
 
   return { tilesData };
 };

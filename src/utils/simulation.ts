@@ -36,6 +36,8 @@ export interface SimulationContext {
   igniteTile?: (x: number, y: number) => void;
   /** Repaint a tile as another biome (a Cold One's trail of snow). */
   setBiome?: (x: number, y: number, type: BiomeType) => void;
+  /** Repaint one tile after something on it changed (a tree felled, ore dug out). */
+  syncTile?: (x: number, y: number) => void;
   /** Knock down whatever building stands on a tile (Crabzilla). */
   demolishAt?: (x: number, y: number) => boolean;
   /** The well in a unit's home village, if it has one. */

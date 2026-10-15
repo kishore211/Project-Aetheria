@@ -7,6 +7,7 @@
 //
 // Everything here is driven by the same units the player can inspect — there is
 // no separate "civ AI" acting at a distance.
+import { isOre, ORE_VALUE } from './oreVeins';
 import * as THREE from 'three';
 import {
   TILE_SIZE,
@@ -74,7 +75,7 @@ import { isChild } from './size';
 import { buildingSprite, roofSprite } from './pixelAtlas';
 import { conquestOutcome, formationSlots } from './army';
 import { faithOf, faithRoll, foundFaith, holyWarTension } from './religion';
-import { emitItemEvent, equip, forgeItem, forgePriority, MATERIAL_COST } from './equipment';
+import { emitItemEvent, equip, forgeItem, forgePriority, MATERIAL_COST, type Material } from './equipment';
 import {
   generateKingdomName,
   generateRulerName,
@@ -125,6 +126,13 @@ export interface VillageStore {
   stone: number;
   /** The village treasury. Taxes flow in; the ledger and thieves flow out. */
   gold: number;
+  /** Worked metal from the mines: iron, copper, silver. The smith's stock. */
+  metal?: number;
+  /** Cut gems and crystal, for the market and the crown. */
+  gems?: number;
+  /** The rare metals, one ingot at a time. */
+  mithril?: number;
+  adamantine?: number;
 }
 
 export interface Village {
@@ -163,6 +171,15 @@ export interface Village {
   loyalty?: LoyaltyResult;
   /** Seconds this village has sat below the rebellion threshold. */
   restless: number;
+}
+
+/** A trader walking goods from one town to another and back. */
+interface Caravan {
+  from: string;
+  to: string;
+  leg: 'out' | 'home';
+  /** Seconds before an errand that never arrives is given up. */
+  timeout: number;
 }
 
 /** A group walking out to found a new village. */
@@ -238,7 +255,7 @@ const RECIPES: BuildingRecipe[] = [
   { kind: 'mine', wood: 4, stone: 6, requires: 7, limit: 2, size: 0.6, priority: 60 },
   { kind: 'stockpile', wood: 4, stone: 0, requires: 3, limit: 1, size: 0.6, priority: 56 },
   { kind: 'dummy', wood: 3, stone: 0, requires: 9, limit: 2, size: 0.5, priority: 47, needs: 'barracks' },
-  { kind: 'house', wood: 7, stone: 1, requires: 2, limit: 10, size: 0.62, priority: 50 },
+  { kind: 'house', wood: 7, stone: 1, requires: 2, limit: 26, size: 0.62, priority: 50 },
   { kind: 'farm', wood: 5, stone: 0, requires: 3, limit: 4, size: 0.55, priority: 45 },
   { kind: 'statue', wood: 2, stone: 12, requires: 11, limit: 2, size: 0.7, priority: 30 },
   { kind: 'tent', wood: 3, stone: 0, requires: 0, limit: 3, size: 0.5, priority: 20 },
@@ -275,6 +292,27 @@ const CLAIM_RADIUS: Record<BuildingKind, number> = {
  * (see `governableVillages`), and a kingdom is free to overreach and pay for
  * it (docs/project-tracker/08-MASTER-PLAN.md 14.1).
  */
+/**
+ * How warlike each people is by nature. Orcs want a war with everyone; elves
+ * would rather be left alone. Fed to the opinion formula as 'Bloodlust'.
+ */
+const TEMPERAMENT: Record<Race, number> = {
+  orc: 30,
+  human: 12,
+  dwarf: 8,
+  elf: 2,
+};
+
+/** Rounds (six seconds each) before a war is sure to end in a peace. */
+const WAR_MAX_ROUNDS = 50;
+/** After this many rounds, each round may bring a negotiated peace. */
+const WAR_WEARY_ROUNDS = 20;
+const WAR_WEARY_PEACE_CHANCE = 0.05;
+/** Seconds a new kingdom is left in peace before tension can build. */
+const YOUNG_REALM_PEACE = 240;
+/** Realms this close, village to village, notice each other without a border. */
+const CONTACT_RANGE = 40;
+
 const EXPANSION_APPETITE: Record<Race, number> = {
   human: 2,
   orc: 2,
@@ -528,6 +566,38 @@ const UNKNOWN_IDENTITY_COLOR = new THREE.Color('#64748b');
  */
 const OVERREACH_ALLOWANCE = 2;
 
+/**
+ * How far from the centre a villager can be and still eat from the granary.
+ * It was eleven tiles, and woodcutters and miners working the edge of the
+ * territory starved beside a full store.
+ */
+const FEEDING_RADIUS = 26;
+/** Seconds between towns sending out traders. */
+const CARAVAN_INTERVAL = 8;
+/** How far a trader will walk to sell. */
+const CARAVAN_RANGE = 55;
+/** Gold a caravan earns each end of its route. */
+const CARAVAN_PROFIT = 4;
+/** Give up on a trader who never arrives. */
+const CARAVAN_TIMEOUT = 150;
+/** Caravan rounds a trade tie keeps warming opinion after the last trader. */
+const TRADE_TIE_MEMORY = 30;
+
+/** Most miners and woodcutters one town keeps, however large. */
+const MAX_MINERS = 8;
+const MAX_WOODCUTTERS = 10;
+/** Food a farmer brings in from one spell of work on a field. */
+const FARM_HARVEST = 2;
+
+/** Seconds between a town's chances to raise a child. */
+const BIRTH_INTERVAL = 2.5;
+/** Chance per adult, per round, that the town gains a child. Capped below. */
+const BIRTH_CHANCE_PER_ADULT = 0.035;
+/** Food the granary spends on each new mouth. */
+const BIRTH_FOOD = 4;
+/** Room a town finds beyond its roofs: people double up before they go without. */
+const HOUSING_SLACK = 4;
+
 /** Adults a village needs before it can spare anyone to settle elsewhere. */
 const SETTLER_SOURCE_POPULATION = 9;
 /** How many leave together. */
@@ -613,6 +683,15 @@ export class SettlementSystem {
   parties = new Map<string, SettlerParty>();
 
   private foundTimer = 0;
+  private birthTimer = 0;
+  private caravanTimer = 0;
+  /** Traders on the road, keyed by the trader's id. */
+  private caravans = new Map<string, Caravan>();
+  /** Kingdom pairs that have traded, and how many caravans ago (by round). */
+  private tradeTies = new Map<string, number>();
+  private caravanRounds = 0;
+  /** Finds already announced, so a rich vein is news once, not every load. */
+  private announcedFinds = new Set<string>();
   private workTimer = 0;
   private buildTimer = 0;
   private diplomacyTimer = 0;
@@ -717,6 +796,19 @@ export class SettlementSystem {
       this.workTimer = 0;
       this.manageWorkforce();
       this.feedVillagers();
+    }
+
+    this.birthTimer += delta;
+    if (this.birthTimer >= BIRTH_INTERVAL) {
+      this.birthTimer = 0;
+      if (this.laws.reproduction !== false) this.birthRound();
+    }
+
+    this.caravanTimer += delta;
+    if (this.caravanTimer >= CARAVAN_INTERVAL) {
+      const elapsed = this.caravanTimer;
+      this.caravanTimer = 0;
+      this.caravanRound(elapsed);
     }
 
     this.economyTimer += delta;
@@ -1237,26 +1329,61 @@ export class SettlementSystem {
         0, Math.min(Math.ceil(foragingNeed * appetite), members.length - warriorTarget),
       );
 
-      let warriors = 0;
-      let gatherers = 0;
+      // Everyone else has a trade, as in WorldBox: farmers on the fields,
+      // woodcutters in the trees, miners up at the ore, and whoever is left
+      // hauling stone and timber. A town of idlers standing round the
+      // bonfire was the single biggest reason nothing seemed to happen.
+      const adults = members.filter(m => !isChild(m)).length;
+      const farms = village.buildings.filter(b => b.kind === 'farm').length;
+      const targets: Record<'warrior' | 'gatherer' | 'farmer' | 'miner' | 'woodcutter', number> = {
+        warrior: warriorTarget,
+        gatherer: gathererTarget,
+        farmer: Math.min(farms, Math.ceil(adults * 0.3)),
+        miner: Math.min(MAX_MINERS, Math.max(1, Math.round(adults * 0.14))),
+        woodcutter: Math.min(MAX_WOODCUTTERS, Math.max(1, Math.round(adults * 0.16))),
+      };
+      const counts = { warrior: 0, gatherer: 0, farmer: 0, miner: 0, woodcutter: 0, trader: 0 };
+      const ORDER = ['warrior', 'gatherer', 'farmer', 'miner', 'woodcutter'] as const;
+
+      // Whoever already holds a blade is first in line for a soldier's post:
+      // the smith armed them for it, and a town should not hand its swords to
+      // its farmers the moment the quotas shift.
+      members.sort((a, b) => Number(Boolean(b.equipment?.weapon)) - Number(Boolean(a.equipment?.weapon)));
 
       // Existing holders keep their posts where the village still needs them.
-      // Children have no post: they play until they are grown.
+      // Children have no post: they play until they are grown. A trader on
+      // the road keeps its post until the caravan comes home.
       for (const member of members) {
         if (isChild(member)) { member.job = null; continue; }
-        if (member.job === 'warrior' && warriors < warriorTarget) warriors++;
-        else if (member.job === 'gatherer' && gatherers < gathererTarget) gatherers++;
+        const job = member.job;
+        if (job === 'trader' && this.caravans.has(member.id)) { counts.trader++; continue; }
+        if (job && job !== 'trader' && job !== 'builder' && counts[job] < targets[job]) counts[job]++;
         else member.job = null;
       }
 
       for (const member of members) {
         if (member.job || isChild(member)) continue;
-        if (warriors < warriorTarget) {
-          member.job = 'warrior';
-          warriors++;
-        } else if (gatherers < gathererTarget) {
-          member.job = 'gatherer';
-          gatherers++;
+        // The armed are soldiers or nothing: they wait for a post under arms
+        // rather than being sent to the fields with a sword on their back.
+        const job = member.equipment?.weapon && counts.warrior < targets.warrior
+          ? 'warrior'
+          : ORDER.find(kind => counts[kind] < targets[kind]);
+        // Past every quota, a spare pair of hands hauls for the builders.
+        if (job) {
+          member.job = job;
+          counts[job]++;
+        } else {
+          member.job = 'builder';
+        }
+      }
+
+      // Farmers walk out to a field and work it.
+      if (farms > 0) {
+        const fields = village.buildings.filter(b => b.kind === 'farm');
+        for (const member of members) {
+          if (member.job !== 'farmer' || member.carrying || this.entities.hasOrder(member)) continue;
+          const field = fields[Math.floor(Math.random() * fields.length)];
+          this.entities.giveOrder(member, { kind: 'goto', x: field.x, y: field.y, purpose: 'farm' });
         }
       }
 
@@ -1535,12 +1662,52 @@ export class SettlementSystem {
    * you can watch a village where the warriors eat and the gatherers do not
    * (09-WORLDBOX-VISUAL-RESEARCH.md §7).
    */
+  /**
+   * Families, the WorldBox way: a town grows while it has roofs to spare and
+   * food in the granary, and stops when it runs out of either. The houses
+   * the builders put up are what let it keep growing, and a full town is
+   * what sends settlers out to found the next one.
+   */
+  private birthRound(): void {
+    const members = this.entities.getEntitiesByVillage();
+    for (const village of this.villages.values()) {
+      const people = members.get(village.id);
+      if (!people || people.length === 0) continue;
+      if (this.laws.populationCap && people.length >= 100) continue;
+      if (people.length >= this.homesIn(village) + HOUSING_SLACK) continue;
+      if (village.store.food < BIRTH_FOOD * 2) continue;
+      const adults = people.filter(p => !isChild(p) && p.health > p.maxHealth * 0.4
+        && p.age <= p.maxAge * 0.8 && !p.status.includes('aboard'));
+      if (adults.length < 2) continue;
+      const chance = Math.min(0.6, adults.length * BIRTH_CHANCE_PER_ADULT);
+      if (Math.random() >= chance) continue;
+      // A couple when there is one together at home; otherwise any grown-up.
+      const coupled = adults.filter(p => p.loverId && adults.some(a => a.id === p.loverId));
+      const pool = coupled.length > 0 ? coupled : adults;
+      const parent = pool[Math.floor(Math.random() * pool.length)];
+      const partner = parent.loverId ? adults.find(a => a.id === parent.loverId) ?? null : null;
+      const child = this.entities.bearChild(parent, partner);
+      if (!child) continue;
+      village.store.food -= BIRTH_FOOD;
+      // The granary paid for it, not the parent's own stomach.
+      parent.needs.hunger = Math.min(1, parent.needs.hunger + 0.35);
+    }
+  }
+
   private feedVillagers(): void {
     for (const village of this.villages.values()) {
+      const nearby = this.entities
+        .query(village.centerX, village.centerY, FEEDING_RADIUS)
+        .filter(entity => entity.villageId === village.id);
+
+      // Water is carried in from the well and the river: a town's people do
+      // not die of thirst at their own front door.
+      for (const resident of nearby) {
+        if (resident.needs.thirst < 0.4) resident.needs.thirst = 1;
+      }
+
       if (village.store.food <= 0) continue;
-      const residents = this.entities
-        .query(village.centerX, village.centerY, 11)
-        .filter(entity => entity.villageId === village.id && entity.needs.hunger < 0.6);
+      const residents = nearby.filter(entity => entity.needs.hunger < 0.6);
 
       for (const resident of residents) {
         if (village.store.food <= 0) break;
@@ -1548,7 +1715,7 @@ export class SettlementSystem {
         const exempt = resident.status.includes('king')
           || resident.status.includes('leader')
           || resident.age < resident.maxAge * 0.18;
-        const desperate = resident.needs.hunger < 0.2;
+        const desperate = resident.needs.hunger < 0.3;
 
         if (!exempt && !desperate) {
           if ((resident.coins ?? 0) < MEAL_PRICE) continue;
@@ -1591,6 +1758,10 @@ export class SettlementSystem {
         village.store.wood += 1;
         village.store.stone += 1;
       }
+      // A mine shaft brings up a little ore of its own, between the miners'
+      // trips out to the veins.
+      const shafts = village.buildings.filter(b => b.kind === 'mine').length;
+      if (shafts > 0) village.store.metal = (village.store.metal ?? 0) + shafts;
 
       // -- 1. buildings earn --------------------------------------------
       let yield_ = 0;
@@ -1667,6 +1838,23 @@ export class SettlementSystem {
       return;
     }
 
+    if (order.purpose === 'farm') {
+      const village = entity.villageId ? this.villages.get(entity.villageId) : null;
+      if (!village || entity.job !== 'farmer') return;
+      const mills = village.buildings.some(b => b.kind === 'windmill') ? 1 : 0;
+      const harvest = FARM_HARVEST + mills + (simulation.season === 'autumn' ? 1 : simulation.season === 'winter' ? -1 : 0);
+      if (harvest > 0) {
+        village.store.food += harvest;
+        emitFloater({ kind: 'gain', text: `+${harvest} food`, x: entity.position.x, y: entity.position.y });
+      }
+      return;
+    }
+
+    if (order.purpose === 'trade') {
+      this.caravanArrived(entity);
+      return;
+    }
+
     if (order.purpose === 'settle') {
       const party = Array.from(this.parties.values())
         .find(candidate => candidate.memberIds.has(entity.id));
@@ -1688,6 +1876,21 @@ export class SettlementSystem {
     if (type === 'food') village.store.food += quantity;
     else if (type === 'wood') village.store.wood += quantity;
     else if (type === 'stone') village.store.stone += quantity;
+    else if (isOre(type)) {
+      const value = ORE_VALUE[type];
+      const store = village.store;
+      store.metal = (store.metal ?? 0) + (value.metal ?? 0) * quantity;
+      store.gold += (value.gold ?? 0) * quantity;
+      store.gems = (store.gems ?? 0) + (value.gems ?? 0) * quantity;
+      store.mithril = (store.mithril ?? 0) + (value.mithril ?? 0) * quantity;
+      store.adamantine = (store.adamantine ?? 0) + (value.adamantine ?? 0) * quantity;
+      // A rare find is news.
+      const find = `${village.id}:${type}`;
+      if ((type === 'mithril' || type === 'adamantine' || type === 'gem') && !this.announcedFinds.has(find)) {
+        this.announcedFinds.add(find);
+        this.events.onEvent(`Miners of ${village.name} bring ${type === 'gem' ? 'gems' : type} up out of the hills`, 'info', { x: village.centerX, y: village.centerY });
+      }
+    }
   }
 
   // -- construction ------------------------------------------------------
@@ -2983,6 +3186,32 @@ export class SettlementSystem {
       atWar: a.atWar.has(b.id),
       allied: a.allies.has(b.id),
       foughtBefore: this.warTimers.has(pairKey(a.id, b.id)),
+      temperament: Math.max(TEMPERAMENT[a.race] ?? 0, TEMPERAMENT[b.race] ?? 0)
+        + Math.min(TEMPERAMENT[a.race] ?? 0, TEMPERAMENT[b.race] ?? 0) / 2,
+      landHungry: this.isLandHungry(a) || this.isLandHungry(b),
+      tradePartners: this.tradePartners(a.id, b.id),
+    });
+  }
+
+  /** How many towns this kingdom will try to hold before it stops settling. */
+  private colonyLimit(kingdom: Kingdom): number {
+    return governableVillages(this.kingCivilStats(kingdom))
+      + (EXPANSION_APPETITE[kingdom.race] ?? 0)
+      + OVERREACH_ALLOWANCE
+      + (groupHasCultureTrait(kingdom.id, 'expansionist') ? 2 : 0);
+  }
+
+  /**
+   * A realm that has as many towns as it can hold, and towns that are full,
+   * has nowhere to grow but into its neighbour. This is WorldBox's real war
+   * engine: peace ends when the land runs out.
+   */
+  private isLandHungry(kingdom: Kingdom): boolean {
+    if (kingdom.villageIds.length < this.colonyLimit(kingdom)) return false;
+    const members = this.entities.getEntitiesByVillage();
+    return kingdom.villageIds.some((id) => {
+      const village = this.villages.get(id);
+      return village ? (members.get(id)?.length ?? 0) >= this.homesIn(village) : false;
     });
   }
 
@@ -3085,11 +3314,7 @@ export class SettlementSystem {
     if (!this.laws.colonisation) return;
     for (const kingdom of this.kingdoms.values()) {
       if (kingdom.atWar.size > 0) continue; // nobody colonises mid-war
-      const king = this.kingCivilStats(kingdom);
-      const limit = governableVillages(king)
-        + (EXPANSION_APPETITE[kingdom.race] ?? 0)
-        + OVERREACH_ALLOWANCE
-        + (groupHasCultureTrait(kingdom.id, 'expansionist') ? 2 : 0);
+      const limit = this.colonyLimit(kingdom);
       const pending = Array.from(this.parties.values())
         .filter(party => party.kingdomId === kingdom.id).length;
       // One expedition at a time: three parties leaving at once empties the
@@ -3097,10 +3322,13 @@ export class SettlementSystem {
       if (pending > 0) continue;
       if (kingdom.villageIds.length + pending >= limit) continue;
 
-      if (groupHasCultureTrait(kingdom.id, 'insular')) continue;
-
       const source = this.pickSettlerSource(kingdom);
       if (!source) continue;
+      // An insular people stays home until home is full. It used to never
+      // leave at all, which turned one culture roll into a realm frozen at a
+      // single town for the rest of the world's life.
+      if (groupHasCultureTrait(kingdom.id, 'insular')
+        && this.residentsOf(source).length < this.homesIn(source)) continue;
 
       // Which landmass is which, so walkers only aim at ground they can
       // actually walk to and everything else is a job for a boat.
@@ -3170,12 +3398,25 @@ export class SettlementSystem {
     const needy = people.find(p => !p.equipment?.weapon) ?? people.find(p => !p.equipment?.armor);
     if (!needy) return;
     const slot = needy.equipment?.weapon ? 'armor' : 'weapon';
-    const item = forgeItem(slot, tiers.get(village.id) ?? 1, village.race, village.name);
+    const store = village.store;
+    const affordable = (material: Material): boolean => {
+      const cost = MATERIAL_COST[material];
+      return store.wood >= cost.wood && store.stone >= cost.stone && store.gold >= cost.gold
+        && (store.metal ?? 0) >= cost.metal && (!cost.rare || (store[cost.rare] ?? 0) >= 1);
+    };
+    // The smith works the best metal the town has: a town with no mine in
+    // reach arms its people in wood and leather until a trader brings ore.
+    let item = forgeItem(slot, tiers.get(village.id) ?? 1, village.race, village.name);
+    for (let tier = (tiers.get(village.id) ?? 1) - 1; !affordable(item.material) && tier >= 0; tier--) {
+      item = forgeItem(slot, tier, village.race, village.name);
+    }
+    if (!affordable(item.material)) return;
     const cost = MATERIAL_COST[item.material];
-    if (village.store.wood < cost.wood || village.store.stone < cost.stone || village.store.gold < cost.gold) return;
-    village.store.wood -= cost.wood;
-    village.store.stone -= cost.stone;
-    village.store.gold -= cost.gold;
+    store.wood -= cost.wood;
+    store.stone -= cost.stone;
+    store.gold -= cost.gold;
+    store.metal = (store.metal ?? 0) - cost.metal;
+    if (cost.rare) store[cost.rare] = (store[cost.rare] ?? 0) - 1;
     equip(needy, item);
     if (item.quality === 'legendary') emitItemEvent({ kind: 'forged', item, owner: needy });
     // Most pieces go unremarked; a legend never does.
@@ -3229,7 +3470,7 @@ export class SettlementSystem {
 
   private sendSettlers(kingdom: Kingdom, source: Village, site: { x: number; y: number }): void {
     const residents = this.residentsOf(source)
-      .filter(entity => entity.age > entity.maxAge * 0.2 && entity.health > entity.maxHealth * 0.5);
+      .filter(entity => !isChild(entity) && entity.health > entity.maxHealth * 0.5);
     if (residents.length < SETTLER_SOURCE_POPULATION) return;
 
     // Never send so many that the source village cannot look after itself
@@ -3317,7 +3558,7 @@ export class SettlementSystem {
     voyage: { site: Point; departure: Point; landing: Point },
   ): void {
     const residents = this.residentsOf(source)
-      .filter(entity => entity.age > entity.maxAge * 0.2 && entity.health > entity.maxHealth * 0.5);
+      .filter(entity => !isChild(entity) && entity.health > entity.maxHealth * 0.5);
     const spare = Math.max(0, residents.length - SETTLER_SOURCE_POPULATION + 1);
     const size = Math.min(
       spare,
@@ -3454,6 +3695,117 @@ export class SettlementSystem {
   }
 
   /**
+   * Caravans, WorldBox's land trade. A town with something to sell sends a
+   * trader walking to a neighbour it is at peace with; both ends earn, the
+   * trader walks home with the takings, and realms that trade come to like
+   * each other. It is the peaceful counterweight to land hunger.
+   */
+  private caravanRound(elapsed: number): void {
+    this.caravanRounds++;
+    for (const [id, caravan] of Array.from(this.caravans)) {
+      const trader = this.entities.getEntityById(id);
+      caravan.timeout -= elapsed;
+      if (!trader || trader.health <= 0 || caravan.timeout <= 0
+        || !this.villages.has(caravan.from) || !this.villages.has(caravan.to)) {
+        this.caravans.delete(id);
+        if (trader?.job === 'trader') trader.job = null;
+      }
+    }
+
+    const members = this.entities.getEntitiesByVillage();
+    const busy = new Set(Array.from(this.caravans.values()).map(c => c.from));
+    let masses: { label: Int32Array; sizes: number[] } | null = null;
+    const size = this.tiles.length;
+    for (const village of this.villages.values()) {
+      if (busy.has(village.id)) continue;
+      const people = members.get(village.id) ?? [];
+      if (people.length < TRADE_MIN_POPULATION) continue;
+      const kingdom = this.kingdoms.get(village.kingdomId);
+      if (!kingdom) continue;
+      masses ??= landmasses(this.tiles);
+      const home = masses.label[village.centerY * size + village.centerX];
+
+      const partners = Array.from(this.villages.values())
+        .filter(other => other.id !== village.id
+          && !kingdom.atWar.has(other.kingdomId)
+          && masses!.label[other.centerY * size + other.centerX] === home)
+        .map(other => ({ other, distance: Math.hypot(other.centerX - village.centerX, other.centerY - village.centerY) }))
+        .filter(({ distance }) => distance <= CARAVAN_RANGE)
+        // A foreign market pays better than a sister town.
+        .sort((a, b) => (a.distance + (a.other.kingdomId === village.kingdomId ? 20 : 0))
+          - (b.distance + (b.other.kingdomId === village.kingdomId ? 20 : 0)));
+      if (partners.length === 0) continue;
+      const { other } = partners[Math.floor(Math.random() * Math.min(3, partners.length))];
+
+      const trader = people.find(p => !isChild(p)
+        && p.job !== 'warrior'
+        && !p.carrying
+        && p.health > p.maxHealth * 0.6
+        && !p.status.some(s => s === 'king' || s === 'leader' || s === 'captain' || s === 'priest'));
+      if (!trader) continue;
+      trader.job = 'trader';
+      this.caravans.set(trader.id, { from: village.id, to: other.id, leg: 'out', timeout: CARAVAN_TIMEOUT });
+      this.entities.giveOrder(trader, { kind: 'goto', x: other.centerX, y: other.centerY, purpose: 'trade' });
+
+      if (other.kingdomId !== village.kingdomId) {
+        const key = pairKey(village.kingdomId, other.kingdomId);
+        if (!this.tradeTies.has(key)) {
+          const theirs = this.kingdoms.get(other.kingdomId);
+          this.events.onEvent(
+            `A trade road opens between ${kingdom.name} and ${theirs?.name ?? 'a neighbour'}`,
+            'kingdom',
+            { x: village.centerX, y: village.centerY },
+          );
+        }
+        this.tradeTies.set(key, this.caravanRounds);
+      }
+    }
+  }
+
+  /** A trader reached the end of a leg: sell, or bring the takings home. */
+  private caravanArrived(trader: Entity): void {
+    const caravan = this.caravans.get(trader.id);
+    if (!caravan) return;
+    const from = this.villages.get(caravan.from);
+    const to = this.villages.get(caravan.to);
+    if (!from || !to) {
+      this.caravans.delete(trader.id);
+      trader.job = null;
+      return;
+    }
+    const market = (village: Village) => (village.buildings.some(b => b.kind === 'market') ? 2 : 1);
+    if (caravan.leg === 'out') {
+      const profit = CARAVAN_PROFIT * market(to);
+      to.store.gold += profit;
+      // Goods change hands: food goes where it is short, and metal too.
+      if (from.store.food > to.store.food + 20) {
+        from.store.food -= 10;
+        to.store.food += 10;
+      }
+      if ((from.store.metal ?? 0) > (to.store.metal ?? 0) + 4) {
+        from.store.metal = (from.store.metal ?? 0) - 2;
+        to.store.metal = (to.store.metal ?? 0) + 2;
+      }
+      emitFloater({ kind: 'gain', text: `+${profit} gold`, x: trader.position.x, y: trader.position.y });
+      caravan.leg = 'home';
+      caravan.timeout = CARAVAN_TIMEOUT;
+      this.entities.giveOrder(trader, { kind: 'goto', x: from.centerX, y: from.centerY, purpose: 'trade' });
+      return;
+    }
+    const takings = CARAVAN_PROFIT * market(from);
+    from.store.gold += takings;
+    emitFloater({ kind: 'gain', text: `+${takings} gold`, x: trader.position.x, y: trader.position.y });
+    this.caravans.delete(trader.id);
+    trader.job = null;
+  }
+
+  /** True while two realms' caravans have been on the road lately. */
+  private tradePartners(a: string, b: string): boolean {
+    const last = this.tradeTies.get(pairKey(a, b));
+    return last !== undefined && this.caravanRounds - last <= TRADE_TIE_MEMORY;
+  }
+
+  /**
    * Open a trade route between two coastal towns of one realm, or of two
    * realms that are allied. One route per town: a harbour full of merchants
    * is a traffic jam, not an economy.
@@ -3474,8 +3826,8 @@ export class SettlementSystem {
         const b = ports[j];
         if (this.boats.tradersOf(b.village.id) > 0) continue;
         const ka = this.kingdoms.get(a.village.kingdomId!);
-        const friendly = a.village.kingdomId === b.village.kingdomId || Boolean(ka?.allies.has(b.village.kingdomId!));
-        if (!friendly || ka?.atWar.has(b.village.kingdomId!)) continue;
+        // Any two ports at peace trade by sea, as caravans do by land.
+        if (ka?.atWar.has(b.village.kingdomId!)) continue;
         if (this.boats.launchTrade(a.village.kingdomId!, a.village.id, a.dock, b.village.id, b.dock)) break;
       }
     }
@@ -3590,12 +3942,30 @@ export class SettlementSystem {
       }
     }
 
+    // Realms that do not touch still know of each other when their towns
+    // are close, or face each other across a strait. Without this, two
+    // kingdoms with a strip of wild land between them never fell out at all.
+    const towns = Array.from(this.villages.values());
+    for (let i = 0; i < towns.length; i++) {
+      for (let j = i + 1; j < towns.length; j++) {
+        const a = towns[i];
+        const b = towns[j];
+        if (a.kingdomId === b.kingdomId) continue;
+        if (Math.hypot(a.centerX - b.centerX, a.centerY - b.centerY) > CONTACT_RANGE) continue;
+        const key = pairKey(a.kingdomId, b.kingdomId);
+        if ((contact.get(key) ?? 0) < 6) contact.set(key, 6);
+      }
+    }
+
     for (const [key, borderTiles] of contact) {
       const [aId, bId] = key.split('|');
       const a = this.kingdoms.get(aId);
       const b = this.kingdoms.get(bId);
       if (!a || !b || a.atWar.has(bId)) continue;
       if (a.allies.has(bId)) continue;
+      // A newborn realm is left alone long enough to put down roots: WorldBox
+      // gives young kingdoms a few years before anyone comes for them.
+      if (a.age < YOUNG_REALM_PEACE || b.age < YOUNG_REALM_PEACE) continue;
 
       // Tension now follows opinion rather than a pair of magic constants.
       // It used to grow at 0.055 a round, or 0.11 if either side was an orc,
@@ -3675,8 +4045,10 @@ export class SettlementSystem {
         const rounds = (this.warTimers.get(key) ?? 0) + 1;
         this.warTimers.set(key, rounds);
 
-        // Wars burn out, or end when one side has nothing left to lose
-        if (rounds > 14 || enemy.villageIds.length === 0 || kingdom.villageIds.length === 0) {
+        // Wars burn out — late, and by exhaustion more often than on a clock —
+        // or end when one side has nothing left to lose.
+        const weary = rounds > WAR_WEARY_ROUNDS && Math.random() < WAR_WEARY_PEACE_CHANCE;
+        if (rounds > WAR_MAX_ROUNDS || weary || enemy.villageIds.length === 0 || kingdom.villageIds.length === 0) {
           this.makePeace(kingdom, enemy);
           continue;
         }

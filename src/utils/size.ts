@@ -129,6 +129,17 @@ export const canPreyOn = (
 /** The share of a life spent as a child. */
 export const CHILDHOOD = 0.12;
 
+/**
+ * Simulated seconds a childhood lasts, whatever the species. Measured as a
+ * share of a lifespan it ran eight minutes for a dwarf and two for an orc,
+ * and the long-lived races lost every war for want of grown-ups.
+ */
+export const CHILDHOOD_SECONDS = 150;
+
+/** Age a child gains per simulated second, so that it grows up on time. */
+export const childAgingRate = (entity: Pick<Entity, 'maxAge'>): number =>
+  (entity.maxAge * CHILDHOOD) / CHILDHOOD_SECONDS;
+
 /** True while a creature is still growing up. */
 export const isChild = (entity: Pick<Entity, 'age' | 'maxAge'>): boolean =>
   entity.maxAge > 0 && entity.age < entity.maxAge * CHILDHOOD;

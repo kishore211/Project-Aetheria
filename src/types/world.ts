@@ -141,6 +141,8 @@ export type ResourceType =
   | 'coal' 
   | 'crystal' 
   | 'gem'
+  | 'mithril'
+  | 'adamantine'
   // Special resources
   | 'mana' 
   | 'ancient_artifact';
@@ -355,7 +357,7 @@ export interface Entity {
   /** What the unit is hauling back to its village store. */
   carrying?: { type: ResourceType; quantity: number } | null;
   /** Assigned village role. */
-  job?: 'gatherer' | 'builder' | 'warrior' | null;
+  job?: 'gatherer' | 'builder' | 'warrior' | 'woodcutter' | 'miner' | 'farmer' | 'trader' | null;
   /**
    * What the creature is doing right now, mirrored out of its AI so the HUD,
    * the icon layer and tooltips can all read it without reaching into the AI.

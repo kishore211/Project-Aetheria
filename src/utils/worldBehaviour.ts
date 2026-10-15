@@ -105,6 +105,43 @@ export const NATIVES: Partial<Record<BiomeType, EntityType[]>> = {
   wasteland: ['rat', 'hyena'],
 };
 
+/** Natives too dangerous to be waiting when a world is first made. */
+const NOT_AT_DAWN = new Set<EntityType>(['yeti', 'sandworm', 'demon', 'fire_skull', 'ghost', 'candy_man', 'acid_blob', 'treant']);
+
+/**
+ * Stock a new world with its animals, as WorldBox does: every biome already
+ * has its herds when the map is made, so the first thing the player sees is
+ * a world that is alive rather than an empty board waiting for spawns.
+ * Returns how many creatures were placed.
+ */
+export const populateWildlife = (
+  tiles: Tile[][],
+  spawn: (type: EntityType, x: number, y: number) => unknown,
+  random: () => number = Math.random,
+): number => {
+  const size = tiles.length;
+  const target = Math.floor((size * size) / WILDLIFE_DENSITY * 0.6);
+  let placed = 0;
+  for (let attempt = 0; attempt < target * 6 && placed < target; attempt++) {
+    const x = Math.floor(random() * size);
+    const y = Math.floor(random() * size);
+    const tile = tiles[x][y];
+    if (!tile.walkable || tile.villageId) continue;
+    const natives = (NATIVES[tile.type] ?? []).filter(type => !NOT_AT_DAWN.has(type));
+    if (natives.length === 0) continue;
+    const type = natives[Math.floor(random() * natives.length)];
+    // A small herd, standing together.
+    const herd = 2 + Math.floor(random() * 3);
+    for (let k = 0; k < herd && placed < target; k++) {
+      const hx = Math.min(size - 1, Math.max(0, x + Math.floor(random() * 3) - 1));
+      const hy = Math.min(size - 1, Math.max(0, y + Math.floor(random() * 3) - 1));
+      if (!tiles[hx][hy].walkable) continue;
+      if (spawn(type, hx, hy)) placed++;
+    }
+  }
+  return placed;
+};
+
 /** Roughly one creature per this many land tiles before wildlife stops. */
 const WILDLIFE_DENSITY = 120;
 

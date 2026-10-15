@@ -4,7 +4,7 @@ import { useThree, useFrame } from '@react-three/fiber';
 
 import { useGameStore } from '../store/gameStore';
 import { generateWorld, determineBiome } from '../utils/worldGenerator';
-import { WorldBehaviour, type WorldContext } from '../utils/worldBehaviour';
+import { WorldBehaviour, populateWildlife, type WorldContext } from '../utils/worldBehaviour';
 import { MELT, addHeat } from '../utils/thermal';
 import { CloudSystem, DROPS, type DropKind } from '../utils/clouds';
 import { FLASH_SECONDS } from '../utils/statusEffects';
@@ -578,6 +578,9 @@ export const useGameEngine = () => {
         manager.restoreEntity(savedEntity);
       }
       useGameStore.getState().clearPendingSave();
+    } else if (storeState.worldLaws.wildlife !== false) {
+      // A fresh world starts with its animals already grazing.
+      populateWildlife(tilesData, (type, x, y) => manager.spawnEntity(type, x, y));
     }
 
     // Whatever the world starts with has been met, including a loaded save's.
@@ -2106,16 +2109,20 @@ export const useGameEngine = () => {
       reshapeTile(tile, tile.height, type);
     };
     simulation.demolishAt = (x, y) => settlementRef.current?.demolishAt(x, y) ?? false;
+    simulation.syncTile = (x, y) => {
+      if (inBounds(x, y)) syncTile(tilesRef.current[x][y]);
+    };
     simulation.wellFor = (entity) => settlementRef.current?.wellFor(entity) ?? null;
     simulation.isWell = (x, y) => settlementRef.current?.isWell(x, y) ?? false;
     return () => {
       simulation.igniteTile = undefined;
       simulation.setBiome = undefined;
       simulation.demolishAt = undefined;
+      simulation.syncTile = undefined;
       simulation.wellFor = undefined;
       simulation.isWell = undefined;
     };
-  }, [igniteTile, inBounds, reshapeTile]);
+  }, [igniteTile, inBounds, reshapeTile, syncTile]);
 
   // React to manual weather changes from the toolbar
   useEffect(() => {

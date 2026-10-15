@@ -19,11 +19,28 @@ import { faithHas } from './religion';
 import { seedMood } from './mood';
 import { viewFraction } from './cameraView';
 import { applyScenario } from './scenarios';
+import { childAgingRate, isChild } from './size';
 
 /**
  * Races that need a partner to reproduce. Animals are deliberately absent:
  * they have herds rather than pairs, and gating them would halt every ecology.
  */
+/**
+ * Someone the chronicle should mention by name: a ruler or officer, a hero
+ * with blood on their blade or a legend in their hand, a player's favourite,
+ * or a monster. Everybody else lives and dies on the map, not in the log.
+ */
+const NOTABLE_STATUS = new Set(['king', 'leader', 'captain', 'priest']);
+const isNotable = (entity: Entity): boolean =>
+  Boolean(entity.favourite)
+  || entity.status.some(s => NOTABLE_STATUS.has(s))
+  || (entity.kills ?? 0) >= 5
+  || entity.equipment?.weapon?.quality === 'legendary'
+  || MONSTERS.has(entity.type);
+/** A royal birth, or a favourite's child: the only births worth a line. */
+const isRoyal = (entity: Entity): boolean => Boolean(entity.favourite) || entity.status.includes('king');
+const MONSTERS = new Set<string>(['dragon', 'demon', 'crabzilla', 'ufo', 'sandworm', 'cold_one', 'yeti', 'necromancer', 'treant', 'robot_santa']);
+
 const PAIRING_TYPES = new Set<string>(['human', 'elf', 'dwarf', 'orc']);
 import type { WorldLaws } from '../store/gameStore';
 import type { GameEvent } from '../store/gameStore';
@@ -367,7 +384,10 @@ export class EntityManager implements EntityIndex {
     const traits = entity.traits ?? [];
 
     if (this.laws.aging && !traits.includes('immortal')) {
-      entity.age += this.agingRate * delta;
+      // Childhood runs on its own clock, the same few minutes for every
+      // people: a town that waits a quarter of an hour for its babies to grow
+      // up never sends anyone out to found the next one.
+      entity.age += isChild(entity) ? childAgingRate(entity) * delta : this.agingRate * delta;
       if (entity.age >= entity.maxAge) {
         this.killEntity(entity, 'old_age');
         return;
@@ -440,11 +460,22 @@ export class EntityManager implements EntityIndex {
       const dy = lover.position.y - entity.position.y;
       if (dx * dx + dy * dy > 36) return;
     }
+    this.bearChild(entity, entity.loverId ? this.entities.get(entity.loverId) ?? null : null);
+  }
 
+  /**
+   * A child for `entity` (and `partner`, when there is one), born beside it.
+   *
+   * Public because towns raise families on their own schedule: WorldBox
+   * grows a village by its housing and its granary, not by two lovers
+   * happening to stand within six tiles of each other at the right moment.
+   */
+  bearChild(entity: Entity, partner: Entity | null = null): Entity | null {
+    if (this.getEntityCountByType(entity.type) >= this.getMaxEntityCount(entity.type)) return null;
     const { x, y } = entity.position;
     const suitable = this.getNearbyTiles(x, y, 2)
       .filter(t => this.isSuitableTileForEntity(entity.type, t));
-    if (suitable.length === 0) return;
+    if (suitable.length === 0) return null;
 
     const chosen = suitable[Math.floor(Math.random() * suitable.length)];
     const child = this.spawnEntity(entity.type, chosen.x, chosen.y, {
@@ -456,17 +487,22 @@ export class EntityManager implements EntityIndex {
     if (child) {
       // Born, not arrived: it starts its life at the beginning.
       child.age = 0;
-      bornInto(child, entity, entity.loverId ? this.entities.get(entity.loverId) ?? null : null);
+      bornInto(child, entity, partner);
       recordBirth();
       child.kingdomId = entity.kingdomId ?? null;
       child.villageId = entity.villageId ?? null;
       // A child costs the parent some of its reserves
       entity.needs.hunger = Math.max(0.15, entity.needs.hunger - 0.35);
-      this.onLifeEvent?.(
-        chronicle('born', { name: child.name, type: child.type }),
-        'life',
-        { x: Math.floor(child.position.x), y: Math.floor(child.position.y) },
-      );
+      // Only a birth worth remembering reaches the chronicle: a town of a
+      // hundred has a child every few seconds, and a log of all of them
+      // buries the wars and the founding of nations.
+      if (isRoyal(entity) || (partner && isRoyal(partner))) {
+        this.onLifeEvent?.(
+          chronicle('born', { name: child.name, type: child.type }),
+          'life',
+          { x: Math.floor(child.position.x), y: Math.floor(child.position.y) },
+        );
+      }
       // A heart over the parent, and once in a while a word about it.
       emitFloater({
         kind: 'emote', text: '\u2665',
@@ -474,9 +510,9 @@ export class EntityManager implements EntityIndex {
       });
       // Both parents feel it, when there are two.
       applyScenario(entity, 'childBorn');
-      const other = entity.loverId ? this.entities.get(entity.loverId) : null;
-      if (other) applyScenario(other, 'childBorn');
+      if (partner) applyScenario(partner, 'childBorn');
     }
+    return child;
   }
 
   /**
@@ -520,11 +556,13 @@ export class EntityManager implements EntityIndex {
     if (entity.favourite) {
       this.onLifeEvent?.(`\u2605 ${entity.name}, one of your favourites, is gone`, 'death', { x: Math.floor(entity.position.x), y: Math.floor(entity.position.y) });
     }
-    this.onLifeEvent?.(
-      chronicle(deathTopic(cause), { name: entity.name, type: entity.type }),
-      'death',
-      { x: ix, y: iy },
-    );
+    if (isNotable(entity) || cause === 'divine') {
+      this.onLifeEvent?.(
+        chronicle(deathTopic(cause), { name: entity.name, type: entity.type }),
+        'death',
+        { x: ix, y: iy },
+      );
+    }
 
     // The plague's last act: whoever it took gets up again. Only people — an
     // infected creature is always a person, since that is the only thing the
@@ -824,6 +862,11 @@ export class EntityManager implements EntityIndex {
     // every time the village re-evaluates its workforce.
     if (ai.order && ai.order.x === order.x && ai.order.y === order.y && ai.order.purpose === order.purpose) return;
     ai.setOrder(order);
+  }
+
+  /** Is this unit already on an errand for its village? */
+  hasOrder(entity: Entity): boolean {
+    return Boolean(this.entityAIs.get(entity.id)?.order);
   }
 
   /** Send a unit into melee with a specific enemy. */

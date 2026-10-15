@@ -26,6 +26,7 @@
 //    pixel stamps with a cast shadow, drawn bottom-to-top so nearer canopies
 //    overlap farther ones. A forest is a texture of canopy, not a lattice of
 //    billboards.
+import { depositOf, type OreType } from './oreVeins';
 import { isWaterBiome, type BiomeType, type Tile } from '../types/world';
 
 /** Pixels per tile edge. Their tiles are 8x8, and so are ours. */
@@ -211,6 +212,22 @@ const STAMPS = {
     'L.M',
     'MMD',
   ],
+  // Ore, the way WorldBox shows a deposit: a lump of rock flecked with the
+  // metal (Y), so a vein reads from across the map by its colour.
+  nugget: [
+    '.LMY.',
+    'LYMMD',
+    'MMYDY',
+    '.DDD.',
+  ],
+  // Gems and the rare metals stand up out of the rock as a bright crystal.
+  gemstone: [
+    '..W..',
+    '.LYY.',
+    'LYWYD',
+    'MDYDD',
+    '.DDD.',
+  ],
   // A peak, as WorldBox draws its mountains: a little crag with a lit face,
   // a shaded face and, high enough, a cap of snow.
   peak: [
@@ -255,7 +272,21 @@ interface Stamp {
   /** Centre, in pixels, within the tile. */
   cx: number;
   cy: number;
+  /** A colour for the stamp's Y slot: the metal in an ore deposit. */
+  tint?: readonly [number, number, number];
 }
+
+/** The colour each ore shows on the map. */
+const ORE_RGB: Record<OreType, readonly [number, number, number]> = {
+  iron: [186, 112, 78],
+  silver: [226, 232, 240],
+  gold: [252, 208, 58],
+  gem: [232, 64, 104],
+  crystal: [118, 232, 246],
+  mithril: [128, 196, 255],
+  adamantine: [196, 86, 226],
+};
+const GEMLIKE = new Set<OreType>(['gem', 'crystal', 'mithril', 'adamantine']);
 
 /** Fixed colours for stamps whose material is not the ground's. */
 const ROCK_RGB: [number, number, number] = [138, 132, 124];
@@ -828,7 +859,8 @@ export class MapPainter {
     const top = ty * PX + Math.round(stamp.cy - h / 2);
     const i = ty * this.size + tx;
     const base: [number, number, number] = [this.rgb[i * 3], this.rgb[i * 3 + 1], this.rgb[i * 3 + 2]];
-    const palette = this.winter ? frosted(paletteFor(stamp.kind, base), stamp.kind) : paletteFor(stamp.kind, base);
+    const plain = this.winter ? frosted(paletteFor(stamp.kind, base), stamp.kind) : paletteFor(stamp.kind, base);
+    const palette = stamp.tint ? { ...plain, Y: [stamp.tint[0], stamp.tint[1], stamp.tint[2]] as [number, number, number] } : plain;
 
     this.stampTick = ((this.stampTick + 1) & 0xffff) || 1;
     // The shadow first, down and to the right, so the canopy that follows
@@ -922,6 +954,8 @@ const paletteFor = (kind: StampKind, ground: [number, number, number]): Palette 
     case 'rock':
     case 'boulder':
     case 'rubble':
+    case 'nugget':
+    case 'gemstone':
       return fixed(ROCK_RGB);
     case 'wall':
       return { ...fixed([150, 146, 140]), L: [196, 192, 184], D: [88, 84, 80] };
@@ -960,7 +994,7 @@ const FROST_RGB: [number, number, number] = [238, 244, 250];
 
 /** Snow on the lit side of a stamp: canopies, pines and rocks, not cacti or crystals. */
 const frosted = (palette: Palette, kind: StampKind): Palette => {
-  if (kind === 'cactus' || kind === 'crystal' || kind === 'candycane' || kind === 'toadstool') return palette;
+  if (kind === 'cactus' || kind === 'crystal' || kind === 'candycane' || kind === 'toadstool' || kind === 'gemstone') return palette;
   return {
     ...palette,
     L: mixRgb(palette.L, FROST_RGB, 0.85),
@@ -989,6 +1023,13 @@ export const stampsFor = (tile: Tile): Stamp[] | null => {
     if (tile.type === 'savanna') return 'acacia';
     return cold || tile.type === 'coniferous_forest' || tile.type === 'taiga' ? 'pine' : 'tree';
   };
+
+  // A deposit outranks whatever else stands on the tile: ore is the reason
+  // anybody walks up a mountain, so it is never hidden under a crag.
+  const ore = depositOf(tile);
+  if (ore) {
+    return [{ kind: GEMLIKE.has(ore) ? 'gemstone' : 'nugget', cx: at(21, 3, 5), cy: at(22, 3, 5), tint: ORE_RGB[ore] }];
+  }
 
   if (structure === 'mature_tree') {
     // Two or three trees in shuffled quadrants, jittered well off-centre, so

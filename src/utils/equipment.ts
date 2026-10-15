@@ -104,17 +104,21 @@ const TIER_MATERIAL: Record<ItemSlot, Material[]> = {
   armor: ['leather', 'leather', 'copper', 'iron', 'steel'],
 };
 
-/** Wood, stone and gold a piece costs, by material. */
-export const MATERIAL_COST: Record<Material, { wood: number; stone: number; gold: number }> = {
-  wood: { wood: 2, stone: 0, gold: 0 },
-  leather: { wood: 1, stone: 0, gold: 1 },
-  copper: { wood: 1, stone: 2, gold: 1 },
-  bronze: { wood: 1, stone: 3, gold: 2 },
-  silver: { wood: 1, stone: 3, gold: 4 },
-  iron: { wood: 1, stone: 4, gold: 3 },
-  steel: { wood: 2, stone: 5, gold: 5 },
-  mithril: { wood: 2, stone: 6, gold: 8 },
-  adamantine: { wood: 2, stone: 8, gold: 12 },
+/**
+ * What a piece costs, by material: wood and stone for the forge, gold for
+ * the smith, and metal from the mines for anything better than wood and
+ * leather. Mithril and adamantine take an ingot of the rare metal itself.
+ */
+export const MATERIAL_COST: Record<Material, { wood: number; stone: number; gold: number; metal: number; rare?: 'mithril' | 'adamantine' }> = {
+  wood: { wood: 2, stone: 0, gold: 0, metal: 0 },
+  leather: { wood: 1, stone: 0, gold: 1, metal: 0 },
+  copper: { wood: 1, stone: 2, gold: 1, metal: 1 },
+  bronze: { wood: 1, stone: 3, gold: 2, metal: 2 },
+  silver: { wood: 1, stone: 3, gold: 4, metal: 2 },
+  iron: { wood: 1, stone: 4, gold: 3, metal: 3 },
+  steel: { wood: 2, stone: 5, gold: 5, metal: 4 },
+  mithril: { wood: 2, stone: 6, gold: 8, metal: 2, rare: 'mithril' },
+  adamantine: { wood: 2, stone: 8, gold: 12, metal: 2, rare: 'adamantine' },
 };
 
 const NAME_HEADS = [
@@ -147,7 +151,7 @@ type Roll = () => number;
 const rollQuality = (roll: Roll, tier: number): Quality => {
   const r = roll();
   // A bigger town has better smiths; a legendary is never more than 1 in 40.
-  const lift = (tier - 1) * 0.012;
+  const lift = Math.max(0, tier - 1) * 0.012;
   if (r < 0.006 + lift) return 'legendary';
   if (r < 0.05 + lift * 2) return 'masterwork';
   if (r < 0.25 + lift * 2) return 'fine';
@@ -164,14 +168,15 @@ export const legendName = (kind: WeaponKind | 'armor', roll: Roll): string => {
 /**
  * Make one item.
  *
- * `tier` is the town's craft tier, 1-4. Materials are picked off the tier,
+ * `tier` is the town's craft tier, 1-4 (0 for a smith with no metal). Materials are picked off the tier,
  * shapes off the race's taste, and quality off one roll; a masterwork at the
  * top tier has a chance of being worked in mithril or adamantine.
  */
 export const forgeItem = (
   slot: ItemSlot, tier: number, race: string, madeIn: string, roll: Roll = Math.random,
 ): Item => {
-  const t = Math.max(1, Math.min(4, Math.round(tier)));
+  // Tier 0 is wood and leather: what a town with no metal can still make.
+  const t = Math.max(0, Math.min(4, Math.round(tier)));
   const quality = rollQuality(roll, t);
   let material = TIER_MATERIAL[slot][t];
   if (t >= 4 && (quality === 'masterwork' || quality === 'legendary')) {
