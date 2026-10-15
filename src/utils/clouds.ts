@@ -12,7 +12,7 @@
 // is a notification; a green cloud crossing a valley is an event.
 import * as THREE from 'three';
 import { isWaterBiome, type Entity, type Tile } from '../types/world';
-import { addHeat } from './thermal';
+import { addHeat, chill } from './thermal';
 import { applyStatus } from './statusEffects';
 
 export type DropKind = 'none' | 'rain' | 'snow' | 'plague' | 'blessing' | 'seed'
@@ -33,6 +33,13 @@ export interface DropDef {
 
 /** Degrees a rainy tile loses per touch. Enough to matter to the ladder. */
 const RAIN_COOLING = 45;
+/**
+ * How far below its own climate weather can take a tile. Rain puts out fires
+ * and cools a hot spell; snow can whiten land that is already cold (its
+ * climate within reach of the freeze rung) but never turns a meadow to ice.
+ */
+const RAIN_DEPTH = 25;
+const SNOW_DEPTH = 42;
 
 export const DROPS: Record<DropKind, DropDef> = {
   none: { tint: 0xffffff, rate: 0, herald: null },
@@ -45,7 +52,7 @@ export const DROPS: Record<DropKind, DropDef> = {
       tile.moisture = Math.min(1, tile.moisture + 0.02);
       // Rain is the counterweight to the thermal ladder, and the only one the
       // world produces on its own. Without it a fire season is permanent.
-      addHeat(tile, -RAIN_COOLING);
+      chill(tile, RAIN_COOLING, RAIN_DEPTH);
       if (tile.isOnFire) {
         tile.isOnFire = false;
         return true;
@@ -60,7 +67,7 @@ export const DROPS: Record<DropKind, DropDef> = {
     herald: null,
     onTile: (tile) => {
       tile.moisture = Math.min(1, tile.moisture + 0.01);
-      addHeat(tile, -RAIN_COOLING * 1.6);
+      chill(tile, RAIN_COOLING * 1.6, SNOW_DEPTH);
       if (tile.isOnFire) {
         tile.isOnFire = false;
         return true;

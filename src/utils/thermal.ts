@@ -80,6 +80,24 @@ export const addHeat = (tile: Tile, degrees: number): void => {
   tile.heat = heatOf(tile) + degrees;
 };
 
+/**
+ * Weather's cooling: take `degrees` off a tile, but never more than `depth`
+ * below what its climate says it should be.
+ *
+ * Rain and snow touch every tile under a cloud every pass, while the thermal
+ * row only gets round to relaxing any one tile every few minutes. Applied
+ * raw, a snow cloud drifting over temperate farmland stacked its cooling
+ * pass after pass until the ground fell through the deep-freeze rung, and a
+ * world left running in its first summer was half glacier. Weather can chill
+ * the ground; only a real cold — the poles, an ice age, a god's power — can
+ * freeze it solid.
+ */
+export const chill = (tile: Tile, degrees: number, depth: number): void => {
+  const current = heatOf(tile);
+  const floor = Math.min(current, ambientOf(tile) - depth);
+  tile.heat = Math.max(current - degrees, floor);
+};
+
 /** Let a tile drift back toward its climate. */
 export const relax = (tile: Tile, delta: number): void => {
   const ambient = ambientOf(tile);

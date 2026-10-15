@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEEP_FREEZE, FIRE_HEAT_PER_SECOND, FREEZE, IGNITE, MELT, SCORCH, STRIP, THAW,
-  addHeat, ambientOf, cascade, conduct, heatOf, relax,
+  addHeat, ambientOf, cascade, chill, conduct, heatOf, relax,
 } from './thermal';
 import type { BiomeType, Tile } from '../types/world';
 
@@ -188,5 +188,26 @@ describe('the bottom of the ladder', () => {
     const { cascade, DEEP_FREEZE } = await import('./thermal');
     const tile = { type: 'glacier', heat: DEEP_FREEZE - 1, temperature: 0, isOnFire: false } as unknown as Parameters<typeof cascade>[0];
     expect(cascade(tile)?.step).not.toBe('deep_freeze');
+  });
+});
+
+describe('weather cannot freeze a meadow', () => {
+  it('chills only so far below the climate, however often a cloud passes', () => {
+    const meadow = { type: 'grassland', temperature: 0.55, heat: undefined } as unknown as Tile;
+    for (let pass = 0; pass < 200; pass++) chill(meadow, 72, 42);
+    expect(heatOf(meadow)).toBeGreaterThan(DEEP_FREEZE);
+    expect(cascade(meadow)?.step).not.toBe('deep_freeze');
+  });
+
+  it('can still whiten land that is already cold', () => {
+    const tundra = { type: 'tundra', temperature: 0.4, heat: undefined } as unknown as Tile;
+    for (let pass = 0; pass < 5; pass++) chill(tundra, 72, 42);
+    expect(heatOf(tundra)).toBeLessThanOrEqual(FREEZE);
+  });
+
+  it('cools a burning tile hard', () => {
+    const fire = { type: 'grassland', temperature: 0.5, heat: 80 } as unknown as Tile;
+    chill(fire, 45, 25);
+    expect(heatOf(fire)).toBe(35);
   });
 });
