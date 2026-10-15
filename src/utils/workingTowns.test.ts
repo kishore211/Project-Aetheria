@@ -8,8 +8,16 @@ import { depositOf, ORE_TYPES, seedOreVeins } from './oreVeins';
 import { forgeItem } from './equipment';
 import { opinionBetween } from './politics';
 import { isChild } from './size';
+import { DEFAULT_WORLD_LAWS } from '../store/gameStore';
 import { NATIVES, populateWildlife } from './worldBehaviour';
 import type { Race, Tile } from '../types/world';
+
+const mulberry32 = (seed: number) => () => {
+  seed = (seed + 0x6d2b79f5) | 0;
+  let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
 
 /** A flat, fertile world so the economy, not the noise, decides what happens. */
 const makeWorld = (mapSize = 60) => {
@@ -136,15 +144,24 @@ describe('a working town', () => {
   });
 
   it('mines a vein, banks the metal, and the deposit runs out', () => {
-    const world = makeWorld();
-    seatTowns(world, ['dwarf', 'dwarf'], 30);
-    const vein = world.tiles[20][28];
-    vein.type = 'hills';
-    vein.resources = [{ type: 'iron', quantity: 3, discovered: true }];
-    world.run(120);
-    const town = world.settlements.villages.get('village-0')!;
-    expect(town.store.metal ?? 0).toBeGreaterThan(0);
-    expect(depositOf(vein)).toBeNull();
+    // Its own dice, so what earlier tests drew cannot decide who is a miner.
+    const shared = Math.random;
+    Math.random = mulberry32(4242);
+    try {
+      const world = makeWorld();
+      seatTowns(world, ['dwarf', 'dwarf'], 30);
+      // The smith would spend the metal as fast as it came in; this is about the mine.
+      world.settlements.setWorldLaws({ ...DEFAULT_WORLD_LAWS, forging: false });
+      const vein = world.tiles[19][27];
+      vein.type = 'hills';
+      vein.resources = [{ type: 'iron', quantity: 3, discovered: true }];
+      world.run(180);
+      const town = world.settlements.villages.get('village-0')!;
+      expect(town.store.metal ?? 0).toBeGreaterThan(0);
+      expect(depositOf(vein)).toBeNull();
+    } finally {
+      Math.random = shared;
+    }
   });
 
   it('sends caravans between realms at peace, and they come to like each other for it', () => {
@@ -198,6 +215,30 @@ describe('a world made alive', () => {
     for (const { type, tile } of placed) {
       expect(native(tile)).toContain(type);
       expect(['yeti', 'sandworm', 'demon']).not.toContain(type);
+    }
+  });
+});
+
+describe('construction', () => {
+  it('raises a building as a site that builders finish, and only then counts it', () => {
+    const shared = Math.random;
+    Math.random = mulberry32(99);
+    try {
+      const world = makeWorld();
+      seatTowns(world, ['human', 'human'], 30);
+      const town = world.settlements.villages.get('village-0')!;
+      town.store.wood = 200;
+      town.store.stone = 200;
+      const before = new Set(town.buildings.map(b => b.id));
+      world.run(6);
+      const sites = town.buildings.filter(b => !before.has(b.id));
+      expect(sites.length).toBeGreaterThan(0);
+      expect(sites.every(b => b.progress !== undefined)).toBe(true);
+      expect(world.entities.getAllEntities().some(p => p.villageId === town.id && p.job === 'builder')).toBe(true);
+      world.run(90);
+      expect(sites.some(b => b.progress === undefined)).toBe(true);
+    } finally {
+      Math.random = shared;
     }
   });
 });

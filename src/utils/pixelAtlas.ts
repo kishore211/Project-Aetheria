@@ -421,6 +421,25 @@ const BUILDING_ART: Record<string, AtlasEntry> = {
       'kkkkkkkkkkk.',
     ],
   },
+  // A building going up: a timber frame on a stone footing, planks stacked
+  // beside it. Every building is this until its builders finish.
+  site: {
+    palette: { l: '#c8955a', d: '#86592c', s: '#9aa0a6', t: '#6e7378', k: OUTLINE },
+    grid: [
+      '............',
+      '.k..k..k....',
+      '.kl.kl.kl...',
+      'kkkkkkkkkk..',
+      '.kl.kl.kl...',
+      '.kl.kl.kl...',
+      'kkkkkkkkkk..',
+      '.kl.kl.kl.kk',
+      '.kl.kl.klkll',
+      'kssssssssskd',
+      'kttttttttskk',
+      'kkkkkkkkkkk.',
+    ],
+  },
   // A straw man on a post, for the barracks to hit.
   dummy: {
     palette: { y: '#e8c860', l: '#9c6b3c', r: '#c8452f', k: OUTLINE },

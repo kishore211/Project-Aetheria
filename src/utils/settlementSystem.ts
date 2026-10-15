@@ -118,6 +118,11 @@ export interface Building {
   slot: number;
   /** 1-3 for houses: hut, stone house, manor. Everything else stays at 1. */
   level?: number;
+  /**
+   * How far its builders have got, 0-1, while it is still a construction
+   * site. Absent once it stands. A site houses nobody and earns nothing.
+   */
+  progress?: number;
 }
 
 export interface VillageStore {
@@ -309,7 +314,9 @@ const WAR_MAX_ROUNDS = 50;
 const WAR_WEARY_ROUNDS = 20;
 const WAR_WEARY_PEACE_CHANCE = 0.05;
 /** Seconds a new kingdom is left in peace before tension can build. */
-const YOUNG_REALM_PEACE = 240;
+const YOUNG_REALM_PEACE = 300;
+/** People a realm needs before it can field a war at all. */
+const WAR_MIN_POPULATION = 20;
 /** Realms this close, village to village, notice each other without a border. */
 const CONTACT_RANGE = 40;
 
@@ -582,6 +589,22 @@ const CARAVAN_PROFIT = 4;
 const CARAVAN_TIMEOUT = 150;
 /** Caravan rounds a trade tie keeps warming opinion after the last trader. */
 const TRADE_TIE_MEMORY = 30;
+
+/** What one builder's visit adds to a site. Five visits put up a house. */
+const BUILDER_STROKE = 0.2;
+/** What a site gains each build round with nobody working on it. */
+const SITE_SELF_PROGRESS = 0.04;
+/** How quickly each kind goes up: a tent in moments, a temple over a season. */
+const BUILD_EASE: Partial<Record<BuildingKind, number>> = {
+  tent: 3, well: 2.5, farm: 2.5, stockpile: 2.5, dummy: 2.5, bonfire: 3,
+  house: 1.3, windmill: 1.2, dock: 1.2, mine: 1.2,
+  hall: 0.6, temple: 0.6, library: 0.7, statue: 0.8, barracks: 0.8, tower: 0.9,
+};
+
+/** Most builders one town keeps on its sites. */
+const MAX_BUILDERS = 6;
+/** Sites one town will have open at once. */
+const MAX_SITES = 2;
 
 /** Most miners and woodcutters one town keeps, however large. */
 const MAX_MINERS = 8;
@@ -1335,15 +1358,21 @@ export class SettlementSystem {
       // bonfire was the single biggest reason nothing seemed to happen.
       const adults = members.filter(m => !isChild(m)).length;
       const farms = village.buildings.filter(b => b.kind === 'farm').length;
-      const targets: Record<'warrior' | 'gatherer' | 'farmer' | 'miner' | 'woodcutter', number> = {
+      const openSites = village.buildings.filter(b => b.progress !== undefined).length;
+      const targets: Record<'warrior' | 'gatherer' | 'builder' | 'farmer' | 'miner' | 'woodcutter', number> = {
         warrior: warriorTarget,
         gatherer: gathererTarget,
+        // Somebody always has a hammer while there is a site to put up.
+        builder: openSites > 0 ? Math.min(MAX_BUILDERS, Math.max(1, Math.round(adults * 0.15))) : 0,
         farmer: Math.min(farms, Math.ceil(adults * 0.3)),
         miner: Math.min(MAX_MINERS, Math.max(1, Math.round(adults * 0.14))),
         woodcutter: Math.min(MAX_WOODCUTTERS, Math.max(1, Math.round(adults * 0.16))),
       };
-      const counts = { warrior: 0, gatherer: 0, farmer: 0, miner: 0, woodcutter: 0, trader: 0 };
-      const ORDER = ['warrior', 'gatherer', 'farmer', 'miner', 'woodcutter'] as const;
+      // Foragers take what is left after the soldiers and the builders: a
+      // hungry town still keeps a hammer going, or it never gets a roof up.
+      targets.gatherer = Math.max(0, Math.min(targets.gatherer, adults - targets.warrior - targets.builder));
+      const counts = { warrior: 0, gatherer: 0, builder: 0, farmer: 0, miner: 0, woodcutter: 0, trader: 0 };
+      const ORDER = ['warrior', 'builder', 'gatherer', 'farmer', 'miner', 'woodcutter'] as const;
 
       // Whoever already holds a blade is first in line for a soldier's post:
       // the smith armed them for it, and a town should not hand its swords to
@@ -1357,7 +1386,7 @@ export class SettlementSystem {
         if (isChild(member)) { member.job = null; continue; }
         const job = member.job;
         if (job === 'trader' && this.caravans.has(member.id)) { counts.trader++; continue; }
-        if (job && job !== 'trader' && job !== 'builder' && counts[job] < targets[job]) counts[job]++;
+        if (job && job !== 'trader' && counts[job] < targets[job]) counts[job]++;
         else member.job = null;
       }
 
@@ -1369,11 +1398,17 @@ export class SettlementSystem {
           ? 'warrior'
           : ORDER.find(kind => counts[kind] < targets[kind]);
         // Past every quota, a spare pair of hands hauls for the builders.
-        if (job) {
-          member.job = job;
-          counts[job]++;
-        } else {
-          member.job = 'builder';
+        member.job = job ?? 'builder';
+        if (job) counts[job]++;
+      }
+
+      // Builders walk to the nearest site and put it up.
+      const sites = village.buildings.filter(b => b.progress !== undefined);
+      if (sites.length > 0) {
+        for (const member of members) {
+          if (member.job !== 'builder' || member.carrying || this.entities.hasOrder(member)) continue;
+          const site = sites[Math.floor(Math.random() * sites.length)];
+          this.entities.giveOrder(member, { kind: 'goto', x: site.x, y: site.y, purpose: 'build' });
         }
       }
 
@@ -1766,6 +1801,7 @@ export class SettlementSystem {
       // -- 1. buildings earn --------------------------------------------
       let yield_ = 0;
       for (const building of village.buildings) {
+        if (building.progress !== undefined) continue;
         const base = (BUILDING_YIELD[building.kind] ?? 1) + ((building.level ?? 1) - 1);
         const tile = this.tileAt(building.x, building.y);
         yield_ += base * (tile ? groundBonus(tile) : 1);
@@ -1813,6 +1849,7 @@ export class SettlementSystem {
   private homesIn(village: Village): number {
     let capacity = 0;
     for (const building of village.buildings) {
+      if (building.progress !== undefined) continue;
       // A stone house holds two more than a hut, a manor two more again.
       capacity += (HOUSING[building.kind] ?? 0) + (building.kind === 'house' ? ((building.level ?? 1) - 1) * 2 : 0);
     }
@@ -1835,6 +1872,16 @@ export class SettlementSystem {
         });
         entity.carrying = null;
       }
+      return;
+    }
+
+    if (order.purpose === 'build') {
+      const village = entity.villageId ? this.villages.get(entity.villageId) : null;
+      const site = village?.buildings.find(b => b.x === order.x && b.y === order.y && b.progress !== undefined);
+      if (!village || !site) return;
+      site.progress = (site.progress ?? 0) + BUILDER_STROKE * (BUILD_EASE[site.kind] ?? 1);
+      emitFloater({ kind: 'emote', text: '\u{1F528}', x: entity.position.x, y: entity.position.y, entityId: entity.id });
+      if (site.progress >= 1) this.finishBuilding(village, site);
       return;
     }
 
@@ -1901,7 +1948,12 @@ export class SettlementSystem {
       // occasionally skips one. Expressed as a chance rather than a separate
       // timer so the two traits stay symmetrical and there is one place to
       // read the rule.
+      // Sites creep up on their own, slowly; builders are what make them fly.
+      this.advanceSites(village, SITE_SELF_PROGRESS);
       if (!groupHasCultureTrait(village.id, 'industrious') && Math.random() < 0.25) continue;
+      // A town works on a couple of things at once, not on every plot it owns.
+      const sites = village.buildings.filter(b => b.progress !== undefined).length;
+      if (sites >= MAX_SITES) continue;
 
       const recipe = this.nextRecipe(village);
       if (!recipe) continue;
@@ -1910,34 +1962,41 @@ export class SettlementSystem {
 
       village.store.wood -= recipe.wood;
       village.store.stone -= recipe.stone;
-      this.placeBuilding(village, recipe.kind, spot.x, spot.y);
+      // Raised as a site: the builders walk over and put it up, and it only
+      // counts once they have. The bonfire and a founding's first tents are
+      // the exceptions, placed whole by createVillage.
+      this.placeBuilding(village, recipe.kind, spot.x, spot.y, true);
       const raised = village.buildings[village.buildings.length - 1];
       if (raised) this.layRoads(village, raised);
       this.claimTerritory(village);
+    }
+  }
 
-      if (recipe.kind === 'hall') {
-        this.events.onEvent(
-          chronicle('hall_raised', { name: village.name }),
-          'kingdom',
-          { x: spot.x, y: spot.y },
-        );
-        // A temple or a library is where a people writes itself down.
-      } else if (recipe.kind === 'temple' || recipe.kind === 'statue' || recipe.kind === 'library') {
-        const identity = groupMetas(village.id);
-        if (identity) {
-          const book = writeBook(spot.x, spot.y, identity);
-          this.events.onEvent(
-            chronicle('book_written', { name: book.title, a: village.name }),
-            'kingdom',
-            { x: spot.x, y: spot.y },
-          );
-        }
-        this.events.onEvent(
-          chronicle('monument_raised', { name: village.name, type: recipe.kind }),
-          'kingdom',
-          { x: spot.x, y: spot.y },
-        );
+  /** Builders' work, and what the weather and the passers-by add on their own. */
+  private advanceSites(village: Village, amount: number): void {
+    for (const building of village.buildings) {
+      if (building.progress === undefined) continue;
+      building.progress += amount * (BUILD_EASE[building.kind] ?? 1);
+      if (building.progress >= 1) this.finishBuilding(village, building);
+    }
+  }
+
+  /** The scaffolding comes down. Monuments and halls are news. */
+  private finishBuilding(village: Village, building: Building): void {
+    delete building.progress;
+    building.health = building.maxHealth;
+    this.paintBuilding(village, building);
+    const { kind, x, y } = building;
+    if (kind === 'hall') {
+      this.events.onEvent(chronicle('hall_raised', { name: village.name }), 'kingdom', { x, y });
+    } else if (kind === 'temple' || kind === 'statue' || kind === 'library') {
+      // A temple or a library is where a people writes itself down.
+      const identity = groupMetas(village.id);
+      if (identity) {
+        const book = writeBook(x, y, identity);
+        this.events.onEvent(chronicle('book_written', { name: book.title, a: village.name }), 'kingdom', { x, y });
       }
+      this.events.onEvent(chronicle('monument_raised', { name: village.name, type: kind }), 'kingdom', { x, y });
     }
   }
 
@@ -2173,7 +2232,7 @@ export class SettlementSystem {
     return false;
   }
 
-  private placeBuilding(village: Village, kind: BuildingKind, x: number, y: number): void {
+  private placeBuilding(village: Village, kind: BuildingKind, x: number, y: number, site = false): void {
     const tile = this.tileAt(x, y);
     if (!tile) return;
 
@@ -2191,6 +2250,10 @@ export class SettlementSystem {
       slot,
       level: 1,
     };
+    if (site) {
+      building.progress = 0;
+      building.health = Math.round(building.maxHealth * 0.3);
+    }
     village.buildings.push(building);
 
     // Buildings clear all the land they stand on and replace natural decoration
@@ -2231,15 +2294,17 @@ export class SettlementSystem {
     position.y += size * 0.5 + 0.02;
     // Fields follow the year: green while growing, gold at harvest, bare and
     // frosted in winter.
-    const art = (kind === 'house' || kind === 'hall') && (building.level ?? 1) > 1 ? `${kind}${building.level}`
+    const underConstruction = building.progress !== undefined;
+    const art = underConstruction ? 'site'
+      : (kind === 'house' || kind === 'hall') && (building.level ?? 1) > 1 ? `${kind}${building.level}`
       : kind === 'farm' && simulation.season === 'autumn' ? 'farm_autumn'
         : kind === 'farm' && simulation.season === 'winter' ? 'farm_winter'
           : kind;
     const sway = -(PULSE_BY_BUILDING[kind] ?? 0.5);
     this.buildingCloud.set(slot, {
       position,
-      sprite: buildingSprite(art, village.race),
-      size,
+      sprite: underConstruction ? 'site' : buildingSprite(art, village.race),
+      size: underConstruction ? Math.min(size, 0.62 * BUILDING_DRAW_SCALE * Math.max(1, span * 0.8)) : size,
       // Negative sway means "pulse in scale" rather than "lean". A bonfire
       // breathes hardest because it is literally a fire; a hall barely moves
       // because a building that wobbles looks broken.
@@ -2274,7 +2339,7 @@ export class SettlementSystem {
       const ceiling = !has('hall') ? 1 : has('temple') || has('library') ? 3 : 2;
       if (ceiling === 1) continue;
       const house = village.buildings
-        .filter(b => b.kind === 'house' && (b.level ?? 1) < ceiling)
+        .filter(b => b.kind === 'house' && b.progress === undefined && (b.level ?? 1) < ceiling)
         .sort((a, b) => (a.level ?? 1) - (b.level ?? 1))[0];
       if (!house) continue;
       const next = (house.level ?? 1) + 1;
@@ -3193,6 +3258,12 @@ export class SettlementSystem {
     });
   }
 
+  /** Everyone living in a kingdom's towns. */
+  private populationOf(kingdom: Kingdom): number {
+    const members = this.entities.getEntitiesByVillage();
+    return kingdom.villageIds.reduce((sum, id) => sum + (members.get(id)?.length ?? 0), 0);
+  }
+
   /** How many towns this kingdom will try to hold before it stops settling. */
   private colonyLimit(kingdom: Kingdom): number {
     return governableVillages(this.kingCivilStats(kingdom))
@@ -3980,7 +4051,11 @@ export class SettlementSystem {
       a.tension.set(bId, tension);
       b.tension.set(aId, tension);
 
-      if (tension >= 1) this.declareWar(a, b);
+      // A realm of a dozen souls cannot start a war, however much it hates
+      // its neighbour; the one that is big enough can.
+      if (tension >= 1 && (this.populationOf(a) >= WAR_MIN_POPULATION || this.populationOf(b) >= WAR_MIN_POPULATION)) {
+        this.declareWar(a, b);
+      }
     }
 
     // Distance cools old grudges
