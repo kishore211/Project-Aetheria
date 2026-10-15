@@ -1707,3 +1707,9 @@ canvas {
 .stats-legend { display: flex; flex-wrap: wrap; gap: 0.2rem 0.8rem; margin-top: 0.35rem; font-size: 0.7rem; color: #cbd5e1; }
 .stats-legend li { display: flex; align-items: center; gap: 0.3rem; }
 .stats-legend b { color: #fff; }
+
+/* Rare ore in the town window: a coloured gem rather than another icon. */
+.ore-dot { display: inline-block; width: 10px; height: 10px; transform: rotate(45deg); border: 1px solid #1a1410; }
+.ore-mithril { background: #80c4ff; }
+.ore-adamantine { background: #c456e2; }
+.city-jobs li { text-transform: none; }

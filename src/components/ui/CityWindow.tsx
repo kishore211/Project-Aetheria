@@ -1,10 +1,16 @@
 import { createPortal } from 'react-dom';
 import { useEffect, useState } from 'react';
-import { Coins, Crown, Hammer, Home, MapPin, Mountain, Trees, Wheat, X } from 'lucide-react';
+import { Coins, Crown, Gem, Hammer, Home, MapPin, Mountain, Pickaxe, Trees, Users, Wheat, X } from 'lucide-react';
 import { useGameStore } from '../../store/gameStore';
 import { worldAccess } from '../../utils/worldAccess';
 import { CULTURE_TRAITS, type CultureTraitId } from '../../utils/identity';
 import Banner from './Banner';
+
+/** What each trade is called on the town's roll. */
+const TRADE_LABEL: Record<string, string> = {
+  farmer: 'farmers', woodcutter: 'woodcutters', miner: 'miners', builder: 'builders',
+  gatherer: 'gatherers', warrior: 'warriors', trader: 'traders', young: 'children', idle: 'idle',
+};
 
 const Stat = ({ icon, label, value }: { icon: React.ReactNode; label: string; value: React.ReactNode }) => (
   <div className="unit-stat" title={label}>
@@ -79,6 +85,22 @@ const CityWindow = () => {
           <Stat icon={<Wheat size={13} />} label="Food" value={village.store.food} />
           <Stat icon={<Trees size={13} />} label="Wood" value={village.store.wood} />
           <Stat icon={<Mountain size={13} />} label="Stone" value={village.store.stone} />
+        </div>
+        <div className="unit-stats">
+          <Stat icon={<Users size={13} />} label="People" value={village.population} />
+          <Stat icon={<Pickaxe size={13} />} label="Metal from the mines" value={village.store.metal ?? 0} />
+          <Stat icon={<Gem size={13} />} label="Gems" value={village.store.gems ?? 0} />
+          {(village.store.mithril ?? 0) > 0 && <Stat icon={<span className="ore-dot ore-mithril" />} label="Mithril" value={village.store.mithril} />}
+          {(village.store.adamantine ?? 0) > 0 && <Stat icon={<span className="ore-dot ore-adamantine" />} label="Adamantine" value={village.store.adamantine} />}
+        </div>
+
+        <div className="unit-section">
+          <h4>At work</h4>
+          <ul className="unit-status city-jobs">
+            {Object.entries(village.jobs)
+              .sort((a, b) => b[1] - a[1])
+              .map(([trade, count]) => <li key={trade}>{count} {TRADE_LABEL[trade] ?? trade}</li>)}
+          </ul>
         </div>
 
         <dl className="unit-facts">

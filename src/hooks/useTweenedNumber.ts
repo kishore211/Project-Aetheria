@@ -24,7 +24,11 @@ export const useTweenedNumber = (target: number, secondsToClose = 0.45): number 
     let last = performance.now();
 
     const step = (now: number) => {
-      const delta = Math.min(0.1, (now - last) / 1000);
+      // Clamped at zero as well as above: a frame stamp from an earlier clock
+      // (a tab coming back from the background) made the gap negative, and a
+      // negative step walks the number *away* from its target — the counter
+      // once read minus a hundred and seventy.
+      const delta = Math.max(0, Math.min(0.1, (now - last) / 1000));
       last = now;
 
       const goal = targetRef.current;

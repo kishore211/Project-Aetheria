@@ -1257,6 +1257,24 @@ const ICON_ART: Record<string, AtlasEntry> = {
       '............',
     ],
   },
+  // A tied coin purse: a trader on the road between towns.
+  trader: {
+    palette: ICON_INK,
+    grid: [
+      '............',
+      '....oooo....',
+      '.....oo.....',
+      '....oyyo....',
+      '...oyyyyo...',
+      '..oyysyyyo..',
+      '..oyyyyyyo..',
+      '..oyyyyyyo..',
+      '...oyyyyo...',
+      '....oooo....',
+      '............',
+      '............',
+    ],
+  },
   // A gold sun-cross: the temple's keeper.
   priest: {
     palette: ICON_INK,

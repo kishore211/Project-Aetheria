@@ -33,7 +33,13 @@ export interface WorldAccess {
     kingdomName: string;
     kingdomColor: string;
     race: string;
-    store: { food: number; wood: number; stone: number; gold: number };
+    store: {
+      food: number; wood: number; stone: number; gold: number;
+      metal?: number; gems?: number; mithril?: number; adamantine?: number;
+    };
+    /** Who does what: villagers by trade, children included as 'young'. */
+    jobs: Record<string, number>;
+    population: number;
     buildings: number;
     territory: number;
     capital: boolean;

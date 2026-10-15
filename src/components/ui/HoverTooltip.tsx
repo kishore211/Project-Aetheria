@@ -11,6 +11,11 @@ const OFFICE_LABEL: Record<string, string> = {
   warrior: 'Warrior',
   gatherer: 'Gatherer',
   builder: 'Builder',
+  farmer: 'Farmer',
+  woodcutter: 'Woodcutter',
+  miner: 'Miner',
+  trader: 'Trader',
+  priest: 'Priest',
 };
 
 const pretty = (value: string): string => value.replace(/_/g, ' ');

@@ -4519,6 +4519,15 @@ export class SettlementSystem {
       kingdomColor: kingdom?.colorHex ?? '#888888',
       race: village.race,
       store: { ...village.store },
+      ...(() => {
+        const people = this.residentsOf(village);
+        const jobs: Record<string, number> = {};
+        for (const person of people) {
+          const trade = isChild(person) ? 'young' : person.job ?? 'idle';
+          jobs[trade] = (jobs[trade] ?? 0) + 1;
+        }
+        return { jobs, population: people.length };
+      })(),
       buildings: village.buildings.length,
       territory: village.territory.size,
       capital: village.capital,
