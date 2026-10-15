@@ -434,3 +434,36 @@ ones that were thin.
 - **Childhood**: newborns start at age zero, small, and grow up; no jobs or
   armies until grown.
 - **Realms over time** graph in the world stats.
+
+## Round 23 — a world that actually plays (2026-10-15)
+
+Reported: "nothing is happening — people don't expand, don't go to war, don't
+trade, boats just roam, no gold, no ore, no animals." A headless 30-minute run
+(four peoples on a 128 map) confirmed it: every race sat at 7–17 people, towns
+hoarded 7,500 food, half the population had no job, and nobody ever founded a
+second village — so war, trade and armies never got going either. The world
+was not missing features; it was stalled.
+
+What changed, measured the same way after (three seeds, 30 simulated minutes):
+~1,000+ people, 15–25 towns, 6–17 kingdoms, wars, conquests, rebellions,
+caravans and settlers in every run, all four peoples alive.
+
+- **Growth**: towns raise children by housing and granary (`birthRound`);
+  childhood is a fixed 150 s for every people (it was 12% of a lifespan —
+  eight minutes for a dwarf); the granary feeds and waters the whole
+  territory; 26 houses per town; insular cultures settle once full.
+- **Work**: farmers, woodcutters (felled woods become clearings), miners,
+  builders, gatherers, traders — everybody has a trade.
+- **Ore** (`oreVeins.ts`): visible veins of iron, silver, gold, gems,
+  crystal, mithril and adamantine by biome, dug out by miners. Forging spends
+  mined metal; rare metals need their own ore; tier 0 makes wood and leather.
+- **Construction**: buildings rise as scaffolding that builders finish.
+- **Trade**: land caravans between towns at peace; sea trade between any
+  peaceful ports; trade warms opinion.
+- **War**: racial temperament, land hunger and contact between nearby realms;
+  young realms get five minutes' peace and a realm needs twenty people to
+  start a war; wars last longer and end in weariness. Orcs no longer eat
+  people.
+- **World**: new worlds start with native herds. Weather can no longer freeze
+  a meadow into glacier (it reached half the map in year one).
+- **Chronicle**: notable lives only — no line per birth.
