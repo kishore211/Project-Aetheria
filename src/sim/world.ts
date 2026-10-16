@@ -37,7 +37,7 @@ export class World {
     this.seed = options.seed;
     this.clock = new SimClock(options.calendar);
     this.rng = new RngStreams(options.seed);
-    this.grid = new WorldGrid(options.width, options.height);
+    this.grid = new WorldGrid(options.width, options.height, this.events);
   }
 
   /** Append a system; systems run in registration order. */
