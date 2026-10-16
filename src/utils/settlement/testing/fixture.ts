@@ -123,6 +123,19 @@ export const makeWorld = (options: WorldOptions = {}): World => {
     landOf: (kingdom) => kingdom.villageIds.length,
     tradePartners: () => false,
     forgetLeadership: () => undefined,
+    leaderIdOf: () => undefined,
+    createKingdom: (race) => {
+      const kingdom: Kingdom = {
+        id: `kingdom-created-${kingdoms.size + 1}`, name: `Realm ${race}`, ruler: 'Ruler', race, colorHex: '#4f7fd6',
+        color: new THREE.Color('#4f7fd6'), villageIds: [], atWar: new Set(), tension: new Map(), age: 0, allies: new Set(),
+      };
+      kingdoms.set(kingdom.id, kingdom);
+      return kingdom;
+    },
+    repaintAllTerritory: () => undefined,
+    beginWar: () => undefined,
+    declareWar: () => undefined,
+    makePeace: () => undefined,
   };
 
   return { host, tiles, entities, boats, villages, kingdoms, laws, tiers, founded, events };

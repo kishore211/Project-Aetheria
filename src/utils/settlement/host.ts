@@ -7,7 +7,7 @@
 // subsystem needs something that is not here, add it here deliberately rather
 // than reaching round it: this list *is* the coupling between the parts.
 
-import type { Entity, Tile } from '../../types/world';
+import type { Entity, Race, Tile } from '../../types/world';
 import type { EntityManager } from '../entityManagerMinimal';
 import type { BoatSystem, Point } from '../boats';
 import type { WorldLaws } from '../../store/gameStore';
@@ -65,4 +65,16 @@ export interface SettlementHost {
   tradePartners(a: string, b: string): boolean;
   /** A village changing hands drops its captain and its leader. */
   forgetLeadership(villageId: string): void;
+  /** The leader a village has appointed, if it has one. */
+  leaderIdOf(villageId: string): string | undefined;
+  /** Found a new realm of this race, register it, and return it. */
+  createKingdom(race: Race): Kingdom;
+  /** Repaint every claimed tile in the colours of the current map layer. */
+  repaintAllTerritory(): void;
+  /** Open a war between two realms, as a secession or a disputed crown leaves them. */
+  beginWar(a: Kingdom, b: Kingdom): void;
+  /** One realm declares war on another. */
+  declareWar(a: Kingdom, b: Kingdom): void;
+  /** Two realms at war make peace. */
+  makePeace(a: Kingdom, b: Kingdom): void;
 }

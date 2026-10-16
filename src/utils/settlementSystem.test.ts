@@ -766,16 +766,16 @@ describe('a war of succession', () => {
         p.attributes = { strength: 10, intelligence: 15, speed: 10, resilience: 10 };
       }
     }
-    const inner = harness.settlements as unknown as { manageWorkforce(): void; succession(): void };
+    const inner = harness.settlements as unknown as { manageWorkforce(): void; politics: { succession(): void } };
     inner.manageWorkforce();
-    inner.succession();
+    inner.politics.succession();
     const kingdom = harness.settlements.kingdoms.get('k')!;
     expect(kingdom.kingId).toBeTruthy();
     // The king dies; the realm chooses again, with the dice on the rival's side.
     harness.entities.getEntityById(kingdom.kingId!)!.health = 0;
     const roll = Math.random;
     Math.random = () => 0;
-    try { inner.succession(); } finally { Math.random = roll; }
+    try { inner.politics.succession(); } finally { Math.random = roll; }
     expect(harness.events.some(m => m.includes('will not kneel'))).toBe(true);
     expect(harness.settlements.kingdoms.size).toBe(2);
   });
