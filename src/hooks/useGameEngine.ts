@@ -39,12 +39,10 @@ import { magnetFollow, magnetHolding, magnetReset } from '../utils/magnet';
 import { describeItem, onItemEvent, type ItemEvent } from '../utils/equipment';
 import { clearImpacts, isShaking, requestFlash, requestShake, sampleShake } from '../utils/impactBridge';
 import { applyScenario, type Scenario } from '../utils/scenarios';
-import { nudgeMood } from '../utils/mood';
-import { AGES, AGE_LENGTH, nextAge, type AgeAction } from '../utils/ages';
+import type { AgeAction } from '../utils/ages';
 import { resetPlotIds } from '../utils/plots';
 import { resetIdentity } from '../utils/identity';
 import { visibleWorldSpan } from '../utils/cameraView';
-import { ageBridge } from '../utils/ageBridge';
 import { recordDeath, resetStats, sampleWorld, setRealmSource } from '../utils/worldStats';
 import { publishLabels } from '../utils/labelBridge';
 import { resetFaiths } from '../utils/religion';
@@ -52,6 +50,7 @@ import { ConwayLayer } from '../utils/conway';
 import { soundManager } from '../utils/soundManager';
 import { applyToolEffect as applyToolEffectImpl, BRUSH_TOOLS } from './engine/toolEffects';
 import { projectFloaters as projectFloatersImpl, projectLabels as projectLabelsImpl, refreshLabels as refreshLabelsImpl } from './engine/labels';
+import { advanceAge as advanceAgeImpl, runAgeAction as runAgeActionImpl } from './engine/ages';
 
 /** Mirrors entitySystemMinimal: only the sentient races get bubbles. */
 const SPEAKING_RACES = new Set<string>(['human', 'elf', 'dwarf', 'orc']);
@@ -1150,142 +1149,9 @@ export const useGameEngine = () => {
     }
   }, [controls, camera, gl, inBounds, tileWorldPosition]);
 
-  /**
-   * Do whatever the current era does to the world.
-   *
-   * These are the reason an age matters rather than merely tinting the screen.
-   * Each is deliberately small and frequent instead of one large event: a
-   * drought that kills a few trees every twenty-odd seconds reads as a
-   * *condition*, where one that razes a forest at once reads as a disaster
-   * somebody triggered.
-   */
-  const runAgeAction = useCallback((action: AgeAction) => {
-    const tiles = tilesRef.current;
-    const size = tiles.length;
-    if (size === 0 || action === 'none') return;
-    const store = useGameStore.getState();
-    const samples = Math.max(20, Math.floor((size * size) / 260));
+  const runAgeAction = useCallback((action: AgeAction) => runAgeActionImpl({ tilesRef, fireRef, entityManagerRef, syncTile, extinguishTile }, action), [extinguishTile, syncTile]);
 
-    switch (action) {
-      case 'drought': {
-        for (let attempt = 0; attempt < samples; attempt += 1) {
-          const tile = tiles[Math.floor(Math.random() * size)][Math.floor(Math.random() * size)];
-          if (isWaterBiome(tile.type)) continue;
-          tile.moisture = Math.max(0, tile.moisture - 0.05);
-          if (tile.structure && Math.random() < 0.25) {
-            tile.structure = null;
-            tile.resources = tile.resources.filter(r => r.type !== 'food');
-            syncTile(tile);
-          }
-        }
-        break;
-      }
-      case 'downpour': {
-        if (store.weather === 'clear') store.setWeather('rain');
-        // Rain in an Age of Tears is relentless enough to put fires out
-        // wherever it finds them, not merely to slow them down.
-        fireRef.current?.extinguishAll();
-        break;
-      }
-      case 'frost': {
-        for (let attempt = 0; attempt < samples; attempt += 1) {
-          const tile = tiles[Math.floor(Math.random() * size)][Math.floor(Math.random() * size)];
-          if (isWaterBiome(tile.type)) continue;
-          tile.temperature = Math.max(0, tile.temperature - 0.04);
-          const food = tile.resources.find(r => r.type === 'food');
-          if (food && Math.random() < 0.5) {
-            food.quantity = Math.max(0, food.quantity - 2);
-          }
-          if (tile.isOnFire) extinguishTile(tile, false);
-        }
-        break;
-      }
-      case 'derangement': {
-        // Chaos turns creatures on each other. Picked at random across the
-        // whole population rather than in one place, so it feels like the age
-        // rather than like an attack.
-        const all = entityManagerRef.current?.getAllEntities() ?? [];
-        if (all.length === 0) break;
-        for (let attempt = 0; attempt < Math.max(1, Math.floor(all.length * 0.04)); attempt += 1) {
-          const victim = all[Math.floor(Math.random() * all.length)];
-          applyScenario(victim, 'lostFight');
-        }
-        break;
-      }
-      case 'ashfall': {
-        for (let attempt = 0; attempt < samples; attempt += 1) {
-          const tile = tiles[Math.floor(Math.random() * size)][Math.floor(Math.random() * size)];
-          if (isWaterBiome(tile.type)) continue;
-          tile.fertility = Math.max(0, tile.fertility - 0.03);
-        }
-        const living = entityManagerRef.current?.getAllEntities() ?? [];
-        for (const creature of living) {
-          if (Math.random() < 0.05) creature.health = Math.max(1, creature.health - 2);
-        }
-        break;
-      }
-      case 'flourish': {
-        for (let attempt = 0; attempt < samples; attempt += 1) {
-          const tile = tiles[Math.floor(Math.random() * size)][Math.floor(Math.random() * size)];
-          if (isWaterBiome(tile.type)) continue;
-          tile.fertility = Math.min(1, tile.fertility + 0.03);
-          const food = tile.resources.find(r => r.type === 'food');
-          if (food) food.quantity = Math.min(10, food.quantity + 1);
-          else if (tile.fertility > 0.4) {
-            tile.resources.push({ type: 'food', quantity: 2, discovered: true });
-          }
-        }
-        break;
-      }
-      default: break;
-    }
-  }, [extinguishTile, syncTile]);
-
-  /** Move the age clock along and let the current era act on the world. */
-  const advanceAge = useCallback((delta: number) => {
-    const store = useGameStore.getState();
-    if (!store.worldLaws.ages) {
-      // Held in Hope rather than frozen mid-era: switching the law off should
-      // give a temperate world, not leave an Age of Ash running for ever.
-      if (store.age !== 'hope') store.setAge('hope');
-      ageBridge.age = 'hope';
-      ageBridge.strength = 0;
-      return;
-    }
-
-    const current = AGES[store.age] ?? AGES.hope;
-    ageBridge.age = current.id;
-    ageBridge.strength = current.tintStrength;
-
-    // Everything alive feels the era, which is our stand-in for their
-    // per-age loyalty and opinion bonuses.
-    if (current.mood !== 0) {
-      for (const creature of entityManagerRef.current?.getAllEntities() ?? []) {
-        nudgeMood(creature, current.mood * delta);
-      }
-    }
-
-    if (current.action !== 'none' && current.actionEvery > 0) {
-      ageActionTimerRef.current += delta;
-      if (ageActionTimerRef.current >= current.actionEvery) {
-        ageActionTimerRef.current = 0;
-        runAgeAction(current.action);
-      }
-    }
-
-    ageTimerRef.current += delta;
-    store.setAgeProgress(Math.min(1, ageTimerRef.current / AGE_LENGTH));
-    if (ageTimerRef.current < AGE_LENGTH) return;
-
-    ageTimerRef.current = 0;
-    ageActionTimerRef.current = 0;
-    ageSlotRef.current += 1;
-    const chosen = nextAge(ageSlotRef.current, current.id, Math.random());
-    store.setAge(chosen);
-    store.setAgeProgress(0);
-    store.addEvent(AGES[chosen].herald, 'info');
-    requestFlash(chosen === 'hope' || chosen === 'wonders' ? 'divine' : 'plague', 0.55);
-  }, [runAgeAction]);
+  const advanceAge = useCallback((delta: number) => advanceAgeImpl({ entityManagerRef, ageTimerRef, ageActionTimerRef, ageSlotRef, runAgeAction }, delta), [runAgeAction]);
 
   /**
    * Game tick logic
