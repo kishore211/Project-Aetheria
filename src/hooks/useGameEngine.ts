@@ -39,18 +39,24 @@ import { visibleWorldSpan } from '../utils/cameraView';
 import { sampleWorld } from '../utils/worldStats';
 import { ConwayLayer } from '../utils/conway';
 import { soundManager } from '../utils/soundManager';
-import { applyToolEffect as applyToolEffectImpl, BRUSH_TOOLS } from './engine/toolEffects';
+import { applyToolEffect as applyToolEffectImpl } from './engine/toolEffects';
 import { initializeWorld as initializeWorldImpl } from './engine/worldSetup';
 import { projectFloaters as projectFloatersImpl, projectLabels as projectLabelsImpl, refreshLabels as refreshLabelsImpl } from './engine/labels';
 import { advanceAge as advanceAgeImpl, runAgeAction as runAgeActionImpl } from './engine/ages';
 import { updateCamera as updateCameraImpl } from './engine/camera';
+import {
+  handleMouseClick as handleMouseClickImpl,
+  handleMouseMove as handleMouseMoveImpl,
+  updateBrushPreview as updateBrushPreviewImpl,
+  updateHover as updateHoverImpl,
+  updateSelectionIndicator as updateSelectionIndicatorImpl,
+} from './engine/input';
 
 /** Mirrors entitySystemMinimal: only the sentient races get bubbles. */
 const SPEAKING_RACES = new Set<string>(['human', 'elf', 'dwarf', 'orc']);
 
 
 // Constants for game engine
-const SELECTION_INDICATOR_HEIGHT = 0.1;
 /**
  * Pacing. These four numbers decide how busy the world feels, and the first
  * pass had them all too fast: a full day took 80 seconds, so the sky was in
@@ -236,16 +242,7 @@ export const useGameEngine = () => {
   // would regenerate the whole world on every time-of-day change.
   }), [worldSeed, mapSize, worldTemplate, worldRevision, scene]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /**
-   * Handles mouse movement over the game world
-   */
-  const handleMouseMove = useCallback((event: MouseEvent) => {
-    const rect = gl.domElement.getBoundingClientRect();
-    mousePositionRef.current = {
-      x: ((event.clientX - rect.left) / rect.width) * 2 - 1,
-      y: -((event.clientY - rect.top) / rect.height) * 2 + 1,
-    };
-  }, [gl]);
+  const handleMouseMove = useCallback((event: MouseEvent) => handleMouseMoveImpl({ gl, mousePositionRef }, event), [gl]);
 
   // ---------------------------------------------------------------------
   // Tools
@@ -418,202 +415,24 @@ export const useGameEngine = () => {
     powerContext,
   }, tile, tool), [forEachBrushTile, reshapeTile, igniteTile, extinguishTile, syncTile, tileWorldPosition, spawnRace, spawnableAnimalsFor, reactNearby, summonCloud, powerContext, inBounds]);
 
-  /**
-   * Handles mouse click on the game world
-   */
-  const handleMouseClick = useCallback((event: MouseEvent) => {
-    if (!isInitialized) return;
-    // Ignore clicks on UI panels; only act on the 3D canvas itself
-    if (event.target !== gl.domElement) return;
+  const handleMouseClick = useCallback((event: MouseEvent) => handleMouseClickImpl({
+    isInitialized, selectedTool, camera, gl, mousePositionRef, raycasterRef, terrainRef, tilesRef,
+    entityManagerRef, inBounds, applyToolEffect,
+  }, event), [isInitialized, selectedTool, camera, gl, applyToolEffect, inBounds]);
 
-    const mousePos = new THREE.Vector2(mousePositionRef.current.x, mousePositionRef.current.y);
-    raycasterRef.current.setFromCamera(mousePos, camera);
-
-    // Entities take priority when using the select tool
-    const manager = entityManagerRef.current;
-    if (manager) {
-      const entities = manager.getAllEntities().filter(e => e.mesh);
-      manager.prepareForPicking();
-      const entityIntersects = raycasterRef.current.intersectObjects(entities.map(e => e.mesh!), true);
-      if (entityIntersects.length > 0) {
-        const hit = entityIntersects[0].object;
-        const clicked = entities.find(e => e.mesh === hit || e.mesh === hit.parent);
-        if (clicked) {
-          if (selectedTool === 'select') {
-            useGameStore.getState().setSelectedEntity(clicked);
-            useGameStore.getState().setSelectedTile(null);
-            return;
-          }
-          const ex = Math.floor(clicked.position.x);
-          const ey = Math.floor(clicked.position.y);
-          if (inBounds(ex, ey)) applyToolEffect(tilesRef.current[ex][ey], selectedTool);
-          return;
-        }
-      }
-    }
-
-    // Otherwise pick a terrain instance
-    const terrain = terrainRef.current;
-    if (!terrain) return;
-    const hits = raycasterRef.current.intersectObject(terrain.pickTarget);
-    if (hits.length === 0) return;
-
-    const instanceId = hits[0].instanceId;
-    if (instanceId === undefined) return;
-    const { x, y } = terrain.tileCoordsFromInstanceId(instanceId);
-    if (!inBounds(x, y)) return;
-
-    const clickedTile = tilesRef.current[x][y];
-    if (selectedTool === 'select') {
-      useGameStore.getState().setSelectedTile(clickedTile);
-      useGameStore.getState().setSelectedEntity(null);
-    } else {
-      applyToolEffect(clickedTile, selectedTool);
-    }
-  }, [isInitialized, selectedTool, camera, gl, applyToolEffect, inBounds]);
-
-  /**
-   * Update the selection indicator position and visibility
-   */
-  const updateSelectionIndicator = useCallback(() => {
-    const indicator = selectionIndicatorRef.current;
-    if (!indicator) return;
-
-    const target = selectedTile;
-    if (target) {
-      const position = tileWorldPosition(target);
-      indicator.visible = true;
-      indicator.position.set(position.x, position.y + SELECTION_INDICATOR_HEIGHT / 2, position.z);
-      indicator.rotation.z = Date.now() / 900;
-      const pulse = 1 + Math.sin(Date.now() / 250) * 0.12;
-      indicator.scale.set(pulse, pulse, 1);
-    } else {
-      indicator.visible = false;
-    }
-  }, [selectedTile, tileWorldPosition]);
+  const updateSelectionIndicator = useCallback(() => updateSelectionIndicatorImpl({
+    selectionIndicatorRef, selectedTile, tileWorldPosition,
+  }), [selectedTile, tileWorldPosition]);
 
 
-  /**
-   * Work out what the cursor is over, and publish it. Throttled: this runs on a
-   * timer from the frame loop rather than on every mousemove event, so a fast
-   * flick across the map costs a handful of raycasts rather than hundreds.
-   */
-  const updateHover = useCallback(() => {
-    const terrain = terrainRef.current;
-    const manager = entityManagerRef.current;
-    const store = useGameStore.getState();
-    if (!terrain) return;
+  const updateHover = useCallback(() => updateHoverImpl({
+    camera, mousePositionRef, raycasterRef, terrainRef, tilesRef, entityManagerRef,
+    settlementRef, herdRef, hoverKeyRef, hoverTileRef, inBounds,
+  }), [camera, inBounds]);
 
-    const mouse = new THREE.Vector2(mousePositionRef.current.x, mousePositionRef.current.y);
-    raycasterRef.current.setFromCamera(mouse, camera);
-
-    // Units first — they are what the player is usually asking about
-    if (manager) {
-      const entities = manager.getAllEntities().filter(entity => entity.mesh);
-      manager.prepareForPicking();
-      const hits = raycasterRef.current.intersectObjects(entities.map(entity => entity.mesh!), true);
-      if (hits.length > 0) {
-        const hit = hits[0].object;
-        const unit = entities.find(entity => entity.mesh === hit || entity.mesh === hit.parent);
-        if (unit) {
-          const key = `unit:${unit.id}:${unit.activity}:${Math.round(unit.health)}`;
-          if (key !== hoverKeyRef.current) {
-            hoverKeyRef.current = key;
-            const settlements = settlementRef.current;
-            const village = unit.villageId
-              ? settlements?.villageName(unit.villageId) ?? null
-              : null;
-            const kingdom = unit.kingdomId
-              ? settlements?.kingdomName(unit.kingdomId) ?? null
-              : null;
-            const office = ['king', 'leader', 'captain'].find(rank => unit.status.includes(rank))
-              ?? (unit.job ? unit.job : null);
-            store.setHoverTarget({
-              kind: 'unit',
-              id: unit.id,
-              name: unit.name,
-              species: unit.type,
-              activity: unit.activity ?? 'idle',
-              office: office ?? null,
-              health: unit.health,
-              maxHealth: unit.maxHealth,
-              traits: unit.traits ?? [],
-              village,
-              kingdom,
-              kingdomColor: unit.kingdomId
-                ? settlements?.kingdomColorFor(unit.kingdomId) ?? null
-                : null,
-              herd: herdRef.current?.describe(unit)?.size ?? null,
-              happiness: unit.happiness ?? 0,
-            });
-          }
-          hoverTileRef.current = null;
-          return;
-        }
-      }
-    }
-
-    // Otherwise the ground
-    const hits = raycasterRef.current.intersectObject(terrain.pickTarget);
-    const instanceId = hits[0]?.instanceId;
-    if (instanceId === undefined) {
-      hoverTileRef.current = null;
-      if (hoverKeyRef.current !== '') {
-        hoverKeyRef.current = '';
-        store.setHoverTarget(null);
-      }
-      return;
-    }
-
-    const { x, y } = terrain.tileCoordsFromInstanceId(instanceId);
-    if (!inBounds(x, y)) return;
-    const tile = tilesRef.current[x][y];
-    hoverTileRef.current = tile;
-
-    const key = `tile:${x}:${y}:${tile.type}:${tile.isOnFire}:${tile.ownerId ?? ''}`;
-    if (key === hoverKeyRef.current) return;
-    hoverKeyRef.current = key;
-
-    const settlements = settlementRef.current;
-    store.setHoverTarget({
-      kind: 'tile',
-      x,
-      y,
-      biome: tile.type,
-      elevation: tile.height,
-      fertility: tile.fertility,
-      resources: tile.resources
-        .filter(resource => resource.quantity > 0)
-        .map(resource => ({ type: resource.type, quantity: resource.quantity })),
-      village: tile.villageId ? settlements?.villageName(tile.villageId) ?? null : null,
-      kingdom: tile.ownerId ? settlements?.kingdomName(tile.ownerId) ?? null : null,
-      kingdomColor: tile.ownerId ? settlements?.kingdomColorFor(tile.ownerId) ?? null : null,
-      onFire: tile.isOnFire,
-      occupants: tile.entities.length,
-    });
-  }, [camera, inBounds]);
-
-  /** Show the player exactly which tiles the current power will touch. */
-  const updateBrushPreview = useCallback(() => {
-    const preview = brushPreviewRef.current;
-    if (!preview) return;
-
-    const store = useGameStore.getState();
-    const tile = hoverTileRef.current;
-    const tool = store.selectedTool;
-
-    if (!tile || !tool || tool === 'select') {
-      preview.visible = false;
-      return;
-    }
-
-    const radius = BRUSH_TOOLS.has(tool) ? store.brushRadius : 0;
-    const position = tileWorldPosition(tile);
-    preview.visible = true;
-    preview.position.set(position.x, position.y + 0.04, position.z);
-    const span = (radius * 2 + 1) * 0.94;
-    preview.scale.set(span, span, 1);
-  }, [tileWorldPosition]);
+  const updateBrushPreview = useCallback(() => updateBrushPreviewImpl({
+    brushPreviewRef, hoverTileRef, tileWorldPosition,
+  }), [tileWorldPosition]);
 
 
   const refreshLabels = useCallback(() => refreshLabelsImpl({ settlementRef, entityManagerRef }), []);
