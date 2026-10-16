@@ -14,7 +14,6 @@ import {
   computeScaledHeight,
   isWaterBiome,
   EntityType,
-  TimeOfDay,
 } from '../types/world';
 import { EntityManager } from '../utils/entityManagerMinimal';
 import { EffectsManager } from '../utils/effectsManager';
@@ -23,26 +22,26 @@ import { SettlementSystem } from '../utils/settlementSystem';
 import { HerdSystem } from '../utils/herdSystem';
 import { UnitIconLayer } from '../utils/unitIconLayer';
 import { FireSystem } from '../utils/fireSystem';
-import { writeSave } from '../utils/saveSystem';
 import { worldAccess } from '../utils/worldAccess';
-import { publishSimulationContext, simulation } from '../utils/simulation';
+import { simulation } from '../utils/simulation';
 import { advanceFloaters, floatBridge } from '../utils/floatBridge';
 import { PowerHazards, type PowerContext } from '../utils/extraPowers';
 import { RelationLines } from '../utils/relationLines';
-import { advanceShots, ShotLayer } from '../utils/shotBridge';
+import { ShotLayer } from '../utils/shotBridge';
 import { CreatureLayer } from '../utils/creatureLayer';
 import { magnetFollow, magnetHolding } from '../utils/magnet';
 import { requestFlash, requestShake } from '../utils/impactBridge';
 import { applyScenario, type Scenario } from '../utils/scenarios';
 import type { AgeAction } from '../utils/ages';
 import { visibleWorldSpan } from '../utils/cameraView';
-import { sampleWorld } from '../utils/worldStats';
 import { ConwayLayer } from '../utils/conway';
 import { soundManager } from '../utils/soundManager';
+import { random } from '../utils/random';
 import { applyToolEffect as applyToolEffectImpl } from './engine/toolEffects';
 import { initializeWorld as initializeWorldImpl } from './engine/worldSetup';
 import { projectFloaters as projectFloatersImpl, projectLabels as projectLabelsImpl, refreshLabels as refreshLabelsImpl } from './engine/labels';
 import { advanceAge as advanceAgeImpl, runAgeAction as runAgeActionImpl } from './engine/ages';
+import { gameTick as gameTickImpl } from './engine/frame';
 import { updateCamera as updateCameraImpl } from './engine/camera';
 import {
   handleMouseClick as handleMouseClickImpl,
@@ -56,37 +55,6 @@ import {
 const SPEAKING_RACES = new Set<string>(['human', 'elf', 'dwarf', 'orc']);
 
 
-// Constants for game engine
-/**
- * Pacing. These four numbers decide how busy the world feels, and the first
- * pass had them all too fast: a full day took 80 seconds, so the sky was in
- * near-constant transition, and rain arrived every couple of minutes.
- *
- * A day is now ~2.8 minutes at 1x, which is slow enough that dusk reads as an
- * event rather than as flicker, and most play happens at 2-3x anyway.
- */
-const SECONDS_PER_DAY_PHASE = 42;
-/** How often the weather is reconsidered. */
-const WEATHER_INTERVAL = 30;
-/** Chance rain starts on a given roll, before the season is taken into account. */
-const RAIN_START_CHANCE = 0.055;
-/** Chance rain stops on a given roll. */
-const RAIN_STOP_CHANCE = 0.34;
-/** Wet springs, dry summers. */
-const RAIN_SEASON_FACTOR: Record<string, number> = {
-  spring: 1.6,
-  summer: 0.45,
-  autumn: 1.35,
-  winter: 0.9,
-};
-const TIME_PHASES: TimeOfDay[] = ['dawn', 'day', 'dusk', 'night'];
-const SKY_COLORS: Record<TimeOfDay, THREE.Color> = {
-  dawn: new THREE.Color('#5b4670'),
-  day: new THREE.Color('#7cabce'),
-  dusk: new THREE.Color('#6a3f5c'),
-  // Night used to be near-black, which hid the map for a quarter of every day
-  night: new THREE.Color('#141d33'),
-};
 
 /** The map's ground, for turning the cursor into a tile without a pick. */
 const GROUND_PLANE = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.2);
@@ -371,7 +339,7 @@ export const useGameEngine = () => {
         const life = conwayRef.current;
         if (!life) return 0;
         if (mode === 'clear') { const n = life.count; life.clear(); return n; }
-        return life.seed(x, y, store.brushRadius, tilesRef.current.length, Math.random, mode === 'glider');
+        return life.seed(x, y, store.brushRadius, tilesRef.current.length, random, mode === 'glider');
       },
       summonCloud,
       announce: (message, kind, position) => store.addEvent(message, kind, position),
@@ -391,7 +359,7 @@ export const useGameEngine = () => {
       },
       shake: requestShake,
       flash: requestFlash,
-      random: Math.random,
+      random,
     };
   }, [inBounds, forEachBrushTile, reshapeTile, syncTile, extinguishTile, tileWorldPosition, summonCloud]);
 
@@ -478,7 +446,7 @@ export const useGameEngine = () => {
         entityManagerRef.current?.query(x, y, radius) ?? [],
       syncTile,
       announce: (message: string) => store.addEvent(message, 'info'),
-      random: Math.random,
+      random,
       ignite: (tile: Tile) => { fireRef.current?.ignite(tile); },
       flash: (tile: Tile) => {
         effectsManagerRef.current?.spawnBurst(tileWorldPosition(tile), 0xeef4ff, 8, 1.6);
@@ -511,7 +479,7 @@ export const useGameEngine = () => {
       population: () => entityManagerRef.current?.getAllEntities().filter(e => !BORN_SAPIENT.has(e.type)).length ?? 0,
       near: (x, y, radius) => entityManagerRef.current?.query(x, y, radius) ?? [],
       announce: (message, at) => store.addEvent(message, 'info', at),
-      random: Math.random,
+      random,
       // The disaster surface. A disaster needs a building to eat, so this is
       // the one place the ambient world is allowed to reach into settlements.
       buildings: () => settlementRef.current?.standingBuildings() ?? [],
@@ -534,158 +502,35 @@ export const useGameEngine = () => {
 
   const advanceAge = useCallback((delta: number) => advanceAgeImpl({ entityManagerRef, ageTimerRef, ageActionTimerRef, ageSlotRef, runAgeAction }, delta), [runAgeAction]);
 
-  /**
-   * Game tick logic
-   */
-  const gameTick = useCallback((deltaTime: number) => {
-    // Effects and camera keep running while paused so the world still breathes
-    effectsManagerRef.current?.update(deltaTime);
-    // Clouds drift on the wall clock like the sea does — the sky should not
-    // freeze when the world is paused — but their *drops* run on simulated
-    // time, which is why they are advanced from inside the game tick instead.
-    updateCamera(deltaTime);
-
-    const currentPhase = useGameStore.getState().timeOfDay;
-    const targetSky = SKY_COLORS[currentPhase];
-    // Slow enough that a change of phase is something you notice happening
-    const skyBlend = Math.min(1, deltaTime * 0.35);
-    if (scene.background instanceof THREE.Color) {
-      scene.background.lerp(targetSky, skyBlend);
-    } else {
-      scene.background = targetSky.clone();
-    }
-    if (scene.fog?.color) {
-      scene.fog.color.lerp(targetSky, skyBlend);
-    }
-    effectsManagerRef.current?.setStarVisibility(currentPhase === 'night' || currentPhase === 'dusk');
-
-    if (isGamePaused) return;
-
-    const store = useGameStore.getState();
-    publishSimulationContext(store.worldLaws, store.season, store.timeOfDay, store.age, store.mapLayer);
-
-    const scaledDelta = deltaTime * gameSpeed;
-    tickTimerRef.current += scaledDelta;
-
-    entityManagerRef.current?.update(scaledDelta);
-    advanceShots(scaledDelta);
-    herdRef.current?.update(scaledDelta);
-    settlementRef.current?.update(scaledDelta);
-    conwayRef.current?.update(scaledDelta);
-
-    // Advance the day/night cycle
-    phaseTimerRef.current += scaledDelta;
-    if (phaseTimerRef.current >= SECONDS_PER_DAY_PHASE) {
-      phaseTimerRef.current = 0;
-      const store = useGameStore.getState();
-      const nextPhase = TIME_PHASES[(TIME_PHASES.indexOf(store.timeOfDay) + 1) % TIME_PHASES.length];
-      store.setTimeOfDay(nextPhase);
-      if (nextPhase === 'dawn') store.advanceDay();
-      refreshWorldColors();
-      soundManager.setMusicMood(
-        store.season === 'winter' || store.season === 'autumn' ? 'dark' : 'bright',
-      );
-    }
-
-    advanceAge(scaledDelta);
-
-    // Weather drifts on its own, seasonally and far more slowly than it used
-    // to: rain every couple of minutes read as bad weather rather than as
-    // weather.
-    weatherTimerRef.current += scaledDelta;
-    if (weatherTimerRef.current >= WEATHER_INTERVAL) {
-      weatherTimerRef.current = 0;
-      const store = useGameStore.getState();
-      if (store.weather !== 'clear') {
-        if (Math.random() < RAIN_STOP_CHANCE) {
-          store.setWeather('clear');
-          store.addEvent('The rain subsides', 'info');
-        }
-      } else {
-        const seasonal = RAIN_SEASON_FACTOR[store.season] ?? 1;
-        if (Math.random() < RAIN_START_CHANCE * seasonal) {
-          store.setWeather('rain');
-          store.addEvent(
-            store.season === 'winter'
-              ? 'Snow begins to fall across the land'
-              : 'Clouds gather; rain begins to fall',
-            'info',
-          );
-        }
-      }
-    }
-
-    // Fixed-cadence simulation steps
-    const tickInterval = 0.25;
-    while (tickTimerRef.current >= tickInterval) {
-      tickTimerRef.current -= tickInterval;
-      simulateFire(tickInterval);
-    }
-
-    // Icons change on the scale of seconds, so refresh them a few times a
-    // second rather than every frame.
-    iconTimerRef.current += deltaTime;
-    if (iconTimerRef.current >= 1 / 6) {
-      iconTimerRef.current = 0;
-      const manager = entityManagerRef.current;
-      if (manager) {
-        unitIconsRef.current?.update(
-          manager.getAllEntities(),
-          manager.detail,
-          settlementRef.current?.plottingIds(),
-          settlementRef.current?.craftTiers(),
-        );
-      }
-    }
-
-    // Statistics run on simulated time, not the wall clock: at triple speed the
-    // world's history should fill three times as fast, and a paused world must
-    // not accumulate a flat line of history nobody watched happen. Cheap enough
-    // to call every frame; sampleWorld owns its own interval.
-    sampleWorld(scaledDelta, useGameStore.getState().population);
-
-    // Every ambient process, on one clock it owns itself. Each row keeps its
-    // own countdown, so nothing has to be scheduled from here.
-    if (tilesRef.current.length > 0) {
-      worldBehaviourRef.current.advance(scaledDelta, worldContext());
-      cloudsRef.current.update(scaledDelta, cloudWorld());
-      if (hazardsRef.current.active > 0) hazardsRef.current.update(scaledDelta, powerContext());
-    }
-
-    // Publish stats and drive weather visuals
-    statsTimerRef.current += deltaTime;
-    if (statsTimerRef.current >= 1) {
-      statsTimerRef.current = 0;
-      const store = useGameStore.getState();
-      const population = entityManagerRef.current?.getPopulation() ?? 0;
-      store.setPopulation(population);
-      if (store.weather !== 'clear') {
-        effectsManagerRef.current?.startRain();
-        soundManager.startRain();
-      } else {
-        effectsManagerRef.current?.stopRain();
-        soundManager.stopRain();
-      }
-      // Rain is now a thing that falls out of the clouds rather than a
-      // particle effect over an unchanged map: it wets the ground, puts out
-      // fires and is the only counterweight the world has to the thermal
-      // ladder. Snow in a winter that is cold enough to mean it.
-      cloudsRef.current.setWeather(
-        store.weather === 'clear' ? 'clear'
-          : store.season === 'winter' ? 'snow' : 'rain',
-      );
-
-      // Autosave on a wall-clock timer so a long session is never lost.
-      autosaveTimerRef.current += 1;
-      if (autosaveTimerRef.current >= 150) {
-        autosaveTimerRef.current = 0;
-        const access = worldAccess.current;
-        if (access) {
-          writeSave('autosave', access.captureSave(`Year ${store.year}, ${store.season}`));
-        }
-      }
-    }
-  }, [isGamePaused, gameSpeed, scene, refreshWorldColors, simulateFire, worldContext, cloudWorld, updateCamera, advanceAge, powerContext]);
+  /** One frame of the game. The logic lives in engine/frame.ts. */
+  const gameTick = useCallback((deltaTime: number) => gameTickImpl({
+    scene,
+    isGamePaused,
+    gameSpeed,
+    tilesRef,
+    effectsManagerRef,
+    entityManagerRef,
+    settlementRef,
+    herdRef,
+    conwayRef,
+    unitIconsRef,
+    worldBehaviourRef,
+    cloudsRef,
+    hazardsRef,
+    tickTimerRef,
+    phaseTimerRef,
+    weatherTimerRef,
+    iconTimerRef,
+    statsTimerRef,
+    autosaveTimerRef,
+    updateCamera,
+    refreshWorldColors,
+    simulateFire,
+    advanceAge,
+    worldContext,
+    cloudWorld,
+    powerContext,
+  }, deltaTime), [isGamePaused, gameSpeed, scene, refreshWorldColors, simulateFire, worldContext, cloudWorld, updateCamera, advanceAge, powerContext]);
 
   // Initialize the world when the seed, size, template or revision changes
   useEffect(() => {
