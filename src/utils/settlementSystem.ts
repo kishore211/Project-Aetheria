@@ -68,11 +68,11 @@ import {
 import { speak } from './dialogue';
 import { emitShot } from './shotBridge';
 import { emitDamage } from './floatBridge';
-import { MONSTERS, isSapient } from './entitySystemMinimal';
+import { MONSTERS } from './entitySystemMinimal';
 import { isChild } from './size';
 import { buildingSprite, roofSprite } from './pixelAtlas';
 import { conquestOutcome, formationSlots } from './army';
-import { faithOf, faithRoll, foundFaith, holyWarTension } from './religion';
+import { foundFaith, holyWarTension } from './religion';
 import {
   emitItemEvent, equip, forgeItem, forgePriority, MATERIAL_COST, type Material
 } from './equipment'
@@ -92,6 +92,7 @@ export type {
 export { footprintOf, tierOf } from './settlement/helpers';
 import type { SettlementHost } from './settlement/host';
 import { TradeNetwork } from './settlement/trade';
+import { FaithService } from './settlement/faith';
 import type {
   Building, BuildingKind, BuildingRecipe, DiplomacyAct, Kingdom, SettlementEvents,
   SettlerParty, Village
@@ -130,7 +131,6 @@ export class SettlementSystem implements SettlementHost {
   private fleetTimer = 0;
   private migrantTimer = 0;
   private forgeTimer = 0;
-  private faithTimer = 0;
   private towerTimer = 0;
   private paintedSeason: string = simulation.season;
   private boatPosition = new THREE.Vector3();
@@ -145,6 +145,8 @@ export class SettlementSystem implements SettlementHost {
   private birthTimer = 0;
   /** Caravans and merchant ships (see settlement/trade.ts). */
   private trade = new TradeNetwork(this);
+  /** Priests, temples and the religions they keep (see settlement/faith.ts). */
+  private faith = new FaithService(this);
   /** Finds already announced, so a rich vein is news once, not every load. */
   private announcedFinds = new Set<string>();
   private workTimer = 0;
@@ -301,11 +303,7 @@ export class SettlementSystem implements SettlementHost {
       this.towerVolley();
     }
 
-    this.faithTimer += delta;
-    if (this.faithTimer >= 4) {
-      this.faithTimer = 0;
-      this.faithRound();
-    }
+    this.faith.update(delta);
 
     this.forgeTimer += delta;
     if (this.forgeTimer >= 12) {
@@ -982,91 +980,6 @@ export class SettlementSystem implements SettlementHost {
         emitDamage(target.position.x, target.position.y, TOWER_DAMAGE, target.id);
         if (!target.status.includes('wounded')) target.status.push('wounded');
         if (target.health <= 0 && !target.status.includes('slain')) target.status.push('slain');
-      }
-    }
-  }
-
-  /**
-   * Faith at work. Every town with a temple keeps a priest — its sharpest
-   * mind who holds no other office — and the priest works the religion's
-   * traits on the people around the temple: healing, holy fire, shields,
-   * blessed harvests, converts and fasting.
-   */
-  private faithRound(): void {
-    const byVillage = this.entities.getEntitiesByVillage();
-    for (const village of this.villages.values()) {
-      const residents = byVillage.get(village.id) ?? [];
-      const temple = village.buildings.find(b => b.kind === 'temple');
-      if (!temple) {
-        for (const resident of residents) if (resident.status.includes('priest')) clearStatus(resident, 'priest');
-        continue;
-      }
-      const religion = groupMetas(village.id)?.religion ?? null;
-      const faith = faithOf(religion);
-      if (!religion || !faith) continue;
-
-      let priest = residents.find(e => e.status.includes('priest') && e.health > 0) ?? null;
-      if (!priest) {
-        const candidates = residents.filter(e => e.health > 0 && e.religionId === religion
-          && !e.status.includes('king') && !e.status.includes('leader') && !e.status.includes('captain') && e.job !== 'warrior');
-        candidates.sort((x, y) => y.attributes.intelligence - x.attributes.intelligence);
-        priest = candidates[0] ?? null;
-        if (priest) {
-          applyStatus(priest, 'priest');
-          emitFloater({ kind: 'speech', text: speak('blessed', faithRoll()), x: priest.position.x, y: priest.position.y, entityId: priest.id });
-        }
-      }
-
-      const kingdom = this.kingdoms.get(village.kingdomId);
-      const cx = priest ? priest.position.x : temple.x + 0.5;
-      const cy = priest ? priest.position.y : temple.y + 0.5;
-      const near = this.entities.query(cx, cy, 6);
-
-      for (const trait of faith.traits) {
-        switch (trait) {
-          case 'harvest_blessing':
-            village.store.food += 3;
-            break;
-          case 'ascetic':
-            for (const e of residents) if (e.religionId === religion) e.needs.hunger = Math.min(1, e.needs.hunger + 0.03);
-            break;
-          case 'divine_shield':
-            for (const e of residents) {
-              if (e.religionId === religion && e.status.includes('fighting')) applyStatus(e, 'shielded');
-            }
-            break;
-          case 'mending_prayer':
-            if (!priest) break;
-            for (const e of near) {
-              if (e.religionId !== religion || e.health <= 0 || e.health >= e.maxHealth) continue;
-              const healed = Math.min(8, e.maxHealth - e.health);
-              e.health += healed;
-              emitFloater({ kind: 'heal', text: `+${Math.round(healed)}`, x: e.position.x, y: e.position.y, entityId: e.id });
-            }
-            break;
-          case 'holy_fire': {
-            if (!priest) break;
-            const foe = near.find(e => e.health > 0 && (MONSTERS.has(e.type)
-              || (e.kingdomId != null && kingdom != null && kingdom.atWar.has(e.kingdomId))));
-            if (!foe) break;
-            emitShot({ position: { x: priest.position.x, y: priest.position.y } }, foe);
-            foe.health -= 18;
-            emitDamage(foe.position.x, foe.position.y, 18, foe.id);
-            applyStatus(foe, 'wounded');
-            if (foe.health <= 0) applyStatus(foe, 'slain');
-            break;
-          }
-          case 'missionaries':
-            if (!priest) break;
-            for (const e of near) {
-              if (!isSapient(e) || e.religionId === religion || faithRoll() > 0.2) continue;
-              setMetaOf(e, 'religion', religion);
-              emitFloater({ kind: 'speech', text: 'I have seen the light.', x: e.position.x, y: e.position.y, entityId: e.id });
-            }
-            break;
-          default:
-            break;
-        }
       }
     }
   }
