@@ -134,6 +134,7 @@ export class TradeNetwork {
     if (caravan.leg === 'out') {
       const profit = CARAVAN_PROFIT * market(to);
       to.store.gold += profit;
+      this.host.treasury.income(to.id, profit);
       // Goods change hands: food goes where it is short, and metal too.
       if (from.store.food > to.store.food + 20) {
         from.store.food -= 10;
@@ -151,6 +152,7 @@ export class TradeNetwork {
     }
     const takings = CARAVAN_PROFIT * market(from);
     from.store.gold += takings;
+    this.host.treasury.income(from.id, takings);
     emitFloater({ kind: 'gain', text: `+${takings} gold`, x: trader.position.x, y: trader.position.y });
     this.caravans.delete(trader.id);
     trader.job = null;
@@ -192,8 +194,16 @@ export class TradeNetwork {
   landBoat(boat: Boat): void {
     const port = boat.payload ? this.host.villages.get(boat.payload) : undefined;
     const origin = boat.villageId ? this.host.villages.get(boat.villageId) : undefined;
-    if (port) port.store.gold += TRADE_PROFIT * (port.buildings.some(b => b.kind === 'market') ? 2 : 1);
-    if (origin) origin.store.gold += Math.ceil(TRADE_PROFIT / 2);
+    if (port) {
+      const profit = TRADE_PROFIT * (port.buildings.some(b => b.kind === 'market') ? 2 : 1);
+      port.store.gold += profit;
+      this.host.treasury.income(port.id, profit);
+    }
+    if (origin) {
+      const profit = Math.ceil(TRADE_PROFIT / 2);
+      origin.store.gold += profit;
+      this.host.treasury.income(origin.id, profit);
+    }
     emitFloater({ kind: 'gain', text: `+${TRADE_PROFIT} gold`, x: boat.x, y: boat.y });
   }
 }

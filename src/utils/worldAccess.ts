@@ -51,6 +51,8 @@ export interface WorldAccess {
       religion: string | null;
     };
     /** -100..+100, or null before the first political pass. */
+    /** Gold in and out over the last minute, and soldiers the treasury could not pay. */
+    treasury: { wages: number; purchases: number; festivals: number; income: number; bought: { wood: number; stone: number; food: number }; unpaidSoldiers: number };
     loyalty: number | null;
     /** Why it is that number, largest contribution first. */
     loyaltyFactors: Array<{ label: string; value: number }>;

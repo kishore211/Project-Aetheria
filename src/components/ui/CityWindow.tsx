@@ -12,6 +12,9 @@ const TRADE_LABEL: Record<string, string> = {
   gatherer: 'gatherers', warrior: 'warriors', trader: 'traders', young: 'children', idle: 'idle',
 };
 
+/** One decimal place: wages come in halves, so whole numbers would hide them. */
+const coin = (amount: number) => (Math.round(amount * 10) / 10).toString();
+
 const Stat = ({ icon, label, value }: { icon: React.ReactNode; label: string; value: React.ReactNode }) => (
   <div className="unit-stat" title={label}>
     {icon}
@@ -103,9 +106,27 @@ const CityWindow = () => {
           </ul>
         </div>
 
+        <div className="unit-section city-treasury">
+          <h4><Coins size={11} className="inline" /> Treasury</h4>
+          <dl className="unit-facts">
+            <dt>Gold in the chest</dt>
+            <dd>{Math.round(village.store.gold)}</dd>
+            <dt>Wages, last minute</dt>
+            <dd>{coin(village.treasury.wages)}</dd>
+            <dt>Spent at market</dt>
+            <dd title={`${Math.round(village.treasury.bought.wood)} wood, ${Math.round(village.treasury.bought.stone)} stone, ${Math.round(village.treasury.bought.food)} food`}>
+              {coin(village.treasury.purchases)}
+            </dd>
+            {village.treasury.festivals > 0 && (<><dt>Festivals, last minute</dt><dd>{coin(village.treasury.festivals)}</dd></>)}
+            <dt>Income, last minute</dt>
+            <dd className="is-good">+{coin(village.treasury.income)}</dd>
+          </dl>
+          {village.treasury.unpaidSoldiers > 0 && (
+            <p className="city-warning">{village.treasury.unpaidSoldiers} {village.treasury.unpaidSoldiers === 1 ? 'soldier is' : 'soldiers are'} unpaid.</p>
+          )}
+        </div>
+
         <dl className="unit-facts">
-          <dt><Coins size={11} className="inline" /> Treasury</dt>
-          <dd>{Math.round(village.store.gold)} gold</dd>
           {village.identity.culture && (<><dt>Culture</dt><dd style={{ color: village.identity.cultureColor ?? undefined }}>{village.identity.culture}</dd></>)}
           {village.identity.language && (<><dt>Language</dt><dd>{village.identity.language}</dd></>)}
           {village.identity.religion && (<><dt>Faith</dt><dd>{village.identity.religion}</dd></>)}

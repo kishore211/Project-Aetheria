@@ -162,6 +162,9 @@ export interface KingdomSummary {
   /** Soldiers under arms, and how many of them carry a weapon. */
   army?: number;
   armed?: number;
+  /** Gold in the realm's town treasuries, and the wages its towns paid soldiers in the last minute. */
+  treasury?: number;
+  upkeep?: number;
   allies?: string[];
   /** The most notable item in the realm, if anyone carries a named one. */
   relic?: string | null;

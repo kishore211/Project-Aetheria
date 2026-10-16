@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { HeartHandshake, Handshake, Home, MapPin, Megaphone, Shield, Sword, Swords, Unlink, Users, X } from 'lucide-react';
+import { Coins, HeartHandshake, Handshake, Home, MapPin, Megaphone, Shield, Sword, Swords, Unlink, Users, X } from 'lucide-react';
 import { worldAccess } from '../../utils/worldAccess';
 import { useGameStore, type KingdomSummary } from '../../store/gameStore';
 import Banner from './Banner';
@@ -67,6 +67,15 @@ const KingdomWindow = ({ id, onClose }: { id: string; onClose: () => void }) => 
           <Stat icon={<Sword size={13} />} label="With blades" value={kingdom.armed ?? 0} />
         </div>
 
+        <div className="unit-section">
+          <h4><Coins size={11} className="inline" /> Treasury</h4>
+          <dl className="unit-facts">
+            <dt>Gold in its towns</dt>
+            <dd>{kingdom.treasury ?? 0}</dd>
+            <dt>Army upkeep</dt>
+            <dd>{(kingdom.upkeep ?? 0).toFixed(1)} gold a minute</dd>
+          </dl>
+        </div>
         <div className="unit-section">
           <h4><Swords size={11} className="inline" /> Wars</h4>
           {kingdom.atWarWith.length > 0

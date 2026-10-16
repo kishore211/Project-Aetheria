@@ -9,6 +9,7 @@ import { EntityManager } from '../../entityManagerMinimal';
 import { DEFAULT_WORLD_LAWS, type WorldLaws } from '../../../store/gameStore';
 import type { Entity, Race, Tile } from '../../../types/world';
 import type { SettlementHost } from '../host';
+import { TreasuryLedger } from '../treasury';
 import { MIN_VILLAGE_SPACING } from '../constants';
 import type { Building, BuildingKind, Kingdom, Village } from '../types';
 
@@ -85,6 +86,7 @@ export const makeWorld = (options: WorldOptions = {}): World => {
     villages,
     kingdoms,
     laws,
+    treasury: new TreasuryLedger(),
     craftTiers: () => tiers,
     residentsOf,
     harbourOf: () => null,

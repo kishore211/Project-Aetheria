@@ -371,6 +371,7 @@ export class Economy {
           if ((resident.coins ?? 0) < MEAL_PRICE) continue;
           resident.coins = (resident.coins ?? 0) - MEAL_PRICE;
           village.store.gold += MEAL_PRICE;
+          this.host.treasury.income(village.id, MEAL_PRICE);
         } else if (!exempt && desperate && (resident.coins ?? 0) < MEAL_PRICE) {
           // Starving and broke: takes what it needs and feels it.
           village.store.gold = Math.max(0, village.store.gold - MEAL_PRICE);
@@ -435,6 +436,7 @@ export class Economy {
    */
   private economyRound(): void {
     this.rounds += 1;
+    this.host.treasury.rotate(this.villages.keys());
     const members = this.entities.getEntitiesByVillage();
 
     for (const village of this.villages.values()) {
@@ -475,6 +477,7 @@ export class Economy {
         resident.loot = loot - Math.floor(loot);
         resident.coins = (resident.coins ?? 0) + (Math.floor(loot) - tax);
         village.store.gold += tax;
+        this.host.treasury.income(village.id, tax);
         // Being taxed is a small, frequent grievance — which is exactly the
         // sort of thing that shows up later as loyalty.
         if (tax > 0 && random() < 0.04) applyScenario(resident, 'sleptRough');
@@ -517,15 +520,19 @@ export class Economy {
    * grow sour about it.
    */
   paySoldiers(village: Village, residents: Entity[]): void {
+    let unpaid = 0;
     for (const soldier of residents) {
       if (soldier.job !== 'warrior') continue;
       if (village.store.gold >= WARRIOR_WAGE) {
         village.store.gold -= WARRIOR_WAGE;
         soldier.coins = (soldier.coins ?? 0) + WARRIOR_WAGE;
+        this.host.treasury.wages(village.id, WARRIOR_WAGE);
       } else {
         nudgeMood(soldier, -UNPAID_WARRIOR_MOOD);
+        unpaid++;
       }
     }
+    this.host.treasury.setUnpaid(village.id, unpaid);
   }
 
   /**
@@ -542,6 +549,7 @@ export class Economy {
       if (village.store.gold - cost < BUY_RESERVE) continue;
       village.store.gold -= cost;
       village.store[good.resource] += BUY_LOT;
+      this.host.treasury.purchase(village.id, cost, good.resource, BUY_LOT);
       return true;
     }
     return false;
@@ -557,6 +565,7 @@ export class Economy {
     if (!village.capital || village.store.gold < FESTIVAL_TREASURY) return false;
     const cost = Math.min(FESTIVAL_MAX_COST, Math.floor(village.store.gold * FESTIVAL_SHARE));
     village.store.gold -= cost;
+    this.host.treasury.festival(village.id, cost);
     for (const resident of this.entities.getEntitiesByVillage().get(village.id) ?? []) {
       nudgeMood(resident, FESTIVAL_MOOD);
     }
@@ -579,6 +588,7 @@ export class Economy {
       const store = village.store;
       store.metal = (store.metal ?? 0) + (value.metal ?? 0) * quantity;
       store.gold += (value.gold ?? 0) * quantity;
+      if (value.gold) this.host.treasury.income(village.id, value.gold * quantity);
       store.gems = (store.gems ?? 0) + (value.gems ?? 0) * quantity;
       store.mithril = (store.mithril ?? 0) + (value.mithril ?? 0) * quantity;
       store.adamantine = (store.adamantine ?? 0) + (value.adamantine ?? 0) * quantity;

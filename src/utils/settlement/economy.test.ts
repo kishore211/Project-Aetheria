@@ -151,3 +151,66 @@ describe('the king’s court', () => {
     expect(festivals(world)).toHaveLength(2);
   });
 });
+
+describe('the treasury’s books', () => {
+  it('records wages paid, and how many soldiers went unpaid in the latest round', () => {
+    const world = makeWorld();
+    const village = town(world, { gold: WARRIOR_WAGE });
+    const paid = person(world, village);
+    const unpaid = person(world, village);
+
+    new Economy(world.host).paySoldiers(village, [paid, unpaid]);
+
+    const minute = world.host.treasury.minute(village.id);
+    expect(minute.wages).toBe(WARRIOR_WAGE);
+    expect(minute.unpaidSoldiers).toBe(1);
+  });
+
+  it('records each market purchase as gold spent and the units bought', () => {
+    const world = makeWorld();
+    const village = town(world, { gold: 1000, wood: 0, stone: 500, food: 500 }, {
+      buildings: [building('market', 22, 22)],
+    });
+
+    new Economy(world.host).buyShortages(village);
+
+    const minute = world.host.treasury.minute(village.id);
+    expect(minute.purchases).toBe(BUY_PRICE_WOOD * BUY_LOT);
+    expect(minute.bought).toEqual({ wood: BUY_LOT, stone: 0, food: 0 });
+  });
+
+  it('records a festival as spending', () => {
+    const world = makeWorld();
+    const capital = town(world, { gold: 2000 }, { capital: true });
+
+    new Economy(world.host).courtFestival(capital);
+
+    expect(world.host.treasury.minute(capital.id).festivals).toBe(Math.min(FESTIVAL_MAX_COST, Math.floor(2000 * 0.2)));
+  });
+
+  it('records the gold in ore a mine brings up as income, and nothing for ore without gold', () => {
+    const world = makeWorld();
+    const village = town(world, { gold: 0 });
+    const economy = new Economy(world.host);
+
+    economy.deposit(village, 'gold', 2);
+    expect(village.store.gold).toBe(12);
+    expect(world.host.treasury.minute(village.id).income).toBe(12);
+
+    economy.deposit(village, 'iron', 4);
+    expect(world.host.treasury.minute(village.id).income).toBe(12);
+  });
+
+  it('a closed round stays in the minute, so the books sum over the window', () => {
+    const world = makeWorld();
+    const village = town(world, { gold: 100 });
+    const warrior = person(world, village);
+    const economy = new Economy(world.host);
+
+    economy.paySoldiers(village, [warrior]);
+    // The economy round pays the warrior once more, and rolls the books over.
+    economy.settle(5);
+
+    expect(world.host.treasury.minute(village.id).wages).toBe(WARRIOR_WAGE * 2);
+  });
+});

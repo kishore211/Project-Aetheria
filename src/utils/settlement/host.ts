@@ -13,6 +13,7 @@ import type { BoatSystem, Point } from '../boats';
 import type { WorldLaws } from '../../store/gameStore';
 import type { CivilStats } from '../politics';
 import type { Building, BuildingKind, Kingdom, SettlementEvents, Village } from './types';
+import type { TreasuryLedger } from './treasury';
 
 export interface SettlementHost {
   readonly tiles: Tile[][];
@@ -21,6 +22,8 @@ export interface SettlementHost {
   readonly boats: BoatSystem;
   readonly villages: Map<string, Village>;
   readonly kingdoms: Map<string, Kingdom>;
+  /** Books of gold movements, read by the town and realm windows. Never read by the simulation. */
+  readonly treasury: TreasuryLedger;
   /** The world's rule switches (warfare, forging, reproduction, ...). */
   readonly laws: WorldLaws;
   /** How advanced each village's craft is, 1-4, read off what it has built. */

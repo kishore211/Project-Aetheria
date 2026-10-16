@@ -75,6 +75,7 @@ import { Warfare } from './settlement/warfare';
 import { Construction } from './settlement/construction';
 import { Politics, type ActivePlot } from './settlement/politics';
 import { Economy } from './settlement/economy';
+import { TreasuryLedger } from './settlement/treasury';
 import type {
   Building, BuildingKind, DiplomacyAct, Kingdom, SettlementEvents,
   SettlerParty, Village
@@ -119,6 +120,8 @@ export class SettlementSystem implements SettlementHost {
 
   villages = new Map<string, Village>();
   kingdoms = new Map<string, Kingdom>();
+  /** Gold movements of the last minute, for the town and realm windows. */
+  readonly treasury = new TreasuryLedger();
   /** The settler parties on the road or at sea, shared with the colonisation subsystem. */
   get parties(): Map<string, SettlerParty> {
     return this.colonisation.parties;
@@ -1513,6 +1516,8 @@ export class SettlementSystem implements SettlementHost {
           religion: metaById(set?.religion)?.name ?? null,
         };
       })(),
+      /** Gold in and out over the last minute, and soldiers the treasury could not pay. */
+      treasury: this.treasury.minute(village.id),
       loyalty: village.loyalty?.score ?? null,
       loyaltyFactors: village.loyalty?.factors ?? [],
       restless: village.restless,
@@ -1565,11 +1570,23 @@ export class SettlementSystem implements SettlementHost {
       const relic = people
         .flatMap(p => [p.equipment?.weapon, p.equipment?.armor])
         .find(item => item?.name);
+      // The realm's purse is the sum of its towns' treasuries; its army upkeep
+      // is what those towns paid their soldiers over the last minute.
+      let treasury = 0;
+      let upkeep = 0;
+      for (const villageId of kingdom.villageIds) {
+        const town = this.villages.get(villageId);
+        if (!town) continue;
+        treasury += town.store.gold;
+        upkeep += this.treasury.minute(villageId).wages;
+      }
       summaries.push({
         ruler: king?.name ?? kingdom.ruler,
         capital: capital ? { name: capital.name, x: capital.centerX, y: capital.centerY } : null,
         army: soldiers.length,
         armed: soldiers.filter(s => s.equipment?.weapon).length,
+        treasury: Math.round(treasury),
+        upkeep: Math.round(upkeep * 10) / 10,
         allies: Array.from(kingdom.allies).map(id => this.kingdoms.get(id)?.name ?? '').filter(Boolean),
         relic: relic?.name ?? null,
         id: kingdom.id,
