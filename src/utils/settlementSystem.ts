@@ -18,7 +18,7 @@ import {
   type Tile,
 } from '../types/world';
 import type {
-  IdentityRow, KingdomSummary, OpinionRow, PlotSummary, VillageSummary, WorldLaws,
+  IdentityRow, KingdomSummary, PlotSummary, VillageSummary, WorldLaws,
 } from '../store/gameStore';
 import type { EntityManager } from './entityManagerMinimal';
 import { getBuildingAtlas } from './pixelAtlas';
@@ -40,7 +40,6 @@ import {
   setGroupMetas,
   setMetaOf,
   writeBook,
-  type LayoutId,
   type MetaKind,
 } from './identity';
 import {
@@ -64,7 +63,6 @@ import {
   loyaltyFor,
   REBELLION_THRESHOLD,
   type CivilStats,
-  type LoyaltyResult,
   type OpinionResult,
 } from './politics';
 import { speak } from './dialogue';
@@ -75,7 +73,9 @@ import { isChild } from './size';
 import { buildingSprite, roofSprite } from './pixelAtlas';
 import { conquestOutcome, formationSlots } from './army';
 import { faithOf, faithRoll, foundFaith, holyWarTension } from './religion';
-import { emitItemEvent, equip, forgeItem, forgePriority, MATERIAL_COST, type Material } from './equipment';
+import {
+  emitItemEvent, equip, forgeItem, forgePriority, MATERIAL_COST, type Material
+} from './equipment'
 import {
   generateKingdomName,
   generateRulerName,
@@ -86,597 +86,31 @@ import {
 import type { AIOrder } from './entitySystemMinimal';
 import type { SavedKingdom, SavedVillage } from './saveSystem';
 
-export type BuildingKind =
-  | 'bonfire'
-  | 'tent'
-  | 'house'
-  | 'hall'
-  | 'farm'
-  | 'tower'
-  | 'temple'
-  | 'statue'
-  | 'mine'
-  | 'windmill'
-  | 'barracks'
-  | 'smithy'
-  | 'library'
-  | 'well'
-  | 'market'
-  | 'dock'
-  | 'stockpile'
-  | 'dummy';
-
-export interface Building {
-  id: string;
-  kind: BuildingKind;
-  x: number;
-  y: number;
-  health: number;
-  maxHealth: number;
-  villageId: string;
-  /** Slot in the building sprite cloud. */
-  slot: number;
-  /** 1-3 for houses: hut, stone house, manor. Everything else stays at 1. */
-  level?: number;
-  /**
-   * How far its builders have got, 0-1, while it is still a construction
-   * site. Absent once it stands. A site houses nobody and earns nothing.
-   */
-  progress?: number;
-}
-
-export interface VillageStore {
-  food: number;
-  wood: number;
-  stone: number;
-  /** The village treasury. Taxes flow in; the ledger and thieves flow out. */
-  gold: number;
-  /** Worked metal from the mines: iron, copper, silver. The smith's stock. */
-  metal?: number;
-  /** Cut gems and crystal, for the market and the crown. */
-  gems?: number;
-  /** The rare metals, one ingot at a time. */
-  mithril?: number;
-  adamantine?: number;
-}
-
-export interface Village {
-  id: string;
-  name: string;
-  kingdomId: string;
-  race: Race;
-  centerX: number;
-  centerY: number;
-  buildings: Building[];
-  store: VillageStore;
-  /** Tile instance ids currently claimed. */
-  territory: Set<number>;
-  /** Tiles the player's border brush gave it, held whatever its buildings reach. */
-  painted?: Set<number>;
-  /** Tiles the border eraser took away, never reclaimed by its buildings. */
-  erased?: Set<number>;
-  founded: { year: number; season: string };
-  /** The kingdom's first settlement. Capitals never send the last settlers. */
-  capital: boolean;
-  /**
-   * Extra claim radius the village has worked up over time — WorldBox's
-   * claim_land task, which is what makes borders visibly creep outward rather
-   * than only jumping when a building goes up.
-   */
-  claimBonus: number;
-  /** Seconds this village has existed, for expansion and settling gates. */
-  age: number;
-  /** Seconds it has stood with nobody living in it. */
-  emptyFor: number;
-  /**
-   * Last computed loyalty, with its breakdown. Cached rather than recomputed on
-   * read because the inspector, the register and the rebellion check all want
-   * it and the formula walks the whole kingdom.
-   */
-  loyalty?: LoyaltyResult;
-  /** Seconds this village has sat below the rebellion threshold. */
-  restless: number;
-}
-
-/** A trader walking goods from one town to another and back. */
-interface Caravan {
-  from: string;
-  to: string;
-  leg: 'out' | 'home';
-  /** Seconds before an errand that never arrives is given up. */
-  timeout: number;
-}
-
-/** A group walking out to found a new village. */
-export interface SettlerParty {
-  id: string;
-  kingdomId: string;
-  sourceVillageId: string;
-  target: { x: number; y: number };
-  memberIds: Set<string>;
-  /** Seconds left before the attempt is abandoned. */
-  timeout: number;
-}
-
-export interface Kingdom {
-  id: string;
-  name: string;
-  /** Generated title used until a real unit takes the crown. */
-  ruler: string;
-  /** The unit currently ruling, once one has been appointed. */
-  kingId?: string | null;
-  race: Race;
-  colorHex: string;
-  color: THREE.Color;
-  villageIds: string[];
-  atWar: Set<string>;
-  /** Rising friction with each neighbouring kingdom (0-1, war at 1). */
-  tension: Map<string, number>;
-  /** Seconds this kingdom has existed, for the new-kingdom loyalty bonus. */
-  age: number;
-  /** Kingdoms bound by an alliance plot. Allies do not build tension. */
-  allies: Set<string>;
-}
-
-/** A stable, saturated colour for a town, from its id. */
-const townColour = (id: string): string => {
-  let h = 2166136261;
-  for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619); }
-  return `#${new THREE.Color().setHSL(((h >>> 0) % 360) / 360, 0.65, 0.55).getHexString()}`;
-};
-
-/** How much larger a building is drawn than its recipe size. */
-const BUILDING_DRAW_SCALE = 1.7;
-
-interface BuildingRecipe {
-  kind: BuildingKind;
-  wood: number;
-  stone: number;
-  /** Minimum number of existing buildings before this unlocks. */
-  requires: number;
-  /** A building that has to stand first. */
-  needs?: BuildingKind;
-  /** How many of this building one village may hold. */
-  limit: number;
-  size: number;
-  /**
-   * What a village wants most. Without this, cheap buildings always win the
-   * budget and a settlement never saves up for anything impressive.
-   */
-  priority: number;
-}
-
-const RECIPES: BuildingRecipe[] = [
-  { kind: 'hall', wood: 14, stone: 6, requires: 5, limit: 1, size: 0.85, priority: 100 },
-  { kind: 'temple', wood: 10, stone: 12, requires: 9, limit: 1, size: 0.8, priority: 80 },
-  { kind: 'tower', wood: 4, stone: 10, requires: 6, limit: 3, size: 0.78, priority: 70 },
-  { kind: 'barracks', wood: 8, stone: 8, requires: 8, limit: 1, size: 0.8, priority: 65 },
-  { kind: 'smithy', wood: 6, stone: 6, requires: 6, limit: 1, size: 0.72, priority: 62 },
-  { kind: 'windmill', wood: 8, stone: 2, requires: 5, limit: 1, size: 0.78, priority: 55 },
-  { kind: 'library', wood: 10, stone: 6, requires: 10, limit: 1, size: 0.78, priority: 40 },
-  { kind: 'well', wood: 2, stone: 5, requires: 4, limit: 2, size: 0.5, priority: 52 },
-  { kind: 'market', wood: 9, stone: 4, requires: 8, limit: 1, size: 0.78, priority: 48 },
-  { kind: 'dock', wood: 8, stone: 0, requires: 5, limit: 1, size: 0.7, priority: 58 },
-  { kind: 'mine', wood: 4, stone: 6, requires: 7, limit: 2, size: 0.6, priority: 60 },
-  { kind: 'stockpile', wood: 4, stone: 0, requires: 3, limit: 1, size: 0.6, priority: 56 },
-  { kind: 'dummy', wood: 3, stone: 0, requires: 9, limit: 2, size: 0.5, priority: 47, needs: 'barracks' },
-  { kind: 'house', wood: 7, stone: 1, requires: 2, limit: 26, size: 0.62, priority: 50 },
-  { kind: 'farm', wood: 5, stone: 0, requires: 3, limit: 4, size: 0.55, priority: 45 },
-  { kind: 'statue', wood: 2, stone: 12, requires: 11, limit: 2, size: 0.7, priority: 30 },
-  { kind: 'tent', wood: 3, stone: 0, requires: 0, limit: 3, size: 0.5, priority: 20 },
-];
-
-const BUILDING_HEALTH: Record<BuildingKind, number> = {
-  bonfire: 120, tent: 60, house: 140, hall: 260,
-  farm: 90, tower: 240, temple: 220, statue: 180, mine: 160,
-  windmill: 120, barracks: 220, smithy: 160, library: 170, well: 90, market: 140, dock: 110,
-  stockpile: 80, dummy: 40,
-};
-
-/**
- * How many tiles a single building projects its kingdom's claim.
- * Scaled up from the first pass: a WorldBox village claims 3x3 zones of 8x8
- * tiles — 576 tiles — at founding, on a map the size of our 'medium'. Ours
- * claimed about 50, which is why the world looked like a few specks on a big
- * empty continent (research doc section 1).
- */
-const CLAIM_RADIUS: Record<BuildingKind, number> = {
-  bonfire: 7, tent: 3, house: 4, hall: 9,
-  farm: 3, tower: 7, temple: 7, statue: 5, mine: 3,
-  windmill: 3, barracks: 5, smithy: 3, library: 5, well: 2, market: 4, dock: 3,
-  stockpile: 2, dummy: 1,
-};
-
-/**
- * How keen each race is to expand, as an offset on what its ruler can govern.
- *
- * This used to be a hard ceiling — a kingdom simply stopped founding villages
- * at the limit. That was a placeholder standing in for politics: real empires
- * do not stop growing when governing gets hard, they grow anyway and start
- * losing provinces. The number now shifts where loyalty begins to suffer
- * (see `governableVillages`), and a kingdom is free to overreach and pay for
- * it (docs/project-tracker/08-MASTER-PLAN.md 14.1).
- */
-/**
- * How warlike each people is by nature. Orcs want a war with everyone; elves
- * would rather be left alone. Fed to the opinion formula as 'Bloodlust'.
- */
-const TEMPERAMENT: Record<Race, number> = {
-  orc: 30,
-  human: 12,
-  dwarf: 8,
-  elf: 2,
-};
-
-/** Rounds (six seconds each) before a war is sure to end in a peace. */
-const WAR_MAX_ROUNDS = 50;
-/** After this many rounds, each round may bring a negotiated peace. */
-const WAR_WEARY_ROUNDS = 20;
-const WAR_WEARY_PEACE_CHANCE = 0.05;
-/** Seconds a new kingdom is left in peace before tension can build. */
-const YOUNG_REALM_PEACE = 300;
-/** People a realm needs before it can field a war at all. */
-const WAR_MIN_POPULATION = 20;
-/** Realms this close, village to village, notice each other without a border. */
-const CONTACT_RANGE = 40;
-
-const EXPANSION_APPETITE: Record<Race, number> = {
-  human: 2,
-  orc: 2,
-  elf: 0,
-  dwarf: 0,
-};
-
-/**
- * How long a province must sit below zero loyalty before it goes.
- *
- * A single bad harvest should not cost you a city, and the delay is the whole
- * reason a rebellion is something the player can see coming and head off —
- * which is what makes the loyalty breakdown worth opening.
- */
-/**
- * Tiles per side of a placement zone.
- *
- * Theirs is 8x8 on an 8px tile map; ours is 3x3 because a whole town here is
- * only six or seven tiles across, and an 8-tile zone would swallow it whole.
- */
-const ZONE_SIZE = 3;
-
-const zoneKey = (x: number, y: number): string =>
-  `${Math.floor(x / ZONE_SIZE)},${Math.floor(y / ZONE_SIZE)}`;
-
-/** How many of the eight neighbouring zones already hold one of our buildings. */
-const adjacentZonesFilled = (
-  x: number, y: number, filled: ReadonlySet<string>,
-): number => {
-  let count = 0;
-  for (let dx = -1; dx <= 1; dx += 1) {
-    for (let dy = -1; dy <= 1; dy += 1) {
-      if (dx === 0 && dy === 0) continue;
-      if (filled.has(zoneKey(x + dx * ZONE_SIZE, y + dy * ZONE_SIZE))) count += 1;
-    }
-  }
-  return count;
-};
-
-/**
- * The three siting classes, straight from their design.
- *
- * `cluster` needs a neighbouring zone already built in; `solitary` needs its
- * neighbours empty; `border` needs an adjacent zone that is not ours. Between
- * them they produce a dense core, a green belt and frontier towers with no
- * authoring at all — which is the whole trick.
- */
-type Siting = 'cluster' | 'solitary' | 'border' | 'anchor' | 'shore';
-
-/**
- * What a building *is*, in one number, and how much ground that takes.
- *
- * Tier 1 is shelter, tier 2 is work, tier 3 is the things a town builds once it
- * has stopped merely surviving — and a tier-3 building stands on four tiles
- * rather than one. That is the whole of it, and it does a surprising amount:
- * a hall is now visibly the largest thing in a settlement without a label, a
- * skyline has a hierarchy in it, and the ground a civic building costs is a
- * real decision rather than a rounding error. It also gives towns their first
- * genuine sense of scale, because the footprint pushes the houses outward.
- */
-interface BuildingTier {
-  tier: 1 | 2 | 3;
-  /** Tiles on a side. Tier 3 is the only thing that outgrows its tile. */
-  footprint: number;
-}
-
-const TIERS: Record<string, BuildingTier> = {
-  tent: { tier: 1, footprint: 1 },
-  bonfire: { tier: 1, footprint: 1 },
-  house: { tier: 1, footprint: 1 },
-  farm: { tier: 2, footprint: 1 },
-  mine: { tier: 2, footprint: 1 },
-  tower: { tier: 2, footprint: 1 },
-  statue: { tier: 3, footprint: 2 },
-  temple: { tier: 3, footprint: 2 },
-  hall: { tier: 3, footprint: 2 },
-  windmill: { tier: 2, footprint: 1 },
-  barracks: { tier: 2, footprint: 1 },
-  smithy: { tier: 2, footprint: 1 },
-  library: { tier: 3, footprint: 1 },
-  well: { tier: 1, footprint: 1 },
-  market: { tier: 2, footprint: 1 },
-  dock: { tier: 1, footprint: 1 },
-  stockpile: { tier: 1, footprint: 1 },
-  dummy: { tier: 2, footprint: 1 },
-};
-
-/** Tiles on a side. Derived from the kind, so no save has to carry it. */
-export const footprintOf = (kind: string): number => TIERS[kind]?.footprint ?? 1;
-
-/** 1-3. Drives the tool a builder carries, and how much ground the thing takes. */
-export const tierOf = (kind: string): number => TIERS[kind]?.tier ?? 1;
-
-const SITING: Record<string, Siting> = {
-  bonfire: 'anchor',
-  hall: 'anchor',
-  house: 'cluster',
-  farm: 'cluster',
-  mine: 'solitary',
-  temple: 'solitary',
-  statue: 'solitary',
-  tower: 'border',
-  windmill: 'cluster',
-  barracks: 'border',
-  smithy: 'cluster',
-  library: 'solitary',
-  well: 'cluster',
-  market: 'cluster',
-  dock: 'shore',
-  stockpile: 'cluster',
-  dummy: 'border',
-};
-
-/**
- * Does a tile sit where this culture would put a building?
- *
- * Stage two of placement, and the reason two towns of different peoples look
- * different. Each rule is a cheap predicate on the tile's offset from the town
- * centre — no pathing, no street graph, just a shape.
- */
-const fitsLayout = (
-  layout: LayoutId, x: number, y: number, village: Village,
-): boolean => {
-  const dx = x - village.centerX;
-  const dy = y - village.centerY;
-  switch (layout) {
-    // Streets on the even lines, buildings on the odd ones.
-    case 'grid': return Math.abs(dx) % 2 === 1 && Math.abs(dy) % 2 === 1;
-    // Concentric bands with a gap between them.
-    case 'rings': return Math.max(Math.abs(dx), Math.abs(dy)) % 2 === 1;
-    // Two columns built, one skipped, and the skip walks along each row —
-    // a staggered comb with a period of three rather than a checkerboard.
-    // The first version offset alternate rows by one, which reduces to exactly
-    // the diagonal rule below: two cultures, one silhouette.
-    case 'honeycomb': return (dx + Math.abs(dy)) % 3 !== 0;
-    // Diagonal lanes.
-    case 'diagonal': return (dx + dy) % 2 === 0;
-    // No rule at all, which is itself a look.
-    default: return true;
-  }
-};
-
-
-const REBELLION_PATIENCE = 45;
-
-/** What a meal costs a villager who has to pay for one. */
-const MEAL_PRICE = 5;
-
-/** The lord's cut of every wage, before it becomes spendable. */
-const TAX_RATE = 0.25;
-
-/**
- * What each building earns per round.
- *
- * The architecture *is* the income graph — a town's wealth is legible from its
- * skyline rather than from a panel. Their tiers run a T1 house at 1 up to a T6
- * at 6, with a town hall at 10; ours has no tiers yet, so these are the
- * single-tier equivalents.
- */
-const BUILDING_YIELD: Record<string, number> = {
-  hall: 6,
-  house: 2,
-  farm: 3,
-  mine: 4,
-  temple: 2,
-  statue: 1,
-  tower: 1,
-  bonfire: 0,
-  windmill: 2,
-  barracks: 0,
-  smithy: 3,
-  library: 2,
-  well: 0,
-  // A market is where the town's money changes hands, and some of it stays.
-  market: 5,
-  dock: 2,
-  stockpile: 1,
-  dummy: 0,
-};
-
-/** How far a watchtower's archers reach, and how hard an arrow hits. */
-const TOWER_RANGE = 5;
-const TOWER_DAMAGE = 9;
-
-/** What it costs to rebuild a house at the next level. */
-const HALL_UPGRADE: Record<number, { wood: number; stone: number; gold: number }> = {
-  2: { wood: 12, stone: 18, gold: 0 },
-  3: { wood: 16, stone: 36, gold: 30 },
-};
-
-const HOUSE_UPGRADE: Record<number, { wood: number; stone: number; gold: number }> = {
-  2: { wood: 6, stone: 6, gold: 0 },
-  3: { wood: 8, stone: 12, gold: 10 },
-};
-
-/** How many residents each building houses, for the homelessness term. */
-const HOUSING: Record<string, number> = {
-  house: 4,
-  hall: 3,
-  farm: 1,
-};
-
-/**
- * How much the ground under a building is worth.
- *
- * Terrain visibly matters to income, which is most of what makes siting a town
- * on good land feel like a decision rather than a formality.
- */
-const groundBonus = (tile: Tile): number => {
-  if (tile.type === 'badlands' || tile.type === 'desert' || tile.type === 'mesa') return 0.6;
-  if (tile.type === 'volcanic' || tile.type === 'corrupted') return 0.4;
-  if (tile.fertility > 0.65) return 1.4;
-  return 1;
-};
-
-/**
- * How much each building breathes, 0-1.
- *
- * A settlement that is perfectly still reads as a set of props. WorldBox syncs
- * these little scale animations to the game-speed setting, which is why a
- * paused world still looks alive and a fast one looks frantic — ours ride the
- * same clock the wind does, which the engine advances every frame.
- */
-const PULSE_BY_BUILDING: Record<string, number> = {
-  bonfire: 1,
-  farm: 0.7,
-  house: 0.45,
-  hall: 0.3,
-  temple: 0.35,
-  statue: 0.2,
-  tower: 0.25,
-  mine: 0.4,
-  windmill: 0.6,
-  barracks: 0.25,
-  smithy: 0.5,
-  library: 0.3,
-  well: 0.2,
-  market: 0.45,
-  dock: 0.15,
-  stockpile: 0.2,
-  dummy: 0.6,
-};
-
-/** Claimed land whose village has no identity yet, on an identity layer. */
-const UNKNOWN_IDENTITY_COLOR = new THREE.Color('#64748b');
-
-/**
- * Villages beyond the governable count that a kingdom will still *try* for.
- * Past this even the keenest race stops, because a realm with six seceding
- * provinces is noise rather than drama.
- */
-const OVERREACH_ALLOWANCE = 2;
-
-/**
- * How far from the centre a villager can be and still eat from the granary.
- * It was eleven tiles, and woodcutters and miners working the edge of the
- * territory starved beside a full store.
- */
-const FEEDING_RADIUS = 26;
-/** Seconds between towns sending out traders. */
-const CARAVAN_INTERVAL = 8;
-/** How far a trader will walk to sell. */
-const CARAVAN_RANGE = 55;
-/** Gold a caravan earns each end of its route. */
-const CARAVAN_PROFIT = 4;
-/** Give up on a trader who never arrives. */
-const CARAVAN_TIMEOUT = 150;
-/** Caravan rounds a trade tie keeps warming opinion after the last trader. */
-const TRADE_TIE_MEMORY = 30;
-
-/** What one builder's visit adds to a site. Five visits put up a house. */
-const BUILDER_STROKE = 0.2;
-/** What a site gains each build round with nobody working on it. */
-const SITE_SELF_PROGRESS = 0.04;
-/** How quickly each kind goes up: a tent in moments, a temple over a season. */
-const BUILD_EASE: Partial<Record<BuildingKind, number>> = {
-  tent: 3, well: 2.5, farm: 2.5, stockpile: 2.5, dummy: 2.5, bonfire: 3,
-  house: 1.3, windmill: 1.2, dock: 1.2, mine: 1.2,
-  hall: 0.6, temple: 0.6, library: 0.7, statue: 0.8, barracks: 0.8, tower: 0.9,
-};
-
-/** Most builders one town keeps on its sites. */
-const MAX_BUILDERS = 6;
-/** Sites one town will have open at once. */
-const MAX_SITES = 2;
-
-/** Most miners and woodcutters one town keeps, however large. */
-const MAX_MINERS = 8;
-const MAX_WOODCUTTERS = 10;
-/** Food a farmer brings in from one spell of work on a field. */
-const FARM_HARVEST = 2;
-
-/** Seconds between a town's chances to raise a child. */
-const BIRTH_INTERVAL = 2.5;
-/** Chance per adult, per round, that the town gains a child. Capped below. */
-const BIRTH_CHANCE_PER_ADULT = 0.035;
-/** Food the granary spends on each new mouth. */
-const BIRTH_FOOD = 4;
-/** Room a town finds beyond its roofs: people double up before they go without. */
-const HOUSING_SLACK = 4;
-
-/** Adults a village needs before it can spare anyone to settle elsewhere. */
-const SETTLER_SOURCE_POPULATION = 9;
-/** How many leave together. */
-const SETTLER_PARTY_MIN = 3;
-const SETTLER_PARTY_MAX = 5;
-/** How far a settler party will walk to found a new home. */
-const SETTLE_RANGE = 34;
-/** Give up on a party that never arrives. */
-const SETTLE_TIMEOUT = 180;
-
-/**
- * Ids are minted from a module-level counter, not a per-instance one. Two
- * settlement systems each numbering their villages from 1 produce colliding
- * ids, and anything that looks a village up by id — order completion, saves —
- * can then match the wrong world's village.
- */
-let nextIdentifier = 1;
-const mintId = (prefix: string): string => `${prefix}-${nextIdentifier++}`;
-
-/** Stable key for a pair of kingdoms, order-independent. */
-const pairKey = (a: string, b: string): string => (a < b ? `${a}|${b}` : `${b}|${a}`);
-
-const SENTIENT_RACES: Race[] = ['human', 'elf', 'dwarf', 'orc'];
-const isRace = (value: string): value is Race => SENTIENT_RACES.includes(value as Race);
-
-/** Minimum unaffiliated adults of one race in one place to found a village. */
-const FOUNDING_CLUSTER = 3;
-const FOUNDING_RADIUS = 5;
-const MIN_VILLAGE_SPACING = 16;
-const BUILDING_CLOUD_CAPACITY = 2048;
-/** Roofs are lifted a little toward white so a dark realm's houses still read. */
-const ROOF_LIGHT = new THREE.Color(0xffffff);
-/** Most boats on the water at once, across every kingdom. */
-const BOAT_CAPACITY = 96;
-/** A village needs this many people before it can spare a crew. */
-const FISHING_MIN_POPULATION = 6;
-/** How far across the sea a kingdom will look for a new home. */
-const OVERSEAS_RANGE = 60;
-/** An island smaller than this is a rock, not somewhere to found a town. */
-const MIN_COLONY_ISLAND = 24;
-/** Gold a merchant brings into port per run. */
-const TRADE_PROFIT = 3;
-/** A town needs this many people before it runs a trade route. */
-const TRADE_MIN_POPULATION = 10;
-
-/** The six things the player can do to the diplomatic map. */
-export type DiplomacyAct = 'spite' | 'friendship' | 'whisper' | 'unity' | 'discord' | 'inspiration';
-
-export interface SettlementEvents {
-  onEvent: (message: string, kind: 'kingdom' | 'war' | 'info', position?: { x: number; y: number }) => void;
-  onKingdomsChanged: (summaries: KingdomSummary[]) => void;
-  onVillagesChanged?: (summaries: VillageSummary[]) => void;
-  onPlotsChanged?: (summaries: PlotSummary[]) => void;
-  onIdentitiesChanged?: (rows: IdentityRow[]) => void;
-  onOpinionsChanged?: (rows: OpinionRow[]) => void;
-}
+export type {
+  Building, BuildingKind, DiplomacyAct, Kingdom, SettlementEvents, SettlerParty, Village, VillageStore,
+} from './settlement/types';
+export { footprintOf, tierOf } from './settlement/helpers';
+import type {
+  Building, BuildingKind, BuildingRecipe, Caravan, DiplomacyAct, Kingdom, SettlementEvents,
+  SettlerParty, Village
+} from './settlement/types';
+import {
+  BIRTH_CHANCE_PER_ADULT, BIRTH_FOOD, BIRTH_INTERVAL, BOAT_CAPACITY, BUILDER_STROKE,
+  BUILDING_CLOUD_CAPACITY, BUILDING_DRAW_SCALE, BUILDING_HEALTH, BUILDING_YIELD, BUILD_EASE,
+  CARAVAN_INTERVAL, CARAVAN_PROFIT, CARAVAN_RANGE, CARAVAN_TIMEOUT, CLAIM_RADIUS, CONTACT_RANGE,
+  EXPANSION_APPETITE, FARM_HARVEST, FEEDING_RADIUS, FISHING_MIN_POPULATION, FOUNDING_CLUSTER,
+  FOUNDING_RADIUS, HALL_UPGRADE, HOUSE_UPGRADE, HOUSING, HOUSING_SLACK, MAX_BUILDERS, MAX_MINERS,
+  MAX_SITES, MAX_WOODCUTTERS, MEAL_PRICE, MIN_COLONY_ISLAND, MIN_VILLAGE_SPACING,
+  OVERREACH_ALLOWANCE, OVERSEAS_RANGE, PULSE_BY_BUILDING, REBELLION_PATIENCE, RECIPES, ROOF_LIGHT,
+  SETTLER_PARTY_MAX, SETTLER_PARTY_MIN, SETTLER_SOURCE_POPULATION, SETTLE_RANGE, SETTLE_TIMEOUT,
+  SITE_SELF_PROGRESS, SITING, TAX_RATE, TEMPERAMENT, TOWER_DAMAGE, TOWER_RANGE,
+  TRADE_MIN_POPULATION, TRADE_PROFIT, TRADE_TIE_MEMORY, UNKNOWN_IDENTITY_COLOR, WAR_MAX_ROUNDS,
+  WAR_MIN_POPULATION, WAR_WEARY_PEACE_CHANCE, WAR_WEARY_ROUNDS, YOUNG_REALM_PEACE, ZONE_SIZE
+} from './settlement/constants';
+import {
+  adjacentZonesFilled, fitsLayout, footprintOf, groundBonus, isRace, keepIdentifierAhead, mintId,
+  pairKey, tierOf, townColour, zoneKey
+} from './settlement/helpers';
 
 export class SettlementSystem {
   private tiles: Tile[][];
@@ -4431,7 +3865,7 @@ export class SettlementSystem {
     // founded villages can never collide with restored ones.
     const trackId = (id: string) => {
       const numeric = Number(id.split('-').pop());
-      if (Number.isFinite(numeric) && numeric >= nextIdentifier) nextIdentifier = numeric + 1;
+      if (Number.isFinite(numeric)) keepIdentifierAhead(numeric);
     };
 
     for (const saved of savedKingdoms) {
