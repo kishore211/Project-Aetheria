@@ -850,6 +850,11 @@ export class EntityManager implements EntityIndex {
     ai.setOrder(order);
   }
 
+  /** Cancel a unit's errand and stop it walking towards where the order sent it. */
+  cancelOrder(entity: Entity): void {
+    this.entityAIs.get(entity.id)?.cancelOrder();
+  }
+
   /** Is this unit already on an errand for its village? */
   hasOrder(entity: Entity): boolean {
     return Boolean(this.entityAIs.get(entity.id)?.order);

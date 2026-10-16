@@ -326,7 +326,11 @@ export class Colonisation {
     }
   }
 
-  /** Abandon parties that never made it, and send their people home. */
+  /**
+   * Abandon parties that never made it, and send their people home. A party
+   * still at sea is not abandoned: its boat has its own clock, and landing
+   * resets the party's patience.
+   */
   private ageParties(delta: number): void {
     for (const party of Array.from(this.parties.values())) {
       party.timeout -= delta;
@@ -336,13 +340,38 @@ export class Colonisation {
       }
 
       if (party.memberIds.size > 0 && party.timeout > 0) continue;
+      if (this.anyAfloat(party)) continue;
 
-      // Give up: survivors rejoin whichever settlement will take them
-      for (const id of party.memberIds) {
-        const settler = this.host.entities.getEntityById(id);
-        if (settler) settler.kingdomId = party.kingdomId;
-      }
+      this.sendHome(party);
       this.parties.delete(party.id);
+    }
+  }
+
+  private anyAfloat(party: SettlerParty): boolean {
+    if (party.memberIds.size === 0) return false;
+    const aboard = this.host.boats.passengersAtSea();
+    return Array.from(party.memberIds).some(id => aboard.has(id));
+  }
+
+  /**
+   * Stop a party's survivors walking to the site and send them back: each
+   * rejoins the village it left, with that village's realm, if the village still
+   * stands. Otherwise they are free wanderers of the party's realm.
+   */
+  private sendHome(party: SettlerParty): void {
+    const source = this.host.villages.get(party.sourceVillageId);
+    for (const id of party.memberIds) {
+      const settler = this.host.entities.getEntityById(id);
+      if (!settler) continue;
+      this.host.entities.cancelOrder(settler);
+      clearStatus(settler, 'aboard');
+      if (source) {
+        settler.villageId = source.id;
+        settler.kingdomId = source.kingdomId;
+      } else {
+        settler.villageId = null;
+        settler.kingdomId = party.kingdomId;
+      }
     }
   }
 
@@ -352,11 +381,8 @@ export class Colonisation {
     const kingdom = this.host.kingdoms.get(party.kingdomId);
 
     if (!tile || !kingdom || tile.villageId || this.host.tooCloseToVillage(tile.x, tile.y)) {
-      // Site spoiled while they walked — dissolve the party
-      for (const id of party.memberIds) {
-        const member = this.host.entities.getEntityById(id);
-        if (member) member.kingdomId = party.kingdomId;
-      }
+      // Site spoiled while they walked: the party is dissolved and its people go home
+      this.sendHome(party);
       this.parties.delete(party.id);
       return;
     }
