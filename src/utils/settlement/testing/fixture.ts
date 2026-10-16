@@ -109,6 +109,20 @@ export const makeWorld = (options: WorldOptions = {}): World => {
     },
     homesIn: () => 12,
     colonyLimit: () => colonyLimit,
+    // The war and construction side of the host. These subsystem tests do not
+    // exercise it, so it is stubbed to quiet, harmless answers.
+    tileFromInstanceId: () => null,
+    claimTerritory: () => undefined,
+    placeBuilding: (village, kind, x, y) => { village.buildings.push(building(kind, x, y)); },
+    syncTerrain: () => undefined,
+    paintBuilding: () => undefined,
+    removeBuilding: (village, gone) => { village.buildings = village.buildings.filter(b => b !== gone); },
+    releaseVillage: (village) => { villages.delete(village.id); },
+    publishSummaries: () => undefined,
+    kingCivilStats: () => null,
+    landOf: (kingdom) => kingdom.villageIds.length,
+    tradePartners: () => false,
+    forgetLeadership: () => undefined,
   };
 
   return { host, tiles, entities, boats, villages, kingdoms, laws, tiers, founded, events };
