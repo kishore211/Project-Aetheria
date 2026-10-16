@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useGameStore } from '../../store/gameStore';
 import { useTweenedNumber } from '../../hooks/useTweenedNumber';
 import { soundManager } from '../../utils/soundManager';
@@ -23,7 +24,15 @@ const seasonIcons = {
 };
 
 const TopBar = () => {
-  const { population, year, day, season, timeOfDay, weather, kingdoms, age, ageProgress } = useGameStore();
+  // Only the fields the bar shows: subscribing to the whole store re-rendered
+  // the bar on every hover, every event and every selection change.
+  const { population, year, day, season, timeOfDay, weather, kingdoms, age, ageProgress } = useGameStore(
+    useShallow((state) => ({
+      population: state.population, year: state.year, day: state.day, season: state.season,
+      timeOfDay: state.timeOfDay, weather: state.weather, kingdoms: state.kingdoms,
+      age: state.age, ageProgress: state.ageProgress,
+    })),
+  );
   const showUnitIcons = useGameStore((state) => state.showUnitIcons);
   const toggleUnitIcons = useGameStore((state) => state.toggleUnitIcons);
   const shownPopulation = useTweenedNumber(population);
