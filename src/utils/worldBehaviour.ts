@@ -29,6 +29,7 @@ import { determineBiome } from './worldGenerator';
 import { strikeDisaster, type DisasterWorld } from './disasters';
 import { sendMonster } from './monsterEvents';
 import { FIRE_HEAT_PER_SECOND, addHeat, cascade, conduct, relax } from './thermal';
+import { random as sharedRandom } from './random';
 
 /**
  * What a process is allowed to touch. Deliberately small and injectable.
@@ -117,7 +118,7 @@ const NOT_AT_DAWN = new Set<EntityType>(['yeti', 'sandworm', 'demon', 'fire_skul
 export const populateWildlife = (
   tiles: Tile[][],
   spawn: (type: EntityType, x: number, y: number) => unknown,
-  random: () => number = Math.random,
+  random: () => number = sharedRandom,
 ): number => {
   const size = tiles.length;
   const target = Math.floor((size * size) / WILDLIFE_DENSITY * 0.6);
@@ -461,7 +462,7 @@ export class WorldBehaviour {
 
   constructor(
     private readonly processes: WorldProcess[] = WORLD_PROCESSES,
-    private readonly random: () => number = Math.random,
+    private readonly random: () => number = sharedRandom,
   ) {
     for (const process of processes) this.countdown.set(process.name, this.nextGap(process));
   }

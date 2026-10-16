@@ -14,6 +14,7 @@ import { nudgeMood } from './mood';
 import { applyStatus, type StatusId } from './statusEffects';
 import { emitFloater } from './floatBridge';
 import { speak, type Occasion } from './dialogue';
+import { random } from './random';
 
 export type Scenario =
   // -- the day-to-day --
@@ -140,10 +141,10 @@ export const applyScenario = (entity: Entity, scenario: Scenario): void => {
     });
   }
 
-  if (def.occasion && def.voice !== undefined && Math.random() < def.voice) {
+  if (def.occasion && def.voice !== undefined && random() < def.voice) {
     emitFloater({
       kind: 'speech',
-      text: speak(def.occasion, Math.random()),
+      text: speak(def.occasion, random()),
       x: entity.position.x,
       y: entity.position.y,
       entityId: entity.id,

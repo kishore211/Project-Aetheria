@@ -17,6 +17,7 @@
 // a wall; the ones that bite are the few that should be frightening.
 import { isWaterBiome, type BiomeType, type Entity } from '../types/world';
 import { applyStatus, type StatusId } from './statusEffects';
+import { random as sharedRandom } from './random';
 
 export interface BiomeStep {
   /** Multiplier on movement speed while standing here. */
@@ -108,7 +109,7 @@ export const stepOnGround = (
   entity: Entity,
   biome: BiomeType,
   delta: number,
-  random: () => number = Math.random,
+  random: () => number = sharedRandom,
 ): number => {
   const ground = BIOME_STEPS[biome];
   if (!ground || ground.hazard <= 0) return 0;

@@ -1,5 +1,6 @@
 // Heritable unit traits — the cheapest source of emergent stories in the game.
 import type { Entity, EntityType, TraitId } from '../types/world';
+import { random } from './random';
 
 export interface TraitInfo {
   id: TraitId;
@@ -91,7 +92,7 @@ const WEIGHTS: Record<TraitId, number> = {
 
 const pickWeighted = (): TraitId => {
   const total = ALL_TRAITS.reduce((sum, id) => sum + WEIGHTS[id], 0);
-  let roll = Math.random() * total;
+  let roll = random() * total;
   for (const id of ALL_TRAITS) {
     roll -= WEIGHTS[id];
     if (roll <= 0) return id;
@@ -101,7 +102,7 @@ const pickWeighted = (): TraitId => {
 
 /** Traits for a brand new creature. Most have none; a few have two. */
 export const rollTraits = (): TraitId[] => {
-  const roll = Math.random();
+  const roll = random();
   const count = roll < 0.62 ? 0 : roll < 0.94 ? 1 : 2;
   const traits: TraitId[] = [];
   for (let i = 0; i < count; i++) {
@@ -116,8 +117,8 @@ export const rollTraits = (): TraitId[] => {
  * one, so lineages drift instead of being reshuffled every generation.
  */
 export const inheritTraits = (parentTraits: TraitId[] = []): TraitId[] => {
-  const traits = parentTraits.filter(() => Math.random() < 0.75);
-  if (Math.random() < 0.12) {
+  const traits = parentTraits.filter(() => random() < 0.75);
+  if (random() < 0.12) {
     const mutation = pickWeighted();
     if (!traits.includes(mutation)) traits.push(mutation);
   }
@@ -247,7 +248,7 @@ export const earnTraits = (entity: Entity): TraitId | null => {
 /** Sentient races get slightly better odds of an interesting trait. */
 export const rollTraitsForType = (type: EntityType): TraitId[] => {
   const traits = rollTraits();
-  if (traits.length === 0 && ['human', 'elf', 'dwarf', 'orc'].includes(type) && Math.random() < 0.25) {
+  if (traits.length === 0 && ['human', 'elf', 'dwarf', 'orc'].includes(type) && random() < 0.25) {
     traits.push(pickWeighted());
   }
   return traits;

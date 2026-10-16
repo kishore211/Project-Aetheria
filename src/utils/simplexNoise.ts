@@ -1,4 +1,5 @@
 import seedrandom from 'seedrandom';
+import { random as sharedRandom } from './random';
 
 /**
  * A high-quality 2D/3D Simplex Noise implementation
@@ -45,7 +46,7 @@ export default class SimplexNoise {
    * Fisher-Yates shuffle with optional seed
    */
   private shuffle(array: number[], seed?: number): void {
-    const random = seed !== undefined ? seedrandom(seed.toString()) : Math.random;
+    const random = seed !== undefined ? seedrandom(seed.toString()) : sharedRandom;
     
     let currentIndex = array.length;
     let temporaryValue, randomIndex;

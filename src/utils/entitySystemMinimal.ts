@@ -59,6 +59,7 @@ const SPEAKING_TYPES = BORN_SAPIENT;
 export const isSapient = (entity: Pick<Entity, 'type' | 'uplifted'>): boolean =>
   SPEAKING_TYPES.has(entity.type) || entity.uplifted === true;
 import type { EntityIndex } from './entityManagerMinimal';
+import { random } from './random';
 
 /**
  * AI States for entities
@@ -191,7 +192,7 @@ function generateEntityName(type: EntityType): string {
   };
 
   const nameList = names[type] ?? ['Unknown'];
-  return nameList[Math.floor(Math.random() * nameList.length)];
+  return nameList[Math.floor(random() * nameList.length)];
 }
 
 const PROFILES: Partial<Record<EntityType, CreatureStats>> = mapSome(c => c.stats);
@@ -235,7 +236,7 @@ export function createEntity(
     // Staggered so a crowd does not breathe in unison. Two dozen creatures
     // bobbing on the same beat reads as a mechanism; the same two dozen out of
     // phase reads as a crowd.
-    walkPhase: Math.random(),
+    walkPhase: random(),
     traits: traits ?? rollTraitsForType(type),
     kills: 0,
     kingdomId: null,
@@ -245,7 +246,7 @@ export function createEntity(
   };
 
   // Start part-grown so a fresh world is not entirely newborns
-  entity.age = profile.maxAge * (0.2 + Math.random() * 0.25);
+  entity.age = profile.maxAge * (0.2 + random() * 0.25);
   applyTraits(entity);
   // After the traits, because a strong wolf is a bigger wolf.
   entity.size = rollSize(type, entity.traits);
@@ -586,7 +587,7 @@ export class EntityAI {
    * Staggered by construction so a village does not do all its socialising on
    * the same tick.
    */
-  private socialTimer = Math.random() * 4;
+  private socialTimer = random() * 4;
   /** Seconds spent trying to move without actually getting anywhere. */
   private stuckTimer = 0;
   private lastStuckPosition = { x: 0, y: 0 };
@@ -684,7 +685,7 @@ export class EntityAI {
     if (this.isPerson()) {
       this.socialTimer -= deltaTime;
       if (this.socialTimer <= 0) {
-        this.socialTimer = 2.5 + Math.random() * 3;
+        this.socialTimer = 2.5 + random() * 3;
         this.spreadMood();
         this.exchangeIdentity();
         this.maybeBond();
@@ -739,7 +740,7 @@ export class EntityAI {
     // to the dialogue system and made grazing survival move whenever the
     // speech code did. Guards go cheapest and most selective first.
     if (!this.isPerson()) return;
-    if (Math.random() > 0.12) return;
+    if (random() > 0.12) return;
 
     const needs = this.entity.needs;
     let occasion: Occasion | null = null;
@@ -765,7 +766,7 @@ export class EntityAI {
 
     emitFloater({
       kind: 'speech',
-      text: speak(occasion, Math.random()),
+      text: speak(occasion, random()),
       x: this.entity.position.x,
       y: this.entity.position.y,
       entityId: this.entity.id,
@@ -990,7 +991,7 @@ export class EntityAI {
     if (!this.entity.traits?.includes('pyromaniac')) return;
     this.pyroCooldown -= deltaTime;
     if (this.pyroCooldown > 0) return;
-    this.pyroCooldown = 12 + Math.random() * 20;
+    this.pyroCooldown = 12 + random() * 20;
     const x = Math.floor(this.entity.position.x);
     const y = Math.floor(this.entity.position.y);
     if (x < 0 || x >= tiles.length || y < 0 || y >= tiles[0].length) return;
@@ -1210,16 +1211,16 @@ export class EntityAI {
 
     // Wander. Villagers stay near home — the old behaviour let them drift off
     // across the map and left their own village looking abandoned.
-    if (wants(this.entity, 'wander') && Math.random() < 0.35) {
+    if (wants(this.entity, 'wander') && random() < 0.35) {
       const home = this.entity.villageId ? simulation.homePositionFor?.(this.entity) : null;
       const anchorX = home ? home.x : Math.floor(this.entity.position.x);
       const anchorY = home ? home.y : Math.floor(this.entity.position.y);
       const range = home ? 7 : 4;
 
       const targetX = Math.max(0, Math.min(tiles.length - 1,
-        anchorX + Math.floor(Math.random() * (range * 2 + 1)) - range));
+        anchorX + Math.floor(random() * (range * 2 + 1)) - range));
       const targetY = Math.max(0, Math.min(tiles[0].length - 1,
-        anchorY + Math.floor(Math.random() * (range * 2 + 1)) - range));
+        anchorY + Math.floor(random() * (range * 2 + 1)) - range));
       const candidate = tiles[targetX][targetY];
       if (candidate.walkable !== false && isWalkableForEntity(candidate, this.entity.type)) {
         this.targetTile = candidate;
@@ -1258,8 +1259,8 @@ export class EntityAI {
     }
 
     // Drift a little so a crowd is not a single stacked sprite
-    if (Math.random() < 0.02) {
-      const spot = this.tileAt(tiles, gathering.x + Math.round(Math.random() * 2 - 1), gathering.y + Math.round(Math.random() * 2 - 1));
+    if (random() < 0.02) {
+      const spot = this.tileAt(tiles, gathering.x + Math.round(random() * 2 - 1), gathering.y + Math.round(random() * 2 - 1));
       if (spot && isWalkableForEntity(spot, this.entity.type)) {
         this.entity.lastPosition = { ...this.entity.position };
         this.entity.position = { x: spot.x + 0.5, y: spot.y + 0.5 };
@@ -1302,15 +1303,15 @@ export class EntityAI {
     if (caught) {
       // Not certain, so a mood ripples outward over a few seconds instead of
       // snapping through the whole village in one tick.
-      if (Math.random() < 0.45) this.addStatus(caught.id);
+      if (random() < 0.45) this.addStatus(caught.id);
       return;
     }
 
     // Nobody to catch anything from, so start something. A cheerful villager
     // laughs or sings; a wretched one cries, and that spreads too.
     const happiness = this.entity.happiness ?? 0;
-    if (Math.random() > 0.18) return;
-    if (happiness > 35) this.addStatus(Math.random() < 0.5 ? 'laughing' : 'singing');
+    if (random() > 0.18) return;
+    if (happiness > 35) this.addStatus(random() < 0.5 ? 'laughing' : 'singing');
     else if (happiness < -35) this.addStatus('crying');
   }
 
@@ -1329,7 +1330,7 @@ export class EntityAI {
     // how a culture outlives its last speaker: the text keeps arguing for it
     // long after the people who wrote it are gone.
     const book = bookAt(Math.floor(this.entity.position.x), Math.floor(this.entity.position.y));
-    if (book && Math.random() < 0.5) {
+    if (book && random() < 0.5) {
       readBook(this.entity, book);
       return;
     }
@@ -1339,7 +1340,7 @@ export class EntityAI {
       .filter(other => other.id !== this.entity.id && isSapient(other));
     if (partners.length === 0) return;
 
-    const other = partners[Math.floor(Math.random() * partners.length)];
+    const other = partners[Math.floor(random() * partners.length)];
     converse(this.entity, other);
   }
 
@@ -1363,7 +1364,7 @@ export class EntityAI {
         && Math.abs((other.happiness ?? 0) - mine) < 25);
 
     if (candidates.length === 0) return;
-    const other = candidates[Math.floor(Math.random() * candidates.length)];
+    const other = candidates[Math.floor(random() * candidates.length)];
 
     if (!this.entity.friendId) {
       this.entity.friendId = other.id;
@@ -1378,7 +1379,7 @@ export class EntityAI {
       && !other.loverId
       && this.entity.age > this.entity.maxAge * 0.18
       && other.age > other.maxAge * 0.18
-      && Math.random() < 0.2
+      && random() < 0.2
     ) {
       this.entity.loverId = other.id;
       other.loverId = this.entity.id;
@@ -1806,7 +1807,7 @@ export class EntityAI {
       this.entity.health -= 1.6 * deltaTime;
       // ...and it travels, but only by contact and only between people. A
       // plague that jumped species would empty the map in a minute.
-      if (this.index && Math.random() < 0.4 * deltaTime) {
+      if (this.index && random() < 0.4 * deltaTime) {
         for (const other of this.index.query(this.entity.position.x, this.entity.position.y, 1.2)) {
           if (other.id === this.entity.id || !isSapient(other)) continue;
           if (other.status.includes('infected') || other.status.includes('shielded')) continue;
@@ -1822,7 +1823,7 @@ export class EntityAI {
     if (status.includes('confused')) {
       // A stagger, not a teleport: a small step in a direction that changes
       // often enough to look lost rather than purposeful.
-      if (Math.random() < 4 * deltaTime) this.confusedHeading = Math.random() * Math.PI * 2;
+      if (random() < 4 * deltaTime) this.confusedHeading = random() * Math.PI * 2;
       const step = this.tilesPerSecond() * 0.6 * deltaTime;
       this.entity.lastPosition = { ...this.entity.position };
       this.entity.position = {
@@ -1856,7 +1857,7 @@ export class EntityAI {
   private shoot(target: Entity): void {
     const ranged = RANGED[this.entity.type];
     emitShot(this.entity, target, ranged?.kind ?? 'arrow');
-    if (ranged?.ignite && Math.random() < 0.35) {
+    if (ranged?.ignite && random() < 0.35) {
       simulation.igniteTile?.(Math.floor(target.position.x), Math.floor(target.position.y));
     }
   }
@@ -1877,11 +1878,11 @@ export class EntityAI {
     const targetTraits = target.traits ?? [];
     // Checked before the roll, so a creature without the trait spends none
     // of the shared random stream on it.
-    if (targetTraits.includes('nimble') && Math.random() < 0.25) {
+    if (targetTraits.includes('nimble') && random() < 0.25) {
       this.addTimedStatus('attacking');
       return;
     }
-    if (targetTraits.includes('battle_reflexes') && Math.random() < 1 / 7) {
+    if (targetTraits.includes('battle_reflexes') && random() < 1 / 7) {
       this.addTimedStatus('attacking');
       return;
     }
@@ -1892,7 +1893,7 @@ export class EntityAI {
     const flame = weapon?.modifier === 'flaming' ? 3 : 0;
     const veteran = 1 + (levelOf(this.entity) - 1) * 0.06;
     const gifted = traitDamageFactor(this.entity, simulation.timeOfDay === 'night');
-    const crit = this.entity.traits?.includes('precise') && Math.random() < 0.125 ? 2 : 1;
+    const crit = this.entity.traits?.includes('precise') && random() < 0.125 ? 2 : 1;
     const raw = (this.entity.attributes.strength * 0.6 * venom + weaponDamage(weapon) + flame) * fury * hide * veteran * gifted * crit;
     const blow = raw * (1 - armorBlock(target.equipment?.armor));
     target.health -= blow;
@@ -1910,7 +1911,7 @@ export class EntityAI {
     if (killed && !target.status.includes('slain')) target.status.push('slain');
     if (weapon || target.equipment?.armor) wearAfterBlow(this.entity, target, killed);
     if (killed && target.equipment && claimSpoils(this.entity, target, wieldsGear(this.entity.type)).length > 0) {
-      emitFloater({ kind: 'speech', text: speak('looted', Math.random()), x: this.entity.position.x, y: this.entity.position.y, entityId: this.entity.id });
+      emitFloater({ kind: 'speech', text: speak('looted', random()), x: this.entity.position.x, y: this.entity.position.y, entityId: this.entity.id });
     }
   }
 

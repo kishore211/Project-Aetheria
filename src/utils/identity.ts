@@ -17,6 +17,7 @@
 // differ only in what they are called and what they change.
 
 import type { Entity } from '../types/world';
+import { random } from './random';
 
 export type MetaKind = 'culture' | 'language' | 'religion';
 
@@ -310,7 +311,7 @@ const leastUsedColor = (kind: MetaKind, roll: number): string => {
  * pool for all three kinds on purpose, because a people's language, faith and
  * culture sounding related is how real ones read.
  */
-export const mintMeta = (kind: MetaKind, roll = Math.random()): Meta => {
+export const mintMeta = (kind: MetaKind, roll = random()): Meta => {
   const stem = pick(CULTURE_STEMS, roll);
   const second = pick(CULTURE_TAILS, roll * 7.31);
   const color = leastUsedColor(kind, roll);
@@ -407,7 +408,7 @@ export const buildPot = (a: Entity, b: Entity, kind: MetaKind): string[] => {
 export const converse = (
   a: Entity,
   b: Entity,
-  roll: () => number = Math.random,
+  roll: () => number = random,
 ): MetaKind[] => {
   const changed: MetaKind[] = [];
 
@@ -433,7 +434,7 @@ export const converse = (
 export const resistsConversion = (
   entity: Entity,
   kind: MetaKind,
-  roll: () => number = Math.random,
+  roll: () => number = random,
 ): boolean => {
   const culture = metaById(entity.cultureId);
   if (!culture?.traits.includes('devout')) return false;
@@ -467,7 +468,7 @@ const BOOK_FORMS = [
   'the Sayings of {stem}', 'the {stem} Codex',
 ];
 
-export const writeBook = (x: number, y: number, metas: MetaSet, roll = Math.random()): Book => {
+export const writeBook = (x: number, y: number, metas: MetaSet, roll = random()): Book => {
   const source = metaById(metas.culture)?.name ?? pick(CULTURE_STEMS, roll);
   const book: Book = {
     id: `book-${nextBookId++}`,
@@ -503,7 +504,7 @@ export const resetBooks = (): void => {
 export const readBook = (
   reader: Entity,
   book: Book,
-  roll: () => number = Math.random,
+  roll: () => number = random,
 ): MetaKind[] => {
   const changed: MetaKind[] = [];
 

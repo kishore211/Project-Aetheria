@@ -1,6 +1,7 @@
 // Visual effects manager for god powers and weather.
 import * as THREE from 'three';
 import { TILE_SIZE } from '../types/world';
+import { random } from './random';
 
 interface ActiveEffect {
   object: THREE.Object3D;
@@ -65,9 +66,9 @@ export class EffectsManager {
       const ctx = canvas.getContext('2d');
       if (ctx) {
         for (let i = 0; i < 14; i++) {
-          const x = 20 + Math.random() * 88;
-          const y = 20 + Math.random() * 24;
-          const r = 10 + Math.random() * 16;
+          const x = 20 + random() * 88;
+          const y = 20 + random() * 24;
+          const r = 10 + random() * 16;
           const gradient = ctx.createRadialGradient(x, y, 0, x, y, r);
           gradient.addColorStop(0, 'rgba(255,255,255,0.55)');
           gradient.addColorStop(1, 'rgba(255,255,255,0)');
@@ -106,9 +107,9 @@ export class EffectsManager {
       const cloud = new THREE.Sprite(material);
       cloud.scale.set(cloudWidth, cloudWidth * 0.5, 1);
       cloud.position.set(
-        (Math.random() - 0.5) * this.cloudArea,
-        9 + Math.random() * 5,
-        (Math.random() - 0.5) * this.cloudArea,
+        (random() - 0.5) * this.cloudArea,
+        9 + random() * 5,
+        (random() - 0.5) * this.cloudArea,
       );
       this.scene.add(cloud);
       this.clouds.push(cloud);
@@ -134,8 +135,8 @@ export class EffectsManager {
     const starCount = 350;
     const positions = new Float32Array(starCount * 3);
     for (let i = 0; i < starCount; i++) {
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.random() * Math.PI * 0.45;
+      const theta = random() * Math.PI * 2;
+      const phi = random() * Math.PI * 0.45;
       const radius = worldUnits * 1.6;
       positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
       positions[i * 3 + 1] = radius * Math.cos(phi) + 4;
@@ -203,7 +204,7 @@ export class EffectsManager {
       const positions = this.rain.geometry.getAttribute('position') as THREE.BufferAttribute;
       for (let i = 0; i < positions.count; i++) {
         let y = positions.getY(i) - this.rainVelocity * delta;
-        if (y < 0) y = 18 + Math.random() * 6;
+        if (y < 0) y = 18 + random() * 6;
         positions.setY(i, y);
       }
       positions.needsUpdate = true;
@@ -225,9 +226,9 @@ export class EffectsManager {
       positions[i * 3 + 1] = position.y;
       positions[i * 3 + 2] = position.z;
       velocities.push(new THREE.Vector3(
-        (Math.random() - 0.5) * speed,
-        Math.random() * speed,
-        (Math.random() - 0.5) * speed,
+        (random() - 0.5) * speed,
+        random() * speed,
+        (random() - 0.5) * speed,
       ));
     }
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -328,9 +329,9 @@ export class EffectsManager {
     points.push(current.clone());
     while (current.y > target.y + 0.5) {
       current = current.clone().add(new THREE.Vector3(
-        (Math.random() - 0.5) * 1.2,
-        -(1 + Math.random() * 2),
-        (Math.random() - 0.5) * 1.2,
+        (random() - 0.5) * 1.2,
+        -(1 + random() * 2),
+        (random() - 0.5) * 1.2,
       ));
       points.push(current.clone());
     }
@@ -414,9 +415,9 @@ export class EffectsManager {
     const geometry = new THREE.BufferGeometry();
     const positions = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) {
-      positions[i * 3] = (Math.random() - 0.5) * this.rainArea;
-      positions[i * 3 + 1] = centerY + Math.random() * 22;
-      positions[i * 3 + 2] = (Math.random() - 0.5) * this.rainArea;
+      positions[i * 3] = (random() - 0.5) * this.rainArea;
+      positions[i * 3 + 1] = centerY + random() * 22;
+      positions[i * 3 + 2] = (random() - 0.5) * this.rainArea;
     }
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     const material = new THREE.PointsMaterial({

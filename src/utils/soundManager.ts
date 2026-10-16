@@ -1,5 +1,7 @@
 // Zero-asset WebAudio sound effects, synthesized on the fly.
 
+import { random } from './random';
+
 /** Terraforming materials that have their own voice. */
 export type TerraformVoice =
   | 'sand' | 'soil' | 'forest' | 'stone' | 'water';
@@ -112,7 +114,7 @@ class SoundManager {
   private noiseBuffer(ctx: AudioContext, seconds: number): AudioBuffer {
     const buffer = ctx.createBuffer(1, ctx.sampleRate * seconds, ctx.sampleRate);
     const data = buffer.getChannelData(0);
-    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    for (let i = 0; i < data.length; i++) data[i] = random() * 2 - 1;
     return buffer;
   }
 
