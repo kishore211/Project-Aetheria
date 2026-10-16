@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { heldDirection, isDirectionKey, possess, possession, pressKey, releaseAllKeys, releaseKey } from './possession';
 import { EntityManager } from './entityManagerMinimal';
+import { resetWorldState } from './resetWorldState';
+import { useGameStore } from '../store/gameStore';
 import { computeScaledHeight, type Tile } from '../types/world';
 
 const makeGrid = (size: number): Tile[][] =>
@@ -68,5 +70,19 @@ describe('wearing a creature', () => {
     manager.update(0.05);
     expect(victim.health).toBeLessThan(before);
     expect(possession.attackQueued).toBe(false);
+  });
+});
+
+describe('a new world', () => {
+  it('forgets which creature the god was wearing, in the store as well as the module', () => {
+    useGameStore.getState().setPossessed('e-7');
+    pressKey('w');
+    expect(useGameStore.getState().possessedId).toBe('e-7');
+
+    resetWorldState();
+
+    expect(possession.id).toBeNull();
+    expect(useGameStore.getState().possessedId).toBeNull();
+    expect(heldDirection()).toEqual({ dx: 0, dy: 0 });
   });
 });

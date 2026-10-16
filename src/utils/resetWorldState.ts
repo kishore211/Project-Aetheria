@@ -9,6 +9,7 @@
 // Deliberately not reset here:
 // - knowledge.ts (the codex of creatures met): it is kept across worlds on purpose.
 // - gameStore.ts event and camera counters: interface keys, not simulation state.
+//   (The one store field that is world state, possessedId, is cleared below.)
 // - Rendering caches (pixelAtlas, pixelSprites, heraldry) and the pathfinding
 //   generation counter: they do not change any result.
 
@@ -25,6 +26,7 @@ import { resetHerdIds } from './herdSystem';
 import { resetBoatIds } from './boats';
 import { resetItemIds } from './equipment';
 import { resetPossession } from './possession';
+import { useGameStore } from '../store/gameStore';
 import { resetKingdomColors } from './nameGenerator';
 import { resetIdentity } from './identity';
 import { resetPlotIds } from './plots';
@@ -49,6 +51,9 @@ export const resetWorldState = (): void => {
   resetDialogue();
   resetThermalNotes();
   resetPossession();
+  // The store mirrors the worn creature for the interface; a new world must not
+  // leave the banner and the Let go control pointing at a creature that is gone.
+  useGameStore.getState().setPossessed(null);
   clearAllStatusTimers();
   clearFloaters();
   clearShots();
