@@ -32,6 +32,7 @@ import { publishLabels } from '../../utils/labelBridge';
 import { resetFaiths } from '../../utils/religion';
 import { ConwayLayer } from '../../utils/conway';
 import { soundManager } from '../../utils/soundManager';
+import { seedRandom } from '../../utils/random';
 
 /**
  * Everything world setup reads and writes: the three.js objects it places things
@@ -120,6 +121,10 @@ export function initializeWorld(ctx: WorldSetupContext): void {
     tileWorldPosition,
     setIsInitialized,
   } = ctx;
+  // Seed the simulation before anything else draws, so the same seed and the
+  // same player actions replay the same history. A loaded save comes through
+  // here too: requestLoad sets worldSeed from the save's own seed.
+  seedRandom(worldSeed);
   // Tear down any existing world and free GPU resources
   entityManagerRef.current?.clear();
   entityManagerRef.current = null;
