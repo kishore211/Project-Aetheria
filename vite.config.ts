@@ -38,6 +38,6 @@ export default defineConfig({
     // exercise the real classes without a GPU.
     environment: 'jsdom',
     setupFiles: ['src/test/setup.ts'],
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.{ts,tsx}'],
   },
 });
