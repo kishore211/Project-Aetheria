@@ -296,8 +296,14 @@ export const FARM_HARVEST = 2;
 
 /** Seconds between a town's chances to raise a child. */
 export const BIRTH_INTERVAL = 2.5;
-/** Chance per adult, per round, that the town gains a child. Capped below. */
-export const BIRTH_CHANCE_PER_ADULT = 0.035;
+/**
+ * Chance per adult, per round, that the town gains a child. Capped below.
+ * Was 0.035. Once soldiers stopped soaking up a third of the grown-ups and the
+ * spare hands started foraging instead of idling, towns grew well past their
+ * old size; this takes the birth rate back to roughly where it stood, and
+ * still leaves the populations rising over thirty minutes.
+ */
+export const BIRTH_CHANCE_PER_ADULT = 0.018;
 /** Food the granary spends on each new mouth. */
 export const BIRTH_FOOD = 4;
 /** Room a town finds beyond its roofs: people double up before they go without. */
@@ -341,11 +347,30 @@ export const TRADE_MIN_POPULATION = 10;
 // festivals. Rounds are the economy's five-second beat (see economy.ts).
 
 /**
- * A soldier's wage, paid out of the town treasury every economy round: half a
- * gold, six a minute. A full gold a round starved two of the three oracle
- * worlds of their treasuries and stalled one people's growth.
+ * A soldier's wage, paid out of the town treasury every economy round: three
+ * quarters of a gold, nine a minute. It was half a gold. With the warband now
+ * a tenth to a fifth of adults, a rate of half a gold left the treasuries of
+ * the oracle worlds in the tens of thousands by thirty minutes, so the pay
+ * rises to take a fair share of the taxes the towns collect. Still a sink,
+ * not a stall: unpaid warriors are the exception.
  */
-export const WARRIOR_WAGE = 0.5;
+export const WARRIOR_WAGE = 0.75;
+/**
+ * The warband as a share of a town's grown-ups. Peacetime is 12%, which with
+ * the culture and barracks multipliers below reaches the 10-20% a standing
+ * town can afford; at war it is 30%, capped at 35%. Before this the shares were
+ * 15% and 40% of everyone, children included, and a warlike town with a
+ * barracks ran a third of its whole population under arms: 108 people with 29
+ * warriors, paying about 175 gold a minute against about 38 income.
+ */
+export const WARRIOR_SHARE_PEACE = 0.12;
+export const WARRIOR_SHARE_PEACE_CAP = 0.2;
+export const WARRIOR_SHARE_WAR = 0.3;
+export const WARRIOR_SHARE_WAR_CAP = 0.35;
+/** Multipliers on the warband share from the town's temper and its barracks. */
+export const WARLIKE_MARTIAL = 1.6;
+export const PACIFIST_MARTIAL = 0.45;
+export const BARRACKS_DRILL = 1.5;
 /** Happiness a warrior loses each round its town cannot pay them. */
 export const UNPAID_WARRIOR_MOOD = 2;
 /** Gold a town keeps back, and will not spend on goods below. */
@@ -362,9 +387,14 @@ export const BUY_PRICE_STONE = 2;
 export const BUY_PRICE_FOOD = 1;
 /** Treasury a capital needs before its court throws a festival. */
 export const FESTIVAL_TREASURY = 1500;
-/** Share of the treasury one festival spends, and the most it may cost. */
+/**
+ * Share of the treasury one festival spends, and the most it may cost. The
+ * cap was 800, which a capital's treasury outran within a few festivals; 1200
+ * lets the court spend what it has taken in without draining a town that is
+ * short of food or stone.
+ */
 export const FESTIVAL_SHARE = 0.2;
-export const FESTIVAL_MAX_COST = 800;
+export const FESTIVAL_MAX_COST = 1200;
 /** Happiness each resident of the capital gains from a festival. */
 export const FESTIVAL_MOOD = 12;
 /** Rounds between one court's festivals (five minutes). */

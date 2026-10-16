@@ -27,6 +27,8 @@ import {
   BUY_RESERVE, CHRONICLE_ROUNDS, FEEDING_RADIUS, FESTIVAL_MAX_COST, FESTIVAL_MOOD,
   FESTIVAL_ROUNDS, FESTIVAL_SHARE, FESTIVAL_TREASURY, HOUSING_SLACK, MAX_BUILDERS,
   MAX_MINERS, MAX_WOODCUTTERS, MEAL_PRICE, TAX_RATE, UNPAID_WARRIOR_MOOD, WARRIOR_WAGE,
+  WARRIOR_SHARE_PEACE, WARRIOR_SHARE_PEACE_CAP, WARRIOR_SHARE_WAR, WARRIOR_SHARE_WAR_CAP,
+  WARLIKE_MARTIAL, PACIFIST_MARTIAL, BARRACKS_DRILL,
 } from './constants';
 import { groundBonus } from './helpers';
 import type { SettlementHost } from './host';
@@ -135,13 +137,18 @@ export class Economy {
       // Culture decides how much of a town is under arms. This is the first
       // place a culture trait becomes visible without opening a panel: a
       // warlike town simply has more soldiers standing around in it.
-      const martial = groupHasCultureTrait(village.id, 'warlike') ? 1.6
-        : groupHasCultureTrait(village.id, 'pacifist') ? 0.45
+      const martial = groupHasCultureTrait(village.id, 'warlike') ? WARLIKE_MARTIAL
+        : groupHasCultureTrait(village.id, 'pacifist') ? PACIFIST_MARTIAL
           : 1;
       // A barracks is somewhere to keep soldiers, so a town with one keeps more.
-      const drilled = village.buildings.some(b => b.kind === 'barracks') ? 1.5 : 1;
+      const drilled = village.buildings.some(b => b.kind === 'barracks') ? BARRACKS_DRILL : 1;
+      // The warband is a share of the grown-ups, capped in peace and in war.
+      const adults = members.filter(m => !isChild(m)).length;
+      const warriorShare = atWar
+        ? Math.min(WARRIOR_SHARE_WAR_CAP, WARRIOR_SHARE_WAR * martial * drilled)
+        : Math.min(WARRIOR_SHARE_PEACE_CAP, WARRIOR_SHARE_PEACE * martial * drilled);
       const warriorTarget = members.length >= 8
-        ? Math.max(1, Math.round(members.length * (atWar ? 0.4 : 0.15) * martial * drilled))
+        ? Math.max(1, Math.round(adults * warriorShare))
         : 0;
       const appetite = groupHasCultureTrait(village.id, 'frugal') ? 0.7 : 1;
       const foragingNeed = village.store.food > 100 ? 1
@@ -160,7 +167,6 @@ export class Economy {
       // woodcutters in the trees, miners up at the ore, and whoever is left
       // hauling stone and timber. A town of idlers standing round the
       // bonfire was the single biggest reason nothing seemed to happen.
-      const adults = members.filter(m => !isChild(m)).length;
       const farms = village.buildings.filter(b => b.kind === 'farm').length;
       const openSites = village.buildings.filter(b => b.progress !== undefined).length;
       const targets: Record<'warrior' | 'gatherer' | 'builder' | 'farmer' | 'miner' | 'woodcutter', number> = {
@@ -201,8 +207,10 @@ export class Economy {
         const job = member.equipment?.weapon && counts.warrior < targets.warrior
           ? 'warrior'
           : ORDER.find(kind => counts[kind] < targets[kind]);
-        // Past every quota, a spare pair of hands hauls for the builders.
-        member.job = job ?? 'builder';
+        // Past every quota, a spare pair of hands helps put up whatever is
+        // going up, and while nothing is it cuts timber. Before, they stood
+        // idle at a site-less town, and idle hands drew a wage and built nothing.
+        member.job = job ?? (openSites > 0 ? 'builder' : 'woodcutter');
         if (job) counts[job]++;
       }
 
