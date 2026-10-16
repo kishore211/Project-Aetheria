@@ -36,6 +36,7 @@ import type { AgeAction } from '../utils/ages';
 import { visibleWorldSpan } from '../utils/cameraView';
 import { ConwayLayer } from '../utils/conway';
 import { soundManager } from '../utils/soundManager';
+import { random } from '../utils/random';
 import { applyToolEffect as applyToolEffectImpl } from './engine/toolEffects';
 import { initializeWorld as initializeWorldImpl } from './engine/worldSetup';
 import { projectFloaters as projectFloatersImpl, projectLabels as projectLabelsImpl, refreshLabels as refreshLabelsImpl } from './engine/labels';
@@ -338,7 +339,7 @@ export const useGameEngine = () => {
         const life = conwayRef.current;
         if (!life) return 0;
         if (mode === 'clear') { const n = life.count; life.clear(); return n; }
-        return life.seed(x, y, store.brushRadius, tilesRef.current.length, Math.random, mode === 'glider');
+        return life.seed(x, y, store.brushRadius, tilesRef.current.length, random, mode === 'glider');
       },
       summonCloud,
       announce: (message, kind, position) => store.addEvent(message, kind, position),
@@ -358,7 +359,7 @@ export const useGameEngine = () => {
       },
       shake: requestShake,
       flash: requestFlash,
-      random: Math.random,
+      random,
     };
   }, [inBounds, forEachBrushTile, reshapeTile, syncTile, extinguishTile, tileWorldPosition, summonCloud]);
 
@@ -445,7 +446,7 @@ export const useGameEngine = () => {
         entityManagerRef.current?.query(x, y, radius) ?? [],
       syncTile,
       announce: (message: string) => store.addEvent(message, 'info'),
-      random: Math.random,
+      random,
       ignite: (tile: Tile) => { fireRef.current?.ignite(tile); },
       flash: (tile: Tile) => {
         effectsManagerRef.current?.spawnBurst(tileWorldPosition(tile), 0xeef4ff, 8, 1.6);
@@ -478,7 +479,7 @@ export const useGameEngine = () => {
       population: () => entityManagerRef.current?.getAllEntities().filter(e => !BORN_SAPIENT.has(e.type)).length ?? 0,
       near: (x, y, radius) => entityManagerRef.current?.query(x, y, radius) ?? [],
       announce: (message, at) => store.addEvent(message, 'info', at),
-      random: Math.random,
+      random,
       // The disaster surface. A disaster needs a building to eat, so this is
       // the one place the ambient world is allowed to reach into settlements.
       buildings: () => settlementRef.current?.standingBuildings() ?? [],

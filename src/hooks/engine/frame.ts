@@ -18,6 +18,7 @@ import { soundManager } from '../../utils/soundManager';
 import { sampleWorld } from '../../utils/worldStats';
 import { worldAccess } from '../../utils/worldAccess';
 import { writeSave } from '../../utils/saveSystem';
+import { random } from '../../utils/random';
 
 /**
  * Everything one frame of the game tick reads and writes: the scene, the
@@ -180,13 +181,13 @@ export function gameTick(ctx: FrameContext, deltaTime: number): void {
     weatherTimerRef.current = 0;
     const store = useGameStore.getState();
     if (store.weather !== 'clear') {
-      if (Math.random() < RAIN_STOP_CHANCE) {
+      if (random() < RAIN_STOP_CHANCE) {
         store.setWeather('clear');
         store.addEvent('The rain subsides', 'info');
       }
     } else {
       const seasonal = RAIN_SEASON_FACTOR[store.season] ?? 1;
-      if (Math.random() < RAIN_START_CHANCE * seasonal) {
+      if (random() < RAIN_START_CHANCE * seasonal) {
         store.setWeather('rain');
         store.addEvent(
           store.season === 'winter'

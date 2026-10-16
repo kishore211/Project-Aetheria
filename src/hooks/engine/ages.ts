@@ -9,6 +9,7 @@ import { requestFlash } from '../../utils/impactBridge';
 import { nudgeMood } from '../../utils/mood';
 import { AGES, AGE_LENGTH, nextAge, type AgeAction } from '../../utils/ages';
 import { ageBridge } from '../../utils/ageBridge';
+import { random } from '../../utils/random';
 
 /** What an age's world-altering action reads and writes. */
 export interface AgeActionContext {
@@ -55,10 +56,10 @@ export function runAgeAction(ctx: AgeActionContext, action: AgeAction): void {
   switch (action) {
     case 'drought': {
       for (let attempt = 0; attempt < samples; attempt += 1) {
-        const tile = tiles[Math.floor(Math.random() * size)][Math.floor(Math.random() * size)];
+        const tile = tiles[Math.floor(random() * size)][Math.floor(random() * size)];
         if (isWaterBiome(tile.type)) continue;
         tile.moisture = Math.max(0, tile.moisture - 0.05);
-        if (tile.structure && Math.random() < 0.25) {
+        if (tile.structure && random() < 0.25) {
           tile.structure = null;
           tile.resources = tile.resources.filter(r => r.type !== 'food');
           syncTile(tile);
@@ -75,11 +76,11 @@ export function runAgeAction(ctx: AgeActionContext, action: AgeAction): void {
     }
     case 'frost': {
       for (let attempt = 0; attempt < samples; attempt += 1) {
-        const tile = tiles[Math.floor(Math.random() * size)][Math.floor(Math.random() * size)];
+        const tile = tiles[Math.floor(random() * size)][Math.floor(random() * size)];
         if (isWaterBiome(tile.type)) continue;
         tile.temperature = Math.max(0, tile.temperature - 0.04);
         const food = tile.resources.find(r => r.type === 'food');
-        if (food && Math.random() < 0.5) {
+        if (food && random() < 0.5) {
           food.quantity = Math.max(0, food.quantity - 2);
         }
         if (tile.isOnFire) extinguishTile(tile, false);
@@ -93,26 +94,26 @@ export function runAgeAction(ctx: AgeActionContext, action: AgeAction): void {
       const all = entityManagerRef.current?.getAllEntities() ?? [];
       if (all.length === 0) break;
       for (let attempt = 0; attempt < Math.max(1, Math.floor(all.length * 0.04)); attempt += 1) {
-        const victim = all[Math.floor(Math.random() * all.length)];
+        const victim = all[Math.floor(random() * all.length)];
         applyScenario(victim, 'lostFight');
       }
       break;
     }
     case 'ashfall': {
       for (let attempt = 0; attempt < samples; attempt += 1) {
-        const tile = tiles[Math.floor(Math.random() * size)][Math.floor(Math.random() * size)];
+        const tile = tiles[Math.floor(random() * size)][Math.floor(random() * size)];
         if (isWaterBiome(tile.type)) continue;
         tile.fertility = Math.max(0, tile.fertility - 0.03);
       }
       const living = entityManagerRef.current?.getAllEntities() ?? [];
       for (const creature of living) {
-        if (Math.random() < 0.05) creature.health = Math.max(1, creature.health - 2);
+        if (random() < 0.05) creature.health = Math.max(1, creature.health - 2);
       }
       break;
     }
     case 'flourish': {
       for (let attempt = 0; attempt < samples; attempt += 1) {
-        const tile = tiles[Math.floor(Math.random() * size)][Math.floor(Math.random() * size)];
+        const tile = tiles[Math.floor(random() * size)][Math.floor(random() * size)];
         if (isWaterBiome(tile.type)) continue;
         tile.fertility = Math.min(1, tile.fertility + 0.03);
         const food = tile.resources.find(r => r.type === 'food');
@@ -173,7 +174,7 @@ export function advanceAge(ctx: AgeClockContext, delta: number): void {
   ageTimerRef.current = 0;
   ageActionTimerRef.current = 0;
   ageSlotRef.current += 1;
-  const chosen = nextAge(ageSlotRef.current, current.id, Math.random());
+  const chosen = nextAge(ageSlotRef.current, current.id, random());
   store.setAge(chosen);
   store.setAgeProgress(0);
   store.addEvent(AGES[chosen].herald, 'info');

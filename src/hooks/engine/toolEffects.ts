@@ -18,6 +18,7 @@ import { requestFlash, requestShake } from '../../utils/impactBridge';
 import { magnetDrop, magnetHolding, magnetPickUp } from '../../utils/magnet';
 import { runExtraPower, type PowerContext, type PowerHazards } from '../../utils/extraPowers';
 import { soundManager, type TerraformVoice } from '../../utils/soundManager';
+import { random } from '../../utils/random';
 
 /**
  * Everything a god power may touch. The hook builds one of these per call;
@@ -191,21 +192,21 @@ export function applyToolEffect(ctx: ToolEffectContext, tile: Tile, tool: string
 
     case 'spawn-animal': {
       const candidates = spawnableAnimalsFor(tile);
-      const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+      const chosen = candidates[Math.floor(random() * candidates.length)];
       acted = Boolean(entityManagerRef.current?.spawnEntity(chosen, tile.x, tile.y));
       break;
     }
 
     case 'spawn-monster': {
       let monsterType: EntityType;
-      if (tile.type === 'volcanic' || tile.type === 'infernal') monsterType = Math.random() < 0.5 ? 'dragon' : Math.random() < 0.5 ? 'demon' : 'fire_skull';
-      else if (tile.type === 'corrupted') monsterType = Math.random() < 0.4 ? 'zombie' : Math.random() < 0.5 ? 'skeleton' : 'necromancer';
+      if (tile.type === 'volcanic' || tile.type === 'infernal') monsterType = random() < 0.5 ? 'dragon' : random() < 0.5 ? 'demon' : 'fire_skull';
+      else if (tile.type === 'corrupted') monsterType = random() < 0.4 ? 'zombie' : random() < 0.5 ? 'skeleton' : 'necromancer';
       else if (['snow', 'tundra', 'ice', 'glacier'].includes(tile.type)) monsterType = 'cold_one';
       else if (tile.type === 'desert') monsterType = 'sand_spider';
       else if (tile.height > 0.7) monsterType = 'dragon';
       else {
         const monsters: EntityType[] = ['zombie', 'skeleton', 'demon', 'bandit', 'ghost', 'mage', 'alien', 'acid_blob', 'fire_skull', 'necromancer'];
-        monsterType = monsters[Math.floor(Math.random() * monsters.length)];
+        monsterType = monsters[Math.floor(random() * monsters.length)];
       }
       acted = Boolean(entityManagerRef.current?.spawnEntity(monsterType, tile.x, tile.y));
       break;
@@ -214,10 +215,10 @@ export function applyToolEffect(ctx: ToolEffectContext, tile: Tile, tool: string
     case 'unearth-minerals': {
       const mineralTypes = ['iron', 'gold', 'stone', 'coal', 'gem'] as const;
       forEachBrushTile(tile, radius, (target) => {
-        const mineral = mineralTypes[Math.floor(Math.random() * mineralTypes.length)];
+        const mineral = mineralTypes[Math.floor(random() * mineralTypes.length)];
         target.resources.push({
           type: mineral,
-          quantity: 5 + Math.floor(Math.random() * 10),
+          quantity: 5 + Math.floor(random() * 10),
           discovered: true,
         });
       });
@@ -251,7 +252,7 @@ export function applyToolEffect(ctx: ToolEffectContext, tile: Tile, tool: string
     case 'earthquake': {
       const quakeRadius = 4 + store.brushRadius * 2;
       forEachBrushTile(tile, quakeRadius, (target, distance) => {
-        const shift = (Math.random() - 0.5) * 0.25 * (1 - distance / quakeRadius);
+        const shift = (random() - 0.5) * 0.25 * (1 - distance / quakeRadius);
         target.structure = null;
         reshapeTile(target, target.height + shift);
       });
@@ -306,7 +307,7 @@ export function applyToolEffect(ctx: ToolEffectContext, tile: Tile, tool: string
       requestShake(9, 0.3);
       requestFlash('impact', 0.55);
       const kills = entityManagerRef.current?.damageArea(tile.x, tile.y, 1.2, 60) ?? 0;
-      if (FLAMMABLE_BIOMES.includes(tile.type) && Math.random() < 0.6) igniteTile(tile);
+      if (FLAMMABLE_BIOMES.includes(tile.type) && random() < 0.6) igniteTile(tile);
       store.addEvent(
         chronicle('lightning') + toll('slain', kills),
         'disaster',
@@ -324,7 +325,7 @@ export function applyToolEffect(ctx: ToolEffectContext, tile: Tile, tool: string
           target.type = determineBiome(target.height, target.moisture, target.temperature);
         }
         if (target.isOnFire) extinguishTile(target, false);
-        if (Math.random() < 0.35 && target.height > 0.25 && !target.resources.some(r => r.type === 'food')) {
+        if (random() < 0.35 && target.height > 0.25 && !target.resources.some(r => r.type === 'food')) {
           target.resources.push({ type: 'food', quantity: 5, discovered: true });
         }
         syncTile(target);
