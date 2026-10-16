@@ -12,7 +12,7 @@ import type { EntityManager } from '../entityManagerMinimal';
 import type { BoatSystem, Point } from '../boats';
 import type { WorldLaws } from '../../store/gameStore';
 import type { CivilStats } from '../politics';
-import type { Building, Kingdom, SettlementEvents, Village } from './types';
+import type { Building, BuildingKind, Kingdom, SettlementEvents, Village } from './types';
 
 export interface SettlementHost {
   readonly tiles: Tile[][];
@@ -45,6 +45,10 @@ export interface SettlementHost {
   tileFromInstanceId(id: number): Tile | null;
   /** Claim the land a village's buildings reach, and paint it in the realm's colour. */
   claimTerritory(village: Village): void;
+  /** Lay a building down on a village's land, whole or as a site for builders to finish. */
+  placeBuilding(village: Village, kind: BuildingKind, x: number, y: number, site?: boolean): void;
+  /** Redraw a tile's terrain after its road or claim has changed. */
+  syncTerrain(tile: Tile): void;
   /** Put a building's sprite in the cloud, or refresh it after an upgrade. */
   paintBuilding(village: Village, building: Building): void;
   /** Take a building off the map and out of its village. */
