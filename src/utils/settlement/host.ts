@@ -11,7 +11,8 @@ import type { Entity, Tile } from '../../types/world';
 import type { EntityManager } from '../entityManagerMinimal';
 import type { BoatSystem, Point } from '../boats';
 import type { WorldLaws } from '../../store/gameStore';
-import type { Kingdom, SettlementEvents, Village } from './types';
+import type { CivilStats } from '../politics';
+import type { Building, Kingdom, SettlementEvents, Village } from './types';
 
 export interface SettlementHost {
   readonly tiles: Tile[][];
@@ -40,4 +41,24 @@ export interface SettlementHost {
   homesIn(village: Village): number;
   /** How many towns a kingdom will try to hold before it stops settling. */
   colonyLimit(kingdom: Kingdom): number;
+  /** The tile a terrain instance id names, or null when it is off the map. */
+  tileFromInstanceId(id: number): Tile | null;
+  /** Claim the land a village's buildings reach, and paint it in the realm's colour. */
+  claimTerritory(village: Village): void;
+  /** Put a building's sprite in the cloud, or refresh it after an upgrade. */
+  paintBuilding(village: Village, building: Building): void;
+  /** Take a building off the map and out of its village. */
+  removeBuilding(village: Village, building: Building): void;
+  /** Common teardown of a village: buildings gone, land unclaimed, residents freed. */
+  releaseVillage(village: Village): void;
+  /** Push fresh village, kingdom and army summaries to the UI. */
+  publishSummaries(): void;
+  /** Civil stats of whoever wears a kingdom's crown, if anybody does. */
+  kingCivilStats(kingdom: Kingdom): CivilStats | null;
+  /** Total claimed tiles of a kingdom, for judging who is winning a war. */
+  landOf(kingdom: Kingdom): number;
+  /** True while two realms' caravans have been on the road lately. */
+  tradePartners(a: string, b: string): boolean;
+  /** A village changing hands drops its captain and its leader. */
+  forgetLeadership(villageId: string): void;
 }

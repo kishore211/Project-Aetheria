@@ -3,8 +3,8 @@ import * as THREE from 'three';
 import { useThree, useFrame } from '@react-three/fiber';
 
 import { useGameStore } from '../store/gameStore';
-import { generateWorld, determineBiome } from '../utils/worldGenerator';
-import { WorldBehaviour, populateWildlife, type WorldContext } from '../utils/worldBehaviour';
+import { determineBiome } from '../utils/worldGenerator';
+import { WorldBehaviour, type WorldContext } from '../utils/worldBehaviour';
 import { CloudSystem, DROPS, type DropKind } from '../utils/clouds';
 import { BORN_SAPIENT } from '../utils/entitySystemMinimal';
 import {
@@ -23,34 +23,27 @@ import { SettlementSystem } from '../utils/settlementSystem';
 import { HerdSystem } from '../utils/herdSystem';
 import { UnitIconLayer } from '../utils/unitIconLayer';
 import { FireSystem } from '../utils/fireSystem';
-import { publishWorldAccess } from '../utils/worldAccess';
 import { writeSave } from '../utils/saveSystem';
 import { worldAccess } from '../utils/worldAccess';
-import { buildSave } from '../utils/saveSystem';
 import { publishSimulationContext, simulation } from '../utils/simulation';
-import { advanceFloaters, clearFloaters, floatBridge } from '../utils/floatBridge';
+import { advanceFloaters, floatBridge } from '../utils/floatBridge';
 import { PowerHazards, type PowerContext } from '../utils/extraPowers';
-import { heldDirection } from '../utils/possession';
 import { RelationLines } from '../utils/relationLines';
-import { advanceShots, clearShots, ShotLayer } from '../utils/shotBridge';
+import { advanceShots, ShotLayer } from '../utils/shotBridge';
 import { CreatureLayer } from '../utils/creatureLayer';
-import { discover } from '../utils/knowledge';
-import { magnetFollow, magnetHolding, magnetReset } from '../utils/magnet';
-import { describeItem, onItemEvent, type ItemEvent } from '../utils/equipment';
-import { clearImpacts, isShaking, requestFlash, requestShake, sampleShake } from '../utils/impactBridge';
+import { magnetFollow, magnetHolding } from '../utils/magnet';
+import { requestFlash, requestShake } from '../utils/impactBridge';
 import { applyScenario, type Scenario } from '../utils/scenarios';
 import type { AgeAction } from '../utils/ages';
-import { resetPlotIds } from '../utils/plots';
-import { resetIdentity } from '../utils/identity';
 import { visibleWorldSpan } from '../utils/cameraView';
-import { recordDeath, resetStats, sampleWorld, setRealmSource } from '../utils/worldStats';
-import { publishLabels } from '../utils/labelBridge';
-import { resetFaiths } from '../utils/religion';
+import { sampleWorld } from '../utils/worldStats';
 import { ConwayLayer } from '../utils/conway';
 import { soundManager } from '../utils/soundManager';
 import { applyToolEffect as applyToolEffectImpl, BRUSH_TOOLS } from './engine/toolEffects';
+import { initializeWorld as initializeWorldImpl } from './engine/worldSetup';
 import { projectFloaters as projectFloatersImpl, projectLabels as projectLabelsImpl, refreshLabels as refreshLabelsImpl } from './engine/labels';
 import { advanceAge as advanceAgeImpl, runAgeAction as runAgeActionImpl } from './engine/ages';
+import { updateCamera as updateCameraImpl } from './engine/camera';
 
 /** Mirrors entitySystemMinimal: only the sentient races get bubbles. */
 const SPEAKING_RACES = new Set<string>(['human', 'elf', 'dwarf', 'orc']);
@@ -89,31 +82,12 @@ const SKY_COLORS: Record<TimeOfDay, THREE.Color> = {
   night: new THREE.Color('#141d33'),
 };
 
-/**
- * Custom hook for the game engine logic
- */
-/**
- * The chronicle line for an item, or null for the ones nobody would care
- * about. A copper sword changing hands is not news; a named one is.
- */
 /** The map's ground, for turning the cursor into a tile without a pick. */
 const GROUND_PLANE = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.2);
 
-const itemEventLine = (event: ItemEvent): string | null => {
-  const { item, owner } = event;
-  const notable = item.name !== null || item.quality === 'masterwork';
-  switch (event.kind) {
-    case 'forged':
-      return `${owner.name} is handed ${item.name}, a legendary ${item.material} ${item.kind === 'armor' ? 'armour' : item.kind} forged in ${item.madeIn}`;
-    case 'named':
-      return `${owner.name}'s blade has killed enough to earn a name: ${item.name}`;
-    case 'looted':
-      return notable ? `${owner.name} takes ${item.name ?? describeItem(item).toLowerCase()} from the body of ${event.from.name}` : null;
-    case 'broke':
-      return item.name ? `${item.name} shatters in the hands of ${owner.name}` : null;
-  }
-};
-
+/**
+ * Custom hook for the game engine logic
+ */
 export const useGameEngine = () => {
   const {
     worldSeed,
@@ -252,326 +226,15 @@ export const useGameEngine = () => {
     lightsRef.current.push(directional);
   }, [timeOfDay, mapSize, scene]);
 
-  /**
-   * Initializes the game world
-   */
-  const initializeWorld = useCallback(() => {
-    // Tear down any existing world and free GPU resources
-    entityManagerRef.current?.clear();
-    entityManagerRef.current = null;
-    effectsManagerRef.current?.dispose();
-    effectsManagerRef.current = null;
-    settlementRef.current?.dispose();
-    settlementRef.current = null;
-    herdRef.current?.dispose();
-    herdRef.current = null;
-    unitIconsRef.current?.dispose();
-    unitIconsRef.current = null;
-    terrainRef.current?.dispose();
-    terrainRef.current = null;
-    publishWorldAccess(null);
-    publishLabels([]);
-    clearFloaters();
-    clearImpacts();
-    resetStats();
-    resetPlotIds();
-    resetIdentity();
-    resetFaiths();
-    relationLinesRef.current?.dispose();
-    relationLinesRef.current = null;
-    if (creatureLayerRef.current) scene.remove(creatureLayerRef.current.mesh);
-    creatureLayerRef.current?.dispose();
-    creatureLayerRef.current = null;
-    if (conwayRef.current) scene.remove(conwayRef.current.mesh);
-    conwayRef.current?.dispose();
-    conwayRef.current = null;
-    if (shotLayerRef.current) scene.remove(shotLayerRef.current.lines);
-    shotLayerRef.current?.dispose();
-    shotLayerRef.current = null;
-    clearShots();
-    magnetReset();
-    onItemEvent(null);
-    if (selectionIndicatorRef.current) {
-      scene.remove(selectionIndicatorRef.current);
-      selectionIndicatorRef.current.geometry.dispose();
-      (selectionIndicatorRef.current.material as THREE.Material).dispose();
-      selectionIndicatorRef.current = null;
-    }
-    if (brushPreviewRef.current) {
-      scene.remove(brushPreviewRef.current);
-      brushPreviewRef.current.geometry.dispose();
-      (brushPreviewRef.current.material as THREE.Material).dispose();
-      brushPreviewRef.current = null;
-    }
-    fireRef.current?.clear();
-    fireRef.current = null;
-
-    const storeState = useGameStore.getState();
-    const { tilesData } = generateWorld({
-      seed: worldSeed,
-      mapSize,
-      template: worldTemplate,
-    });
-    tilesRef.current = tilesData;
-
-    // Build the instanced terrain
-    const terrain = new TerrainRenderer(tilesData, storeState.timeOfDay, storeState.season);
-    // Lets an edit upload only the patch it touched instead of the whole map.
-    terrain.setRenderer(gl);
-    // A new world inherits the layer you were looking through. Snapping back to
-    // natural on every regeneration would be the kind of small betrayal that
-    // makes an interface feel like it is not listening.
-    terrain.setMapLayer(storeState.mapLayer, storeState.timeOfDay, storeState.season);
-    terrainRef.current = terrain;
-    scene.add(terrain.group);
-
-    // Selection indicator (pulsing ring)
-    const indicatorGeometry = new THREE.RingGeometry(TILE_SIZE * 0.42, TILE_SIZE * 0.58, 24);
-    const indicatorMaterial = new THREE.MeshBasicMaterial({
-      color: 0xffee66,
-      transparent: true,
-      opacity: 0.9,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-    });
-    const indicator = new THREE.Mesh(indicatorGeometry, indicatorMaterial);
-    indicator.rotation.x = -Math.PI / 2;
-    indicator.visible = false;
-    indicator.renderOrder = 2;
-    selectionIndicatorRef.current = indicator;
-    scene.add(indicator);
-    relationLinesRef.current = new RelationLines();
-    scene.add(relationLinesRef.current.lines);
-    shotLayerRef.current = new ShotLayer();
-    scene.add(shotLayerRef.current.lines);
-    creatureLayerRef.current = new CreatureLayer();
-    scene.add(creatureLayerRef.current.mesh);
-    conwayRef.current = new ConwayLayer();
-    scene.add(conwayRef.current.mesh);
-    setRealmSource(() => useGameStore.getState().kingdoms.map(k => ({ id: k.id, name: k.name, color: k.color, population: k.population })));
-    onItemEvent((event) => {
-      const line = itemEventLine(event);
-      if (line) useGameStore.getState().addEvent(line, 'info', { ...event.owner.position });
-    });
-
-    // Brush preview: shows exactly which tiles a power will touch before the
-    // player commits. Area tools were previously a guess.
-    const previewGeometry = new THREE.RingGeometry(TILE_SIZE * 0.42, TILE_SIZE * 0.5, 40);
-    const previewMaterial = new THREE.MeshBasicMaterial({
-      color: 0xfff0c0,
-      transparent: true,
-      opacity: 0.55,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-      depthTest: false,
-    });
-    const preview = new THREE.Mesh(previewGeometry, previewMaterial);
-    preview.rotation.x = -Math.PI / 2;
-    preview.visible = false;
-    preview.renderOrder = 2;
-    brushPreviewRef.current = preview;
-    scene.add(preview);
-
-    // Frame the whole map, whatever shape the window is. A fixed distance looks
-    // right on one aspect ratio and wrong on every other, so derive it from the
-    // camera's own field of view.
-    const worldUnits = mapSize * TILE_SIZE;
-    const perspective = camera as THREE.PerspectiveCamera;
-    const halfFovY = THREE.MathUtils.degToRad(perspective.fov ?? 55) / 2;
-    const halfFovX = Math.atan(Math.tan(halfFovY) * (perspective.aspect || 1.6));
-    const fitDistance = Math.max(
-      (worldUnits * 0.5) / Math.tan(halfFovY),
-      (worldUnits * 0.5) / Math.tan(halfFovX),
-    ) * 1.08;
-    // A ~55 degree pitch reads as a map without flattening the relief away
-    const pitch = THREE.MathUtils.degToRad(56);
-    camera.position.set(0, Math.sin(pitch) * fitDistance, Math.cos(pitch) * fitDistance);
-    camera.lookAt(0, 0, 0);
-    const orbit = controls as unknown as { target?: THREE.Vector3; update?: () => void } | null;
-    if (orbit?.target) {
-      orbit.target.set(0, 0, 0);
-      orbit.update?.();
-    }
-
-    setupLights();
-
-    // Visual effects first, so entity spawn callbacks can use it
-    effectsManagerRef.current = new EffectsManager(scene);
-    effectsManagerRef.current.initAtmosphere(worldUnits);
-    // The sprites are the effects manager's; what falls out of them is not.
-    const sky = effectsManagerRef.current.cloudSprites();
-    cloudsRef.current.adopt(sky.sprites, sky.area);
-
-    // Entities
-    const manager = new EntityManager(tilesData, scene, camera);
-    entityManagerRef.current = manager;
-    manager.setPopulationDensity(storeState.entityPopulationDensity);
-    manager.setWorldLaws(storeState.worldLaws);
-    manager.onLifeEvent = (message, kind, position) => {
-      useGameStore.getState().addEvent(message, kind, position);
-    };
-    manager.onEntityDeath = (entity, cause) => {
-      recordDeath(cause);
-      settlementRef.current?.forgetPlotter(entity.id);
-      const state = useGameStore.getState();
-      if (state.selectedEntity?.id === entity.id) state.setSelectedEntity(null);
-      if (state.followEntityId === entity.id) state.setFollowEntity(null);
-      const ex = Math.floor(entity.position.x);
-      const ey = Math.floor(entity.position.y);
-      if (inBounds(ex, ey)) {
-        effectsManagerRef.current?.spawnBurst(tileWorldPosition(tilesData[ex][ey]), 0x9aa4b5, 12, 1.4);
-      }
-      soundManager.death();
-    };
-    manager.onEntitySpawn = (entity) => {
-      discover(entity.type);
-      const ex = Math.floor(entity.position.x);
-      const ey = Math.floor(entity.position.y);
-      if (inBounds(ex, ey)) {
-        effectsManagerRef.current?.spawnBurst(tileWorldPosition(tilesData[ex][ey]), 0x9fe8a0, 10, 1.2);
-      }
-      soundManager.spawn();
-    };
-
-    // Civilization layer
-    const settlements = new SettlementSystem(tilesData, terrain, manager, scene, {
-      onEvent: (message, kind, position) => {
-        useGameStore.getState().addEvent(message, kind, position);
-      },
-      onKingdomsChanged: (summaries) => {
-        useGameStore.getState().setKingdoms(summaries);
-      },
-      onVillagesChanged: (summaries) => {
-        useGameStore.getState().setVillages(summaries);
-      },
-      onPlotsChanged: (summaries) => {
-        useGameStore.getState().setPlots(summaries);
-      },
-      onIdentitiesChanged: (rows) => {
-        useGameStore.getState().setIdentities(rows);
-      },
-      onOpinionsChanged: (rows) => {
-        useGameStore.getState().setOpinions(rows);
-      },
-    });
-    settlementRef.current = settlements;
-    settlements.setWorldLaws(storeState.worldLaws);
-
-    // Animals travel in families; see utils/herdSystem.ts
-    const herds = new HerdSystem(tilesData, manager);
-    herdRef.current = herds;
-
-    // Fire lives in its own system so its spread rate can be tested; see
-    // utils/fireSystem.ts for why that matters.
-    const fire = new FireSystem(tilesData, {
-      onIgnite: (tile) => {
-        effectsManagerRef.current?.spawnFlame(tileWorldPosition(tile), tile.fireFuel ?? 4);
-        syncTile(tile);
-      },
-      // The scorching itself is the fire system's business; we only repaint.
-      onExtinguish: (tile) => syncTile(tile),
-      onDamage: (x, y, radius, amount) => {
-        entityManagerRef.current?.damageArea(x, y, radius, amount, 'burned');
-      },
-    });
-    fireRef.current = fire;
-
-    // Icons above heads: profession and current activity
-    const unitIcons = new UnitIconLayer(scene);
-    unitIconsRef.current = unitIcons;
-    unitIcons.setVisible(storeState.showUnitIcons);
-
-
-    // Let HUD panels (minimap, kingdom list) read the live world
-    publishWorldAccess({
-      tiles: tilesData,
-      entities: () => manager.getAllEntities(),
-      kingdomColor: (id: string) => settlements.kingdomColorFor(id),
-      cameraFocus: () => {
-        const orbitControls = controls as unknown as { target?: THREE.Vector3 } | null;
-        const target = orbitControls?.target ?? new THREE.Vector3();
-        const size = tilesData.length;
-        return {
-          x: target.x / TILE_SIZE + size / 2,
-          y: target.z / TILE_SIZE + size / 2,
-          span: visibleWorldSpan(camera, target) / TILE_SIZE,
-        };
-      },
-      captureSave: (label: string) => {
-        const state = useGameStore.getState();
-        // Regenerate the untouched world so the save only stores what changed.
-        const { tilesData: pristine } = generateWorld({
-          seed: state.worldSeed,
-          mapSize: tilesData.length,
-          template: state.worldTemplate,
-        });
-        const snapshot = settlements.snapshot();
-        return buildSave({
-          label,
-          world: {
-            seed: state.worldSeed,
-            size: state.worldSize,
-            customSize: state.customWorldSize,
-            template: state.worldTemplate,
-            timeOfDay: state.timeOfDay,
-            season: state.season,
-            year: state.year,
-            day: state.day,
-            weather: state.weather,
-            laws: state.worldLaws,
-          },
-          liveTiles: tilesData,
-          pristineTiles: pristine,
-          entities: manager.getAllEntities(),
-          villages: snapshot.villages,
-          kingdoms: snapshot.kingdoms,
-        });
-      },
-      herdInfo: (entity) => herds.describe(entity),
-      villageInfo: (x: number, y: number) => settlements.describeVillage(x, y),
-      armies: () => settlements.armySummaries(),
-      intervene: (act, x, y) => settlements.intervene(act, x, y),
-    });
-
-    // Apply a queued save on top of the freshly generated world
-    const pending = storeState.pendingSave;
-    if (pending) {
-      const size = tilesData.length;
-      for (const delta of pending.tiles) {
-        const x = Math.floor(delta.i / size);
-        const y = delta.i % size;
-        if (x < 0 || x >= size || y < 0 || y >= size) continue;
-        const tile = tilesData[x][y];
-        tile.height = delta.h;
-        tile.type = delta.t;
-        tile.structure = delta.s ? { type: delta.s, health: 100, level: 1 } : null;
-        tile.ownerId = delta.o ?? null;
-        tile.walkable = !['deep_ocean', 'ocean'].includes(tile.type) && tile.height >= 0.25;
-        terrain.syncTile(tile, pending.world.timeOfDay, pending.world.season);
-      }
-      settlements.restore(pending.kingdoms, pending.villages);
-      for (const savedEntity of pending.entities) {
-        manager.restoreEntity(savedEntity);
-      }
-      useGameStore.getState().clearPendingSave();
-    } else if (storeState.worldLaws.wildlife !== false) {
-      // A fresh world starts with its animals already grazing.
-      populateWildlife(tilesData, (type, x, y) => manager.spawnEntity(type, x, y));
-    }
-
-    // Whatever the world starts with has been met, including a loaded save's.
-    for (const entity of manager.getAllEntities()) discover(entity.type);
-
-    setIsInitialized(true);
-    useGameStore.getState().addEvent(
-      pending
-        ? `"${pending.label}" restored — year ${pending.world.year}, ${pending.world.season}`
-        : `A new world awakens (seed ${worldSeed})`,
-      'info',
-    );
+  /** Set up the world from the current store settings: terrain, layers, entities and any queued save. */
+  const initializeWorld = useCallback(() => initializeWorldImpl({
+    scene, camera, gl, controls, mapSize, worldSeed, worldTemplate,
+    tilesRef, terrainRef, entityManagerRef, effectsManagerRef, settlementRef, herdRef, unitIconsRef, fireRef,
+    relationLinesRef, shotLayerRef, creatureLayerRef, conwayRef, selectionIndicatorRef, brushPreviewRef, cloudsRef,
+    setupLights, syncTile, inBounds, tileWorldPosition, setIsInitialized,
   // Only world identity belongs here: including the light/callback identities
   // would regenerate the whole world on every time-of-day change.
-  }, [worldSeed, mapSize, worldTemplate, worldRevision, scene]); // eslint-disable-line react-hooks/exhaustive-deps
+  }), [worldSeed, mapSize, worldTemplate, worldRevision, scene]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /**
    * Handles mouse movement over the game world
@@ -1046,108 +709,7 @@ export const useGameEngine = () => {
     terrainRef.current?.refreshColors(state.timeOfDay, state.season);
   }, []);
 
-  /** Follow a unit or fly to a requested tile. */
-  const updateCamera = useCallback((delta: number) => {
-    const orbit = controls as unknown as { target?: THREE.Vector3; update?: () => void } | null;
-    if (!orbit?.target) return;
-    const store = useGameStore.getState();
-
-    // Camera jump requested by the minimap or the chronicle
-    if (store.cameraTarget && store.cameraTarget.nonce !== lastCameraNonceRef.current) {
-      lastCameraNonceRef.current = store.cameraTarget.nonce;
-      const { x, y } = store.cameraTarget;
-      if (inBounds(x, y)) {
-        const position = tileWorldPosition(tilesRef.current[x][y]);
-        const offset = camera.position.clone().sub(orbit.target);
-        orbit.target.copy(position);
-        camera.position.copy(position).add(offset);
-        orbit.update?.();
-      }
-    }
-
-    // Keyboard zoom. Moving the camera along its own view axis is what the
-    // scroll wheel does, so +/- and the wheel end up feeling like one control.
-    if (store.zoomRequest && store.zoomRequest.nonce !== lastZoomNonceRef.current) {
-      lastZoomNonceRef.current = store.zoomRequest.nonce;
-      // Orthographic: zoom is a property, not a distance. Moving the camera
-      // along its own view axis changes nothing you can see.
-      const ortho = camera as THREE.OrthographicCamera;
-      const limits = controls as unknown as { minZoom?: number; maxZoom?: number };
-      const step = store.zoomRequest.direction > 0 ? 1 / 1.18 : 1.18;
-      ortho.zoom = Math.min(
-        limits.maxZoom ?? Infinity,
-        Math.max(limits.minZoom ?? 0.01, ortho.zoom * step),
-      );
-      ortho.updateProjectionMatrix();
-      orbit.update?.();
-    }
-
-    // WASD and the arrows pan the map — unless they are walking a possessed
-    // creature, in which case the camera is already riding along with it.
-    // Wall-clock, so you can look around a paused world.
-    const held = heldDirection();
-    if ((held.dx !== 0 || held.dy !== 0) && !store.possessedId) {
-      if (store.followEntityId) store.setFollowEntity(null);
-      const ortho = camera as THREE.OrthographicCamera;
-      const viewWidth = ortho.isOrthographicCamera ? (ortho.right - ortho.left) / ortho.zoom : 20;
-      const step = viewWidth * 0.7 * delta;
-      const half = (tilesRef.current.length * TILE_SIZE) / 2;
-      const nextX = Math.max(-half, Math.min(half, orbit.target.x + held.dx * step));
-      const nextZ = Math.max(-half, Math.min(half, orbit.target.z + held.dy * step));
-      camera.position.x += nextX - orbit.target.x;
-      camera.position.z += nextZ - orbit.target.z;
-      orbit.target.x = nextX;
-      orbit.target.z = nextZ;
-      orbit.update?.();
-    }
-
-    // Spectate mode
-    if (store.followEntityId) {
-      const entity = entityManagerRef.current?.getEntityById(store.followEntityId);
-      if (!entity) {
-        // A possessed creature that dies lets go of you, too.
-        if (store.possessedId) store.setPossessed(null);
-        else store.setFollowEntity(null);
-      } else {
-        const ex = Math.floor(entity.position.x);
-        const ey = Math.floor(entity.position.y);
-        if (inBounds(ex, ey)) {
-          const tile = tilesRef.current[ex][ey];
-          const desired = new THREE.Vector3(
-            (entity.position.x - tilesRef.current.length / 2 + 0.5) * TILE_SIZE,
-            tile.scaledHeight,
-            (entity.position.y - tilesRef.current.length / 2 + 0.5) * TILE_SIZE,
-          );
-          const offset = camera.position.clone().sub(orbit.target);
-          const lerp = Math.min(1, delta * 4);
-          orbit.target.lerp(desired, lerp);
-          camera.position.copy(orbit.target).add(offset);
-          orbit.update?.();
-        }
-      }
-    }
-
-    // Shake through the projection, not the position. See impactBridge for why
-    // moving the camera cannot work here: MapControls would absorb the offset
-    // into its own orbit state and the view would never come back.
-    const perspective = camera as THREE.PerspectiveCamera;
-    if (isShaking()) {
-      const canvas = gl.domElement;
-      const width = canvas.clientWidth;
-      const height = canvas.clientHeight;
-      if (width > 0 && height > 0) {
-        const jolt = sampleShake(delta);
-        const scale = height / 900;
-        perspective.setViewOffset(
-          width, height, jolt.x * scale, jolt.y * scale, width, height,
-        );
-        shakingRef.current = true;
-      }
-    } else if (shakingRef.current) {
-      shakingRef.current = false;
-      perspective.clearViewOffset();
-    }
-  }, [controls, camera, gl, inBounds, tileWorldPosition]);
+  const updateCamera = useCallback((delta: number) => updateCameraImpl({ gl, camera, controls, tilesRef, entityManagerRef, lastCameraNonceRef, lastZoomNonceRef, shakingRef, inBounds, tileWorldPosition }, delta), [controls, camera, gl, inBounds, tileWorldPosition]);
 
   const runAgeAction = useCallback((action: AgeAction) => runAgeActionImpl({ tilesRef, fireRef, entityManagerRef, syncTile, extinguishTile }, action), [extinguishTile, syncTile]);
 

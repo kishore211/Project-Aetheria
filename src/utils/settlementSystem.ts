@@ -18,12 +18,12 @@ import {
   type Tile,
 } from '../types/world';
 import type {
-  IdentityRow, KingdomSummary, PlotSummary, VillageSummary, WorldLaws,
+  IdentityRow, KingdomSummary, OpinionRow, PlotSummary, VillageSummary, WorldLaws,
 } from '../store/gameStore';
 import type { EntityManager } from './entityManagerMinimal';
 import { getBuildingAtlas } from './pixelAtlas';
 import { SpriteCloud } from './spriteCloud';
-import { BoatSystem, landmasses, nearestWater, type Boat, type Point } from './boats';
+import { BoatSystem, nearestWater, type Boat, type Point } from './boats';
 import type { TerrainRenderer } from './terrainRenderer';
 import { registerOrderHandler, simulation } from './simulation';
 import { emitFloater } from './floatBridge';
@@ -51,19 +51,15 @@ import {
   type Plot,
   type PlotKind,
 } from './plots';
-import { requestFlash } from './impactBridge';
 import { chronicle } from './chronicle';
 import { applyStatus, clearStatus, type StatusId } from './statusEffects';
 import {
   civilStats,
   governableVillages,
   leadership,
-  opinionBetween,
-  tensionDrift,
   loyaltyFor,
   REBELLION_THRESHOLD,
   type CivilStats,
-  type OpinionResult,
 } from './politics';
 import { speak } from './dialogue';
 import { emitShot } from './shotBridge';
@@ -71,8 +67,8 @@ import { emitDamage } from './floatBridge';
 import { MONSTERS } from './entitySystemMinimal';
 import { isChild } from './size';
 import { buildingSprite, roofSprite } from './pixelAtlas';
-import { conquestOutcome, formationSlots } from './army';
-import { foundFaith, holyWarTension } from './religion';
+import { formationSlots } from './army';
+import { foundFaith } from './religion';
 import {
   generateKingdomName,
   generateRulerName,
@@ -92,6 +88,7 @@ import { TradeNetwork } from './settlement/trade';
 import { FaithService } from './settlement/faith';
 import { Armoury } from './settlement/armoury';
 import { Colonisation } from './settlement/colonisation';
+import { Warfare } from './settlement/warfare';
 import type {
   Building, BuildingKind, BuildingRecipe, DiplomacyAct, Kingdom, SettlementEvents,
   SettlerParty, Village
@@ -99,18 +96,17 @@ import type {
 import {
   BIRTH_CHANCE_PER_ADULT, BIRTH_FOOD, BIRTH_INTERVAL, BOAT_CAPACITY, BUILDER_STROKE,
   BUILDING_CLOUD_CAPACITY, BUILDING_DRAW_SCALE, BUILDING_HEALTH, BUILDING_YIELD, BUILD_EASE,
-  CLAIM_RADIUS, CONTACT_RANGE,
+  CLAIM_RADIUS,
   EXPANSION_APPETITE, FARM_HARVEST, FEEDING_RADIUS, FISHING_MIN_POPULATION, FOUNDING_CLUSTER,
   FOUNDING_RADIUS, HALL_UPGRADE, HOUSE_UPGRADE, HOUSING, HOUSING_SLACK, MAX_BUILDERS, MAX_MINERS,
   MAX_SITES, MAX_WOODCUTTERS, MEAL_PRICE, MIN_VILLAGE_SPACING,
   OVERREACH_ALLOWANCE, PULSE_BY_BUILDING, REBELLION_PATIENCE, RECIPES, ROOF_LIGHT,
-  SITE_SELF_PROGRESS, SITING, TAX_RATE, TEMPERAMENT, TOWER_DAMAGE, TOWER_RANGE,
-  UNKNOWN_IDENTITY_COLOR, WAR_MAX_ROUNDS,
-  WAR_MIN_POPULATION, WAR_WEARY_PEACE_CHANCE, WAR_WEARY_ROUNDS, YOUNG_REALM_PEACE, ZONE_SIZE
+  SITE_SELF_PROGRESS, SITING, TAX_RATE, TOWER_DAMAGE, TOWER_RANGE,
+  UNKNOWN_IDENTITY_COLOR, ZONE_SIZE
 } from './settlement/constants';
 import {
   adjacentZonesFilled, fitsLayout, footprintOf, groundBonus, isRace, keepIdentifierAhead, mintId,
-  pairKey, tierOf, townColour, zoneKey
+  tierOf, townColour, zoneKey
 } from './settlement/helpers';
 
 export class SettlementSystem implements SettlementHost {
@@ -151,11 +147,12 @@ export class SettlementSystem implements SettlementHost {
   private armoury = new Armoury(this);
   /** Settler parties, sea voyages, new colonies and migrants (see settlement/colonisation.ts). */
   private colonisation = new Colonisation(this);
+  /** Diplomacy, opinions and war: raids, sieges and peace (see settlement/warfare.ts). */
+  private warfare = new Warfare(this);
   /** Finds already announced, so a rich vein is news once, not every load. */
   private announcedFinds = new Set<string>();
   private workTimer = 0;
   private buildTimer = 0;
-  private diplomacyTimer = 0;
   private expansionTimer = 0;
   private publishTimer = 0;
   private loyaltyTimer = 0;
@@ -164,11 +161,7 @@ export class SettlementSystem implements SettlementHost {
   /** Live schemes, keyed by id. */
   private plots = new Map<string, Plot>();
   private plotterIds = new Map<string, number>();
-  /** Latest opinion per neighbouring pair, keyed by pairKey. */
-  private opinions = new Map<string, OpinionResult>();
   laws: WorldLaws = simulation.laws;
-  /** Diplomacy rounds each active war has lasted, keyed by kingdom pair. */
-  private warTimers = new Map<string, number>();
   private unsubscribeOrders: () => void;
   /** Village id -> the warrior currently carrying its banner. */
   private captains = new Map<string, string>();
@@ -198,7 +191,7 @@ export class SettlementSystem implements SettlementHost {
     this.boats = new BoatSystem(tiles, {
       onCatch: (boat, food) => this.landCatch(boat, food),
       onLand: (boat, shore) => (boat.payload?.startsWith('invasion:')
-        ? this.landInvasion(boat, shore)
+        ? this.warfare.landInvasion(boat, shore)
         : this.colonisation.landSettlers(boat, shore)),
       onTrade: (boat) => this.trade.landBoat(boat),
     });
@@ -333,12 +326,7 @@ export class SettlementSystem implements SettlementHost {
       this.plotRound(elapsed);
     }
 
-    this.diplomacyTimer += delta;
-    if (this.diplomacyTimer >= 6) {
-      this.diplomacyTimer = 0;
-      if (this.laws.warfare) this.diplomacyRound();
-      this.resolveSieges();
-    }
+    this.warfare.update(delta);
 
     this.publishTimer += delta;
     if (this.publishTimer >= 2) {
@@ -520,7 +508,7 @@ export class SettlementSystem implements SettlementHost {
 
   // -- territory ---------------------------------------------------------
 
-  private claimTerritory(village: Village): void {
+  claimTerritory(village: Village): void {
     const kingdom = this.kingdoms.get(village.kingdomId);
     if (!kingdom) return;
 
@@ -997,7 +985,7 @@ export class SettlementSystem implements SettlementHost {
     let bestDistance = Infinity;
     for (const enemyId of kingdom.atWar) {
       const enemy = this.kingdoms.get(enemyId);
-      const town = enemy ? this.nearestVillage(enemy, from.position.x, from.position.y) : null;
+      const town = enemy ? this.warfare.nearestVillage(enemy, from.position.x, from.position.y) : null;
       if (!town) continue;
       const d = Math.hypot(town.centerX - from.position.x, town.centerY - from.position.y);
       if (d < bestDistance) { bestDistance = d; best = town; }
@@ -1599,7 +1587,7 @@ export class SettlementSystem implements SettlementHost {
   }
 
   /** Put a building's sprite in the cloud, or refresh it after an upgrade. */
-  private paintBuilding(village: Village, building: Building): void {
+  paintBuilding(village: Village, building: Building): void {
     const tile = this.tileAt(building.x, building.y);
     if (!tile) return;
     const { kind, slot } = building;
@@ -1759,7 +1747,7 @@ export class SettlementSystem implements SettlementHost {
     this.terrain.syncTile(tile, simulation.timeOfDay, simulation.season);
   }
 
-  private removeBuilding(village: Village, building: Building): void {
+  removeBuilding(village: Village, building: Building): void {
     this.buildingCloud.clear(building.slot);
     this.roofCloud.clear(building.slot);
     this.freeSlots.push(building.slot);
@@ -1873,7 +1861,7 @@ export class SettlementSystem implements SettlementHost {
   }
 
   /** Civil stats of whoever actually wears the crown, if anybody does. */
-  private kingCivilStats(kingdom: Kingdom): CivilStats | null {
+  kingCivilStats(kingdom: Kingdom): CivilStats | null {
     if (!kingdom.kingId) return null;
     const king = this.entities.getEntityById(kingdom.kingId);
     return king ? civilStats(king) : null;
@@ -1996,7 +1984,7 @@ export class SettlementSystem implements SettlementHost {
   }
 
   /** Total claimed tiles, for judging who is winning a war. */
-  private landOf(kingdom: Kingdom): number {
+  landOf(kingdom: Kingdom): number {
     let total = 0;
     for (const id of kingdom.villageIds) total += this.villages.get(id)?.territory.size ?? 0;
     return total;
@@ -2050,13 +2038,7 @@ export class SettlementSystem implements SettlementHost {
     village.territory.clear();
     this.claimTerritory(village);
 
-    if (this.laws.warfare) {
-      from.atWar.add(kingdom.id);
-      kingdom.atWar.add(from.id);
-      from.tension.set(kingdom.id, 1);
-      kingdom.tension.set(from.id, 1);
-      this.warTimers.set(pairKey(from.id, kingdom.id), 0);
-    }
+    if (this.laws.warfare) this.warfare.beginWar(from, kingdom);
 
     this.events.onEvent(
       chronicle('secession', { name: village.name, a: from.name, b: kingdom.name }),
@@ -2450,13 +2432,13 @@ export class SettlementSystem implements SettlementHost {
       case 'war': {
         const a = this.kingdoms.get(plot.subjectId);
         const b = plot.targetKingdomId ? this.kingdoms.get(plot.targetKingdomId) : null;
-        if (a && b && !a.atWar.has(b.id)) this.declareWar(a, b);
+        if (a && b && !a.atWar.has(b.id)) this.warfare.declareWar(a, b);
         return;
       }
       case 'peace': {
         const a = this.kingdoms.get(plot.subjectId);
         const b = plot.targetKingdomId ? this.kingdoms.get(plot.targetKingdomId) : null;
-        if (a && b && a.atWar.has(b.id)) this.makePeace(a, b);
+        if (a && b && a.atWar.has(b.id)) this.warfare.makePeace(a, b);
         return;
       }
       case 'alliance': {
@@ -2529,53 +2511,6 @@ export class SettlementSystem implements SettlementHost {
     }
   }
 
-  /**
-   * Gather everything the opinion formula needs about a pair.
-   *
-   * Symmetric on purpose: a single score per pair rather than one each way.
-   * Two directed opinions would be more faithful to real diplomacy and would
-   * double the state for no gain here, because nothing in the simulation acts
-   * on the asymmetry — war and peace are both mutual.
-   */
-  private opinionFor(a: Kingdom, b: Kingdom, borderTiles: number): OpinionResult {
-    const mine = groupMetas(a.id);
-    const theirs = groupMetas(b.id);
-    const compare = (
-      pick: (set: ReturnType<typeof groupMetas>) => string | null | undefined,
-    ): boolean | null => {
-      const left = pick(mine);
-      const right = pick(theirs);
-      if (!left || !right) return null;
-      return left === right;
-    };
-
-    return opinionBetween({
-      ourKing: this.kingCivilStats(a),
-      theirKing: this.kingCivilStats(b),
-      borderTiles,
-      ourLand: this.landOf(a),
-      theirLand: this.landOf(b),
-      sameRace: a.race === b.race,
-      sameCulture: compare(set => set?.culture),
-      sameLanguage: compare(set => set?.language),
-      sameReligion: compare(set => set?.religion),
-      holyWar: holyWarTension(mine?.religion ?? null, theirs?.religion ?? null),
-      atWar: a.atWar.has(b.id),
-      allied: a.allies.has(b.id),
-      foughtBefore: this.warTimers.has(pairKey(a.id, b.id)),
-      temperament: Math.max(TEMPERAMENT[a.race] ?? 0, TEMPERAMENT[b.race] ?? 0)
-        + Math.min(TEMPERAMENT[a.race] ?? 0, TEMPERAMENT[b.race] ?? 0) / 2,
-      landHungry: this.isLandHungry(a) || this.isLandHungry(b),
-      tradePartners: this.trade.partners(a.id, b.id),
-    });
-  }
-
-  /** Everyone living in a kingdom's towns. */
-  private populationOf(kingdom: Kingdom): number {
-    const members = this.entities.getEntitiesByVillage();
-    return kingdom.villageIds.reduce((sum, id) => sum + (members.get(id)?.length ?? 0), 0);
-  }
-
   /** How many towns this kingdom will try to hold before it stops settling. */
   colonyLimit(kingdom: Kingdom): number {
     return governableVillages(this.kingCivilStats(kingdom))
@@ -2584,41 +2519,9 @@ export class SettlementSystem implements SettlementHost {
       + (groupHasCultureTrait(kingdom.id, 'expansionist') ? 2 : 0);
   }
 
-  /**
-   * A realm that has as many towns as it can hold, and towns that are full,
-   * has nowhere to grow but into its neighbour. This is WorldBox's real war
-   * engine: peace ends when the land runs out.
-   */
-  private isLandHungry(kingdom: Kingdom): boolean {
-    if (kingdom.villageIds.length < this.colonyLimit(kingdom)) return false;
-    const members = this.entities.getEntitiesByVillage();
-    return kingdom.villageIds.some((id) => {
-      const village = this.villages.get(id);
-      return village ? (members.get(id)?.length ?? 0) >= this.homesIn(village) : false;
-    });
-  }
-
   /** What every pair of neighbouring realms thinks of each other. */
-  opinionRows(): Array<{
-    a: string; b: string; colorA: string; colorB: string;
-    score: number; factors: Array<{ label: string; value: number }>;
-    atWar: boolean; allied: boolean;
-  }> {
-    const rows = [];
-    for (const [key, opinion] of this.opinions) {
-      const [aId, bId] = key.split('|');
-      const a = this.kingdoms.get(aId);
-      const b = this.kingdoms.get(bId);
-      if (!a || !b) continue;
-      rows.push({
-        a: a.name, b: b.name,
-        colorA: a.colorHex, colorB: b.colorHex,
-        score: opinion.score, factors: opinion.factors,
-        atWar: a.atWar.has(bId), allied: a.allies.has(bId),
-      });
-    }
-    // Worst first: the pair about to go to war is the interesting row.
-    return rows.sort((x, y) => x.score - y.score);
+  opinionRows(): OpinionRow[] {
+    return this.warfare.opinionRows();
   }
 
   private mostTenseNeighbour(kingdom: Kingdom): Kingdom | null {
@@ -2645,8 +2548,6 @@ export class SettlementSystem implements SettlementHost {
     }
     return count === 0 ? 0 : total / count;
   }
-
-  // -- diplomacy and war -------------------------------------------------
 
   // -- growth and colonisation -------------------------------------------
 
@@ -2761,380 +2662,10 @@ export class SettlementSystem implements SettlementHost {
   }
 
   /**
-   * Measure how much territory each pair of kingdoms shares a border with,
-   * grow friction accordingly, and declare war when it boils over.
-   */
-  private diplomacyRound(): void {
-    const contact = new Map<string, number>();
-
-    for (const village of this.villages.values()) {
-      for (const id of village.territory) {
-        const tile = this.tileFromInstanceId(id);
-        if (!tile?.ownerId) continue;
-        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
-          const neighbour = this.tileAt(tile.x + dx, tile.y + dy);
-          if (!neighbour?.ownerId || neighbour.ownerId === tile.ownerId) continue;
-          const key = pairKey(tile.ownerId, neighbour.ownerId);
-          contact.set(key, (contact.get(key) ?? 0) + 1);
-        }
-      }
-    }
-
-    // Realms that do not touch still know of each other when their towns
-    // are close, or face each other across a strait. Without this, two
-    // kingdoms with a strip of wild land between them never fell out at all.
-    const towns = Array.from(this.villages.values());
-    for (let i = 0; i < towns.length; i++) {
-      for (let j = i + 1; j < towns.length; j++) {
-        const a = towns[i];
-        const b = towns[j];
-        if (a.kingdomId === b.kingdomId) continue;
-        if (Math.hypot(a.centerX - b.centerX, a.centerY - b.centerY) > CONTACT_RANGE) continue;
-        const key = pairKey(a.kingdomId, b.kingdomId);
-        if ((contact.get(key) ?? 0) < 6) contact.set(key, 6);
-      }
-    }
-
-    for (const [key, borderTiles] of contact) {
-      const [aId, bId] = key.split('|');
-      const a = this.kingdoms.get(aId);
-      const b = this.kingdoms.get(bId);
-      if (!a || !b || a.atWar.has(bId)) continue;
-      if (a.allies.has(bId)) continue;
-      // A newborn realm is left alone long enough to put down roots: WorldBox
-      // gives young kingdoms a few years before anyone comes for them.
-      if (a.age < YOUNG_REALM_PEACE || b.age < YOUNG_REALM_PEACE) continue;
-
-      // Tension now follows opinion rather than a pair of magic constants.
-      // It used to grow at 0.055 a round, or 0.11 if either side was an orc,
-      // and nothing else entered into it — so two realms sharing a culture, a
-      // language and a faith marched on each other exactly as fast as two
-      // that shared nothing.
-      const opinion = this.opinionFor(a, b, borderTiles);
-      this.opinions.set(key, opinion);
-
-      const drift = tensionDrift(opinion.score) * Math.min(3, borderTiles / 10);
-      const tension = Math.max(0, Math.min(1.2, (a.tension.get(bId) ?? 0) + drift));
-      a.tension.set(bId, tension);
-      b.tension.set(aId, tension);
-
-      // A realm of a dozen souls cannot start a war, however much it hates
-      // its neighbour; the one that is big enough can.
-      if (tension >= 1 && (this.populationOf(a) >= WAR_MIN_POPULATION || this.populationOf(b) >= WAR_MIN_POPULATION)) {
-        this.declareWar(a, b);
-      }
-    }
-
-    // Distance cools old grudges
-    for (const kingdom of this.kingdoms.values()) {
-      for (const [otherId, value] of kingdom.tension) {
-        if (value <= 0) continue;
-        if (contact.has(pairKey(kingdom.id, otherId))) continue;
-        kingdom.tension.set(otherId, Math.max(0, value - 0.04));
-      }
-    }
-
-    this.warRound();
-  }
-
-  private declareWar(a: Kingdom, b: Kingdom): void {
-    a.atWar.add(b.id);
-    b.atWar.add(a.id);
-    a.tension.set(b.id, 1);
-    b.tension.set(a.id, 1);
-    this.warTimers.set(pairKey(a.id, b.id), 0);
-
-    const capital = this.villages.get(a.villageIds[0]);
-    this.events.onEvent(
-      chronicle('war_declared', { a: a.name, b: b.name }),
-      'war',
-      capital ? { x: capital.centerX, y: capital.centerY } : undefined,
-    );
-    // A war starting is one of maybe four things in this simulation worth
-    // interrupting the player for.
-    requestFlash('blood', 0.8);
-  }
-
-  private makePeace(a: Kingdom, b: Kingdom): void {
-    a.atWar.delete(b.id);
-    b.atWar.delete(a.id);
-    a.tension.set(b.id, 0.25);
-    b.tension.set(a.id, 0.25);
-    this.warTimers.delete(pairKey(a.id, b.id));
-    this.events.onEvent(chronicle('peace', { a: a.name, b: b.name }), 'war');
-  }
-
-  /** Send warbands at the enemy, and time wars out into peace. */
-  private warRound(): void {
-    const warriorsByKingdom = new Map<string, Entity[]>();
-    for (const entity of this.entities.getAllEntities()) {
-      if (entity.job !== 'warrior' || !entity.kingdomId) continue;
-      const list = warriorsByKingdom.get(entity.kingdomId);
-      if (list) list.push(entity);
-      else warriorsByKingdom.set(entity.kingdomId, [entity]);
-    }
-
-    for (const kingdom of this.kingdoms.values()) {
-      for (const enemyId of kingdom.atWar) {
-        const enemy = this.kingdoms.get(enemyId);
-        if (!enemy) {
-          kingdom.atWar.delete(enemyId);
-          continue;
-        }
-        if (kingdom.id > enemy.id) continue; // handle each pair once
-
-        const key = pairKey(kingdom.id, enemy.id);
-        const rounds = (this.warTimers.get(key) ?? 0) + 1;
-        this.warTimers.set(key, rounds);
-
-        // Wars burn out — late, and by exhaustion more often than on a clock —
-        // or end when one side has nothing left to lose.
-        const weary = rounds > WAR_WEARY_ROUNDS && Math.random() < WAR_WEARY_PEACE_CHANCE;
-        if (rounds > WAR_MAX_ROUNDS || weary || enemy.villageIds.length === 0 || kingdom.villageIds.length === 0) {
-          this.makePeace(kingdom, enemy);
-          continue;
-        }
-
-        this.sendRaid(kingdom, enemy, warriorsByKingdom.get(kingdom.id) ?? []);
-        this.sendRaid(enemy, kingdom, warriorsByKingdom.get(enemy.id) ?? []);
-      }
-    }
-  }
-
-  private sendRaid(attacker: Kingdom, defender: Kingdom, warriors: Entity[]): void {
-    if (warriors.length === 0) return;
-    let masses: { label: Int32Array; sizes: number[] } | null = null;
-    const size = this.tiles.length;
-
-    // Only captains are given marching orders; their warband is anchored to
-    // them by appointCaptain, so the army moves as one body.
-    for (const warrior of warriors) {
-      const nearbyEnemy = this.entities
-        .query(warrior.position.x, warrior.position.y, 6)
-        .find(other => other.kingdomId === defender.id);
-      if (nearbyEnemy) {
-        this.entities.setHerdAnchor(warrior, null);
-        this.entities.engage(warrior, nearbyEnemy);
-        continue;
-      }
-
-      const leadsTheMarch = warrior.status.includes('captain');
-      if (!leadsTheMarch) continue;
-
-      const target = this.nearestVillage(defender, warrior.position.x, warrior.position.y);
-      if (!target) continue;
-      // Across the water: walking will never get there, so take ship.
-      masses ??= landmasses(this.tiles);
-      const here = masses.label[Math.floor(warrior.position.y) * size + Math.floor(warrior.position.x)];
-      const there = masses.label[target.centerY * size + target.centerX];
-      if (here >= 0 && there >= 0 && here !== there) {
-        this.sendInvasion(attacker, warrior, warriors, target);
-        continue;
-      }
-      this.entities.giveOrder(warrior, {
-        kind: 'goto',
-        x: target.centerX,
-        y: target.centerY,
-        purpose: 'raid',
-      });
-    }
-  }
-
-  /** Towns that recently launched an invasion, and when they may launch again. */
-  private invasionCooldown = new Map<string, number>();
-
-  /**
-   * Put a captain and its warband in a transport bound for an enemy town on
-   * another island. WorldBox's wars cross the sea; ours used to stop at the
-   * shoreline and stand there, which made every island kingdom untouchable.
-   */
-  private sendInvasion(attacker: Kingdom, captain: Entity, warriors: Entity[], target: Village): void {
-    const home = captain.villageId ? this.villages.get(captain.villageId) : null;
-    if (!home) return;
-    const now = home.age;
-    if ((this.invasionCooldown.get(home.id) ?? -Infinity) > now) return;
-    const departure = this.harbourOf(home, 8);
-    const landing = nearestWater(this.tiles, { x: target.centerX, y: target.centerY }, 7);
-    if (!departure || !landing) return;
-    const crew = warriors
-      .filter(w => w.villageId === home.id && w.health > 0 && !w.status.includes('aboard'))
-      .slice(0, 8);
-    if (crew.length < 2) return;
-    const boat = this.boats.launchTransport(attacker.id, departure, landing, crew.map(c => c.id), `invasion:${target.id}`);
-    if (!boat) {
-      this.invasionCooldown.set(home.id, now + 60);
-      return;
-    }
-    this.invasionCooldown.set(home.id, now + 120);
-    emitFloater({ kind: 'speech', text: speak('sailing', Math.random()), x: captain.position.x, y: captain.position.y, entityId: captain.id });
-    for (const soldier of crew) {
-      this.entities.setHerdAnchor(soldier, null);
-      applyStatus(soldier, 'aboard');
-      soldier.position = { x: boat.x, y: boat.y };
-    }
-    this.events.onEvent(
-      `The army of ${attacker.name} takes ship for ${target.name}`,
-      'war',
-      { x: home.centerX, y: home.centerY },
-    );
-  }
-
-  /** An invasion fleet made landfall: everyone off, and up the beach at the town. */
-  private landInvasion(boat: Boat, shore: Point): void {
-    const target = this.villages.get(boat.payload!.slice('invasion:'.length));
-    for (const id of boat.passengers) {
-      const soldier = this.entities.getEntityById(id);
-      if (!soldier) continue;
-      clearStatus(soldier, 'aboard');
-      soldier.position = { x: shore.x + 0.5, y: shore.y + 0.5 };
-      if (target) this.entities.giveOrder(soldier, { kind: 'goto', x: target.centerX, y: target.centerY, purpose: 'raid' });
-    }
-    const kingdom = this.kingdoms.get(boat.kingdomId);
-    this.events.onEvent(
-      `The army of ${kingdom?.name ?? 'a fallen kingdom'} comes ashore below ${target?.name ?? 'an empty shore'}`,
-      'war',
-      shore,
-    );
-  }
-
-  private nearestVillage(kingdom: Kingdom, x: number, y: number): Village | null {
-    let best: Village | null = null;
-    let bestDistance = Infinity;
-    for (const villageId of kingdom.villageIds) {
-      const village = this.villages.get(villageId);
-      if (!village) continue;
-      const distance = Math.hypot(village.centerX - x, village.centerY - y);
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        best = village;
-      }
-    }
-    return best;
-  }
-
-  /**
-   * Enemy warriors standing on a village tear its buildings down. Losing the
-   * bonfire ends the settlement; losing every settlement ends the kingdom.
-   */
-  private resolveSieges(): void {
-    for (const village of Array.from(this.villages.values())) {
-      const kingdom = this.kingdoms.get(village.kingdomId);
-      if (!kingdom) continue;
-
-      for (const building of Array.from(village.buildings)) {
-        const attackers = this.entities
-          .query(building.x + 0.5, building.y + 0.5, 1.6)
-          .filter(entity => entity.kingdomId
-            && entity.kingdomId !== kingdom.id
-            && this.atWar(kingdom.id, entity.kingdomId));
-        if (attackers.length === 0) continue;
-
-        building.health -= 18 * attackers.length;
-        if (building.health > 0) continue;
-
-        if (building.kind === 'bonfire') {
-          const conqueror = this.kingdoms.get(attackers[0]?.kingdomId ?? '');
-          const residents = this.entities.getEntitiesByVillage().get(village.id)?.length ?? 0;
-          if (conqueror && conquestOutcome(conqueror.race, residents) === 'capture') {
-            building.health = building.maxHealth * 0.5;
-            this.captureVillage(village, kingdom, conqueror);
-          } else {
-            this.removeBuilding(village, building);
-            this.destroyVillage(village, conqueror?.id ?? null);
-          }
-          break;
-        }
-        this.removeBuilding(village, building);
-        // Raiders torch what they level
-        if (Math.random() < 0.5) simulation.igniteTile?.(building.x, building.y);
-      }
-    }
-
-    // Kingdoms with no settlements left pass into history
-    for (const kingdom of Array.from(this.kingdoms.values())) {
-      if (kingdom.villageIds.length > 0) continue;
-      this.events.onEvent(chronicle('kingdom_fallen', { a: kingdom.name }), 'war');
-      requestFlash('blood', 1);
-      for (const entity of this.entities.getAllEntities()) {
-        if (entity.kingdomId === kingdom.id) {
-          entity.kingdomId = null;
-          entity.villageId = null;
-          entity.job = null;
-        }
-      }
-      for (const other of this.kingdoms.values()) {
-        other.atWar.delete(kingdom.id);
-        other.tension.delete(kingdom.id);
-      }
-      this.kingdoms.delete(kingdom.id);
-    }
-  }
-
-  /**
-   * A town taken rather than burned: it changes flag with its people and its
-   * land, and the border on the map moves. The people stay — a conquered
-   * town is still a town — but its headman and captain lose their offices.
-   */
-  private captureVillage(village: Village, from: Kingdom, to: Kingdom): void {
-    const index = from.villageIds.indexOf(village.id);
-    if (index !== -1) from.villageIds.splice(index, 1);
-    if (village.capital) {
-      const heir = from.villageIds.map(id => this.villages.get(id)).find((v): v is Village => Boolean(v));
-      if (heir) heir.capital = true;
-    }
-    village.kingdomId = to.id;
-    village.capital = false;
-    village.restless = 0;
-    to.villageIds.push(village.id);
-    this.captains.delete(village.id);
-    this.leaders.delete(village.id);
-
-    const conquered = this.entities.getEntitiesByVillage().get(village.id) ?? [];
-    for (const resident of conquered) {
-      resident.kingdomId = to.id;
-      this.clearOffices(resident);
-      if (resident.job === 'warrior') resident.job = null;
-    }
-    if (conquered[0]) {
-      emitFloater({ kind: 'speech', text: speak('captured', Math.random()), x: conquered[0].position.x, y: conquered[0].position.y, entityId: conquered[0].id });
-    }
-
-    for (const id of village.territory) {
-      const tile = this.tileFromInstanceId(id);
-      if (tile) tile.ownerId = null;
-    }
-    village.territory.clear();
-    this.claimTerritory(village);
-    // Roofs wear their kingdom's colour; repaint them.
-    for (const building of village.buildings) this.paintBuilding(village, building);
-
-    this.events.onEvent(
-      `${village.name} falls to ${to.name}, and flies its banner now`,
-      'war',
-      { x: village.centerX, y: village.centerY },
-    );
-    requestFlash('blood', 0.5);
-    this.publishSummaries();
-  }
-
-  private destroyVillage(village: Village, conquerorId: string | null): void {
-    this.releaseVillage(village);
-
-    const conqueror = conquerorId ? this.kingdoms.get(conquerorId) : null;
-    this.events.onEvent(
-      conqueror
-        ? `${village.name} is razed by ${conqueror.name}`
-        : `${village.name} is razed`,
-      'war',
-      { x: village.centerX, y: village.centerY },
-    );
-  }
-
-  /**
    * Common teardown: buildings gone, land unclaimed, residents freed, village
    * struck from its kingdom. Used by conquest and by abandonment alike.
    */
-  private releaseVillage(village: Village): void {
+  releaseVillage(village: Village): void {
     this.boats.removeVillage(village.id);
     // A village that no longer exists is not an institution any more, and
     // leaving its identity in the registry means the loyalty formula keeps
@@ -3341,7 +2872,7 @@ export class SettlementSystem implements SettlementHost {
     let bestDistance = Infinity;
     for (const enemyId of kingdom.atWar) {
       const enemy = this.kingdoms.get(enemyId);
-      const town = enemy ? this.nearestVillage(enemy, from.position.x, from.position.y) : null;
+      const town = enemy ? this.warfare.nearestVillage(enemy, from.position.x, from.position.y) : null;
       if (!town) continue;
       const d = Math.hypot(town.centerX - from.position.x, town.centerY - from.position.y);
       if (d < bestDistance) { bestDistance = d; best = town; }
@@ -3415,7 +2946,7 @@ export class SettlementSystem implements SettlementHost {
   /** The alliance web as a string, so the alliance layer knows when to repaint. */
   private allianceSignature = '';
 
-  private publishSummaries(): void {
+  publishSummaries(): void {
     if (simulation.mapLayer === 'alliance') {
       const signature = Array.from(this.kingdoms.values())
         .map(k => `${k.id}:${Array.from(k.allies).sort().join(',')}`).join('|');
@@ -3507,8 +3038,18 @@ export class SettlementSystem implements SettlementHost {
   }
 
   atWar(a?: string | null, b?: string | null): boolean {
-    if (!a || !b || a === b) return false;
-    return this.kingdoms.get(a)?.atWar.has(b) ?? false;
+    return this.warfare.atWar(a, b);
+  }
+
+  /** Two realms' caravans have been on the road lately. */
+  tradePartners(a: string, b: string): boolean {
+    return this.trade.partners(a, b);
+  }
+
+  /** A village changing hands drops its captain and its leader. */
+  forgetLeadership(villageId: string): void {
+    this.captains.delete(villageId);
+    this.leaders.delete(villageId);
   }
 
   // -- helpers -----------------------------------------------------------
@@ -3522,7 +3063,7 @@ export class SettlementSystem implements SettlementHost {
     return tile.instanceId ?? this.terrain.instanceIdFor(tile.x, tile.y);
   }
 
-  private tileFromInstanceId(id: number): Tile | null {
+  tileFromInstanceId(id: number): Tile | null {
     const { x, y } = this.terrain.tileCoordsFromInstanceId(id);
     return this.tileAt(x, y);
   }
@@ -3662,7 +3203,7 @@ export class SettlementSystem implements SettlementHost {
       case 'friendship': {
         for (const otherId of [...kingdom.atWar]) {
           const other = this.kingdoms.get(otherId);
-          if (other) this.makePeace(kingdom, other);
+          if (other) this.warfare.makePeace(kingdom, other);
         }
         for (const other of others) {
           kingdom.tension.set(other.id, 0);
@@ -3681,7 +3222,7 @@ export class SettlementSystem implements SettlementHost {
         const target = candidates[0];
         kingdom.allies.delete(target.id);
         target.allies.delete(kingdom.id);
-        this.declareWar(kingdom, target);
+        this.warfare.declareWar(kingdom, target);
         line = `A voice in the ruler of ${kingdom.name}'s ear says ${target.name} is weak`;
         break;
       }
