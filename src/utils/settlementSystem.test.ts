@@ -624,23 +624,20 @@ describe('a town growing up', () => {
     town.store.wood = 500;
     town.store.stone = 500;
     town.store.gold = 500;
-    const inner = harness.settlements as unknown as {
-      placeBuilding(v: unknown, k: string, x: number, y: number): void;
-      upgradeRound(): void;
-    };
-    inner.placeBuilding(town, 'house', 14, 22);
-    inner.placeBuilding(town, 'house', 18, 22);
+    const construction = harness.settlements.construction;
+    harness.settlements.placeBuilding(town, 'house', 14, 22);
+    harness.settlements.placeBuilding(town, 'house', 18, 22);
     const levels = () => town.buildings.filter(b => b.kind === 'house').map(b => b.level ?? 1).sort();
     const houses = () => town.buildings.filter(b => b.kind === 'house');
 
     // One house a round, lowest first: two rounds raise both to stone, and
     // with only a hall that is as far as it goes.
-    for (let i = 0; i < 5; i++) inner.upgradeRound();
+    for (let i = 0; i < 5; i++) construction.upgradeRound();
     expect(levels()).toEqual([2, 2]);
     const stoneHealth = houses()[0].maxHealth;
 
-    inner.placeBuilding(town, 'temple', 16, 24);
-    for (let i = 0; i < 5; i++) inner.upgradeRound();
+    harness.settlements.placeBuilding(town, 'temple', 16, 24);
+    for (let i = 0; i < 5; i++) construction.upgradeRound();
     expect(levels()).toEqual([3, 3]);
     expect(houses()[0].maxHealth).toBeGreaterThan(stoneHealth);
     expect(town.store.stone).toBe(500 - 2 * 6 - 2 * 12);
@@ -652,8 +649,7 @@ describe('watchtowers', () => {
     const harness = makeHarness();
     seatTwoRivals(harness);
     const town = harness.settlements.villages.get('village-a')!;
-    (harness.settlements as unknown as { placeBuilding(v: unknown, k: string, x: number, y: number): void })
-      .placeBuilding(town, 'tower', 16, 23);
+    harness.settlements.placeBuilding(town, 'tower', 16, 23);
     const zombie = harness.entities.spawnEntity('zombie', 17, 24)!;
     const local = harness.entities.getAllEntities().find(e => e.villageId === 'village-a')!;
     const zombieStart = zombie.health;
@@ -672,8 +668,7 @@ describe('a well', () => {
     const harness = makeHarness();
     seatTwoRivals(harness);
     const town = harness.settlements.villages.get('village-a')!;
-    (harness.settlements as unknown as { placeBuilding(v: unknown, k: string, x: number, y: number): void })
-      .placeBuilding(town, 'well', 15, 21);
+    harness.settlements.placeBuilding(town, 'well', 15, 21);
     expect(harness.settlements.wellFor(harness.entities.getAllEntities().find(e => e.villageId === 'village-a')!))
       .toEqual({ x: 15, y: 21 });
     expect(harness.settlements.isWell(15, 21)).toBe(true);
@@ -686,22 +681,18 @@ describe('a dock', () => {
     const harness = makeHarness();
     seatTwoRivals(harness);
     const town = harness.settlements.villages.get('village-a')!;
-    const inner = harness.settlements as unknown as {
-      findShoreSpot(v: unknown): { x: number; y: number } | null;
-      harbourOf(v: unknown, reach: number): { x: number; y: number } | null;
-      placeBuilding(v: unknown, k: string, x: number, y: number): void;
-    };
+    const construction = harness.settlements.construction;
     // The harness flattens the middle into farmland: no coast in reach.
-    expect(inner.findShoreSpot(town)).toBeNull();
+    expect(construction.findShoreSpot(town)).toBeNull();
     // Dig a pond beside the town and there is.
     for (const [x, y] of [[20, 20], [20, 21], [21, 20], [21, 21]]) {
       harness.tiles[x][y].type = 'shallow_water';
       harness.tiles[x][y].height = 0.2;
     }
-    const spot = inner.findShoreSpot(town);
+    const spot = construction.findShoreSpot(town);
     expect(spot).not.toBeNull();
-    inner.placeBuilding(town, 'dock', spot!.x, spot!.y);
-    const harbour = inner.harbourOf(town, 6)!;
+    harness.settlements.placeBuilding(town, 'dock', spot!.x, spot!.y);
+    const harbour = harness.settlements.harbourOf(town, 6)!;
     expect(Math.hypot(harbour.x - spot!.x, harbour.y - spot!.y)).toBeLessThanOrEqual(2.9);
   });
 });
@@ -766,16 +757,15 @@ describe('a war of succession', () => {
         p.attributes = { strength: 10, intelligence: 15, speed: 10, resilience: 10 };
       }
     }
-    const inner = harness.settlements as unknown as { manageWorkforce(): void; politics: { succession(): void } };
-    inner.manageWorkforce();
-    inner.politics.succession();
+    harness.settlements.economy.manageWorkforce();
+    harness.settlements.politics.succession();
     const kingdom = harness.settlements.kingdoms.get('k')!;
     expect(kingdom.kingId).toBeTruthy();
     // The king dies; the realm chooses again, with the dice on the rival's side.
     harness.entities.getEntityById(kingdom.kingId!)!.health = 0;
     const roll = Math.random;
     Math.random = () => 0;
-    try { inner.politics.succession(); } finally { Math.random = roll; }
+    try { harness.settlements.politics.succession(); } finally { Math.random = roll; }
     expect(harness.events.some(m => m.includes('will not kneel'))).toBe(true);
     expect(harness.settlements.kingdoms.size).toBe(2);
   });

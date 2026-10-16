@@ -37,7 +37,6 @@ import {
   setMetaOf,
   type MetaKind,
 } from './identity';
-import type { Plot } from './plots';
 import { chronicle } from './chronicle';
 import { clearStatus, type StatusId } from './statusEffects';
 import {
@@ -73,7 +72,7 @@ import { Armoury } from './settlement/armoury';
 import { Colonisation } from './settlement/colonisation';
 import { Warfare } from './settlement/warfare';
 import { Construction } from './settlement/construction';
-import { Politics, type ActivePlot } from './settlement/politics';
+import { Politics } from './settlement/politics';
 import { Economy } from './settlement/economy';
 import { TreasuryLedger } from './settlement/treasury';
 import type {
@@ -128,22 +127,25 @@ export class SettlementSystem implements SettlementHost {
   }
 
   private foundTimer = 0;
+  // The subsystems are readonly and public so that tests and diagnostics can
+  // drive one directly. Callers outside the core should go through the host
+  // interface (settlement/host.ts) for anything the simulation needs.
   /** Caravans and merchant ships (see settlement/trade.ts). */
-  private trade = new TradeNetwork(this);
+  readonly trade = new TradeNetwork(this);
   /** Priests, temples and the religions they keep (see settlement/faith.ts). */
-  private faith = new FaithService(this);
+  readonly faith = new FaithService(this);
   /** Smiths and the drill yard (see settlement/armoury.ts). */
-  private armoury = new Armoury(this);
+  readonly armoury = new Armoury(this);
   /** Settler parties, sea voyages, new colonies and migrants (see settlement/colonisation.ts). */
-  private colonisation = new Colonisation(this);
+  readonly colonisation = new Colonisation(this);
   /** Diplomacy, opinions and war: raids, sieges and peace (see settlement/warfare.ts). */
-  private warfare = new Warfare(this);
+  readonly warfare = new Warfare(this);
   /** Building sites, roads, and the upgrades that grow a town (see settlement/construction.ts). */
-  private construction = new Construction(this);
+  readonly construction = new Construction(this);
   /** Succession, loyalty, secession and plots (see settlement/politics.ts). */
-  private politics = new Politics(this);
+  readonly politics = new Politics(this);
   /** Workforce, births, feeding, officials and the village ledger (see settlement/economy.ts). */
-  private economy = new Economy(this);
+  readonly economy = new Economy(this);
   private expansionTimer = 0;
   private publishTimer = 0;
   laws: WorldLaws = simulation.laws;
@@ -256,7 +258,7 @@ export class SettlementSystem implements SettlementHost {
     if (this.forgeTimer >= 12) {
       this.forgeTimer = 0;
       this.armoury.forge();
-      this.upgradeRound();
+      this.construction.upgradeRound();
       this.armoury.drill();
     }
 
@@ -723,11 +725,6 @@ export class SettlementSystem implements SettlementHost {
     this.stripStatus(entity, 'priest');
   }
 
-  /** Staff every village now, outside the work clock (the economy runs this on its own timer). */
-  manageWorkforce(): void {
-    this.economy.manageWorkforce();
-  }
-
   /** How many residents this village can actually house. */
   homesIn(village: Village): number {
     let capacity = 0;
@@ -826,16 +823,6 @@ export class SettlementSystem implements SettlementHost {
         if (tile) fn(tile);
       }
     }
-  }
-
-  /** Hall and house upgrades, run on the forge clock (see settlement/construction.ts). */
-  private upgradeRound(): void {
-    this.construction.upgradeRound();
-  }
-
-  /** Land with sea beside it, where a dock goes (see settlement/construction.ts). */
-  findShoreSpot(village: Village): { x: number; y: number } | null {
-    return this.construction.findShoreSpot(village);
   }
 
   placeBuilding(village: Village, kind: BuildingKind, x: number, y: number, site = false): void {
@@ -996,16 +983,6 @@ export class SettlementSystem implements SettlementHost {
   }
 
   // -- plots -------------------------------------------------------------
-
-  /** Every live scheme, for the interface. */
-  activePlots(): ActivePlot[] {
-    return this.politics.activePlots();
-  }
-
-  /** Plots this creature is running, for the inspector. */
-  plotsBy(entityId: string): Plot[] {
-    return this.politics.plotsBy(entityId);
-  }
 
   /**
    * Every standing building, flattened, for whatever wants to pick one.

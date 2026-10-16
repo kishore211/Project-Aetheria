@@ -83,7 +83,7 @@ export class Politics {
    * king dying can be the thing that starts a rebellion. That is the whole
    * point of tying loyalty to the ruler's stats.
    */
-  private succession(): void {
+  succession(): void {
     for (const kingdom of this.host.kingdoms.values()) {
       const sitting = kingdom.kingId ? this.host.entities.getEntityById(kingdom.kingId) : null;
       if (sitting && sitting.health > 0 && sitting.kingdomId === kingdom.id) continue;
