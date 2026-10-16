@@ -12,27 +12,9 @@
 // and only a creature at the edge of its band is changed by its own size roll
 // — which is exactly where you want individual variation to matter.
 import type { Entity, EntityType, TraitId } from '../types/world';
+import { mapSome } from '../content/creatures';
 
-/** Base size per kind, in world units. Half of what the sprite ends up as. */
-const BASE: Partial<Record<EntityType, number>> = {
-  human: 0.15, elf: 0.17, dwarf: 0.12, orc: 0.18,
-  wolf: 0.12, bear: 0.2, deer: 0.15, rabbit: 0.08,
-  bird: 0.07, fish: 0.09, sheep: 0.12, chicken: 0.08,
-  fox: 0.11, snake: 0.11,
-  dragon: 0.35, demon: 0.25, zombie: 0.16, skeleton: 0.16,
-  elemental: 0.2, bandit: 0.15,
-  cat: 0.08, dog: 0.1, cow: 0.17, pig: 0.12, crab: 0.07, frog: 0.06, penguin: 0.09,
-  turtle: 0.1, monkey: 0.11, rat: 0.05, crocodile: 0.2, piranha: 0.07, hyena: 0.12,
-  rhino: 0.24, buffalo: 0.19, unicorn: 0.18, fairy: 0.07, ghost: 0.15, mage: 0.16,
-  druid: 0.16, alien: 0.14, snowman: 0.15,
-  goat: 0.11, camel: 0.19, ostrich: 0.16, flamingo: 0.13, seal: 0.13, polar_bear: 0.21,
-  beetle: 0.05, bee: 0.04, butterfly: 0.05, grasshopper: 0.05,
-  necromancer: 0.16, plague_doctor: 0.15, fire_skull: 0.09, cold_one: 0.2, ufo: 0.2,
-  sand_spider: 0.13, acid_blob: 0.14, lil_pumpkin: 0.08, gummy_bear: 0.09, crabzilla: 0.4,
-  flame_tower: 0.26, ice_tower: 0.26,
-  white_mage: 0.16, angel: 0.18, sandworm: 0.38, langton_ant: 0.07, tumor: 0.12, treant: 0.28,
-  candy_man: 0.14, jumpy_skull: 0.1, robot_santa: 0.18, yeti: 0.24, monolith: 0.3, grey_goo: 0.12,
-};
+const BASE: Partial<Record<EntityType, number>> = mapSome(c => c.size);
 
 export const baseSizeOf = (type: EntityType): number => BASE[type] ?? 0.15;
 

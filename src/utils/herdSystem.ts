@@ -16,6 +16,7 @@ import type { EntityManager } from './entityManagerMinimal';
 import { isAquatic, isWalkableForEntity } from './pathfinding';
 import { isSentient } from './entitySystemMinimal';
 import { registerOrderHandler } from './simulation';
+import { mapSome } from '../content/creatures';
 
 export interface Herd {
   id: string;
@@ -28,45 +29,7 @@ export interface Herd {
   moveCooldown: number;
 }
 
-/** How many animals of each species travel together. 1 means solitary. */
-const HERD_SIZE: Partial<Record<EntityType, number>> = {
-  sheep: 9,
-  deer: 8,
-  rabbit: 6,
-  chicken: 6,
-  bird: 7,
-  wolf: 5,
-  fox: 3,
-  bear: 2,
-  snake: 1,
-  fish: 8,
-  cow: 7,
-  pig: 5,
-  buffalo: 10,
-  penguin: 9,
-  hyena: 5,
-  monkey: 6,
-  rat: 8,
-  piranha: 10,
-  frog: 4,
-  dog: 3,
-  crab: 4,
-  rhino: 2,
-  goat: 6,
-  camel: 4,
-  ostrich: 5,
-  flamingo: 10,
-  seal: 6,
-  beetle: 3,
-  bee: 8,
-  butterfly: 4,
-  grasshopper: 6,
-  gummy_bear: 4,
-  lil_pumpkin: 3,
-  sand_spider: 2,
-  candy_man: 3,
-  jumpy_skull: 3,
-};
+export const HERD_SIZE: Partial<Record<EntityType, number>> = mapSome(c => c.herdSize);
 
 /** Species that head toward creatures rather than toward pasture. */
 const PREDATORS: EntityType[] = ['wolf', 'fox', 'bear', 'snake', 'hyena', 'crocodile', 'cat', 'dog', 'piranha', 'polar_bear', 'sand_spider', 'yeti', 'sandworm'];
