@@ -514,3 +514,29 @@ left homeless rather than sent home; a few same-named biome lists disagree
 - **Fresh state per world**: `resetWorldState()` resets every per-world module
   registry and counter before `seedRandom(worldSeed)`.
 - **Saves remember mined ore** (optional `ore` field; old saves load as before).
+
+## Rounds 26–29 — replay, balance, speed, tests (2026-10-16)
+
+Same agent-team process (Haiku engineers on parallel worktrees, lead verifies
+and merges, every merge pushed). Behaviour changes are deliberate and each
+was checked against the oracle worlds for plausibility before rebaselining.
+
+- **Replay in the live game**: creature ids come from a per-world counter
+  (`src/utils/ids.ts`), saves keep it ahead of restored ids, and the `uuid`
+  package is gone. Leader stats now use a well-mixed hash — plain FNV gave 69%
+  of neighbouring short ids the same stewardship and wiped out a people.
+- **Treasury in the UI**: town and kingdom windows show wages, market
+  purchases, festivals, income and army upkeep (`settlement/treasury.ts`).
+- **Balance**: soldiers are 10–20% of adults in peace (≤35% at war), spare
+  hands work instead of idling as builders, wages and births retuned. All four
+  peoples survive in every oracle seed; worlds grow larger than before.
+- **Speed**: A* uses a heap, and searches to goals the walker cannot stand on
+  fail at once (passability changes go through `setTileBiome` /
+  `setTileWalkable`, which invalidate the component cache). Creatures now aim
+  for the bank rather than the water. A 30-minute world went from ~38 s to
+  ~22 s headless.
+- **Tests**: 658 → 722, including the first UI tests (town, kingdom, unit and
+  register windows; `vite.config.ts` now includes `*.test.tsx`).
+
+Open: an order targeting a water tile would never complete (exact-coordinate
+arrival check) — no current caller does it; worth hardening.
