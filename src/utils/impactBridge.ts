@@ -10,8 +10,6 @@
 // tools, disasters, the settlement system declaring a war — without reaching
 // into the render loop.
 
-import { random } from './random';
-
 export type FlashTone = 'impact' | 'divine' | 'blood' | 'plague';
 
 interface Shake {
@@ -81,9 +79,9 @@ export const sampleShake = (delta: number): { x: number; y: number } => {
   const strength = shake.amplitude * remaining * remaining;
 
   return {
-    x: (random() - 0.5) * 2 * strength,
+    x: (Math.random() - 0.5) * 2 * strength,
     // Less vertical than horizontal: a ground-level jolt, not a lift
-    y: (random() - 0.5) * strength,
+    y: (Math.random() - 0.5) * strength,
   };
 };
 

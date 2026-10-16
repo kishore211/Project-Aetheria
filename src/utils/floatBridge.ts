@@ -12,8 +12,6 @@
 // the churn is much higher — a battle emits dozens of numbers a second — so
 // the DOM side recycles a fixed pool of nodes and React never sees an update.
 
-import { random } from './random';
-
 export type FloaterKind =
   | 'damage'   // red, small, fast
   | 'heal'     // green
@@ -141,7 +139,7 @@ export const emitFloater = (spec: FloaterSpec): boolean => {
   slot.life = spec.life ?? DEFAULT_LIFE[spec.kind];
   // Numbers stack up on a tile during a fight; a little sideways scatter is
   // what makes three of them readable instead of one bold blur.
-  slot.drift = spec.kind === 'speech' ? 0 : (random() - 0.5) * 26;
+  slot.drift = spec.kind === 'speech' ? 0 : (Math.random() - 0.5) * 26;
   // Bubbles queue upward; numbers do not, because they scatter sideways
   // instead and three rows of them would leave the screen.
   slot.stack = spec.kind === 'speech' ? liveSpeechCount() % 3 : 0;
