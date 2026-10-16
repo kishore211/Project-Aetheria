@@ -37,4 +37,25 @@ export default tseslint.config(
       'react-hooks/exhaustive-deps': 'warn',
     },
   },
+  {
+    // The simulation core is headless and deterministic.
+    files: ['src/sim/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            { group: ['three', 'three/*', '@react-three/*'], message: 'src/sim must not depend on rendering.' },
+            { group: ['react', 'react-dom', 'zustand'], message: 'src/sim must not depend on React or the store.' },
+            { group: ['../../utils/*', '../../components/*', '../../hooks/*', '../../store/*'], message: 'src/sim must not depend on the old engine or UI.' },
+          ],
+        },
+      ],
+      'no-restricted-properties': [
+        'error',
+        { object: 'Math', property: 'random', message: 'Use a named Rng stream from the world.' },
+        { object: 'Date', property: 'now', message: 'Use world time from the SimClock.' },
+      ],
+    },
+  },
 );
