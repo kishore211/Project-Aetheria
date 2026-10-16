@@ -17,6 +17,7 @@ import { isAquatic, isWalkableForEntity } from './pathfinding';
 import { isSentient } from './entitySystemMinimal';
 import { registerOrderHandler } from './simulation';
 import { mapSome } from '../content/creatures';
+import { random } from './random';
 
 export interface Herd {
   id: string;
@@ -152,7 +153,7 @@ export class HerdSystem {
       // A newly gathered herd sets off soon rather than standing about for up
       // to a full migration interval — that first move is what tells the
       // player the animals are going somewhere.
-      moveCooldown: Math.random() * 12,
+      moveCooldown: random() * 12,
     };
     this.herds.set(herd.id, herd);
     this.addMember(herd, founder);
@@ -216,7 +217,7 @@ export class HerdSystem {
       }
 
       if (herd.moveCooldown <= 0) {
-        herd.moveCooldown = ALPHA_MOVE_INTERVAL * (0.6 + Math.random() * 0.8);
+        herd.moveCooldown = ALPHA_MOVE_INTERVAL * (0.6 + random() * 0.8);
         herd.destination = this.pickDestination(alpha);
         if (herd.destination) {
           this.entities.giveOrder(alpha, {
@@ -273,8 +274,8 @@ export class HerdSystem {
   private randomTileNear(entity: Entity, range: number): Tile | null {
     const size = this.tiles.length;
     for (let attempt = 0; attempt < 14; attempt++) {
-      const angle = Math.random() * Math.PI * 2;
-      const distance = range * (0.45 + Math.random() * 0.55);
+      const angle = random() * Math.PI * 2;
+      const distance = range * (0.45 + random() * 0.55);
       const x = Math.round(entity.position.x + Math.cos(angle) * distance);
       const y = Math.round(entity.position.y + Math.sin(angle) * distance);
       if (x < 1 || x >= size - 1 || y < 1 || y >= size - 1) continue;
@@ -298,7 +299,7 @@ export class HerdSystem {
         if (!member) continue;
         if (member.age < member.maxAge * 0.3) continue;
         if (member.status.includes('fleeing') || member.status.includes('wounded')) continue;
-        if (Math.random() < 0.35) {
+        if (random() < 0.35) {
           this.removeMember(herd, id);
           break;
         }

@@ -49,6 +49,7 @@ const PAIRING_TYPES = new Set<string>(['human', 'elf', 'dwarf', 'orc']);
 import type { WorldLaws } from '../store/gameStore';
 import type { GameEvent } from '../store/gameStore';
 import type { SavedEntity } from './saveSystem';
+import { random } from './random';
 
 export type DeathCause = 'old_age' | 'health' | 'random' | 'divine' | 'combat' | 'starvation' | 'burned';
 
@@ -361,7 +362,7 @@ export class EntityManager implements EntityIndex {
       setBiome: (x, y, type) => simulation.setBiome?.(x, y, type),
       demolishAt: (x, y) => simulation.demolishAt?.(x, y) ?? false,
       announce: (message, at) => this.onLifeEvent?.(message, 'info', { x: Math.floor(at.x), y: Math.floor(at.y) }),
-      random: Math.random,
+      random: random,
     };
     return this.abilityWorld;
   }
@@ -411,9 +412,9 @@ export class EntityManager implements EntityIndex {
     }
 
     const accidents = traits.includes('unlucky') ? 2 : 1;
-    if (Math.random() < this.deathProbability * delta * accidents) {
+    if (random() < this.deathProbability * delta * accidents) {
       // Lucky: half of the accidents that would have happened, do not.
-      if (!(traits.includes('lucky') && Math.random() < 0.5)) {
+      if (!(traits.includes('lucky') && random() < 0.5)) {
         this.killEntity(entity, 'random');
         return;
       }
@@ -438,7 +439,7 @@ export class EntityManager implements EntityIndex {
     const fertility = (traits.includes('fertile') ? 3 : 1) * (PAIRING_TYPES.has(entity.type) ? 2.5 : 1);
     const populationMultiplier = this.getPopulationDensityMultiplier();
 
-    if (canReproduce && Math.random() < this.reproductionProbability * delta * populationMultiplier * fertility) {
+    if (canReproduce && random() < this.reproductionProbability * delta * populationMultiplier * fertility) {
       // 100 People: a town that has reached its hundred stops having babies.
       // Counted only when a birth is actually about to happen, which is rare.
       if (this.laws.populationCap && entity.villageId && this.villagePopulation(entity.villageId) >= 100) return;
@@ -481,7 +482,7 @@ export class EntityManager implements EntityIndex {
       .filter(t => this.isSuitableTileForEntity(entity.type, t));
     if (suitable.length === 0) return null;
 
-    const chosen = suitable[Math.floor(Math.random() * suitable.length)];
+    const chosen = suitable[Math.floor(random() * suitable.length)];
     const child = this.spawnEntity(entity.type, chosen.x, chosen.y, {
       traits: inheritTraits(entity.traits),
       // Colour is inherited, which is the whole reason a region ends up with a
@@ -643,7 +644,7 @@ export class EntityManager implements EntityIndex {
     for (const witness of this.query(entity.position.x, entity.position.y, 4)) {
       if (witness.id === entity.id) continue;
       if (witness.id === entity.loverId || witness.id === entity.friendId) continue;
-      if (Math.random() < 0.25) applyScenario(witness, 'sawDeath');
+      if (random() < 0.25) applyScenario(witness, 'sawDeath');
     }
   }
 

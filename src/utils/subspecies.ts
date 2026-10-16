@@ -13,6 +13,7 @@
 // and becomes a field of coloured smudges. That single exception is most of
 // what makes this read as art rather than as a filter.
 import type { EntityType, Tile } from '../types/world';
+import { random as sharedRandom } from './random';
 
 type Palette = Record<string, string>;
 
@@ -165,7 +166,7 @@ export const applyRamp = (palette: Palette, ramp: Ramp): Palette => {
 export const pickRamp = (
   type: EntityType,
   tile: Pick<Tile, 'temperature' | 'type'> | null,
-  random: () => number = Math.random,
+  random: () => number = sharedRandom,
 ): string | null => {
   const allowed = RAMPS_FOR[type];
   if (!allowed || allowed.length === 0) return null;

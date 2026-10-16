@@ -13,6 +13,7 @@
 // — which is exactly where you want individual variation to matter.
 import type { Entity, EntityType, TraitId } from '../types/world';
 import { mapSome } from '../content/creatures';
+import { random as sharedRandom } from './random';
 
 const BASE: Partial<Record<EntityType, number>> = mapSome(c => c.size);
 
@@ -50,7 +51,7 @@ const SPREAD = 0.13;
 export const rollSize = (
   type: EntityType,
   traits: TraitId[] | undefined,
-  random: () => number = Math.random,
+  random: () => number = sharedRandom,
 ): number => {
   let size = baseSizeOf(type);
   for (const trait of traits ?? []) size *= TRAIT_SCALE[trait] ?? 1;

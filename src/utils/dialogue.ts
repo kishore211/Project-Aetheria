@@ -6,6 +6,8 @@
 // three read as a person having a bad day. So every situation here has at
 // least three, and they are written to be worth reading twice.
 
+import { random } from './random';
+
 export type Occasion =
   | 'hungry'
   | 'thirsty'
@@ -197,7 +199,7 @@ const lastUsed = new Map<Occasion, number>();
  * previous line is remembered: the point is to avoid an obvious echo, not to
  * impose a rotation the player could learn.
  */
-export const speak = (occasion: Occasion, seed = Math.random()): string => {
+export const speak = (occasion: Occasion, seed = random()): string => {
   const options = LINES[occasion];
   let index = Math.floor(Math.abs(seed) * options.length) % options.length;
   if (options.length > 1 && lastUsed.get(occasion) === index) {

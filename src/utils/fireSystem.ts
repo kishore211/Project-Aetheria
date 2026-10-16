@@ -8,6 +8,7 @@
 // world down in 24 seconds.
 import { isWaterBiome, type Tile } from '../types/world';
 import { simulation } from './simulation';
+import { random } from './random';
 
 export const FLAMMABLE_BIOMES = [
   'deciduous_forest', 'coniferous_forest', 'taiga', 'rainforest',
@@ -133,8 +134,8 @@ export class FireSystem {
 
       if (!canSpread) continue;
 
-      const dx = Math.floor(Math.random() * 3) - 1;
-      const dy = Math.floor(Math.random() * 3) - 1;
+      const dx = Math.floor(random() * 3) - 1;
+      const dy = Math.floor(random() * 3) - 1;
       const neighbour = this.tileAt(tile.x + dx, tile.y + dy);
       if (!neighbour || neighbour.isOnFire) continue;
       if (!FLAMMABLE_BIOMES.includes(neighbour.type)) continue;
@@ -146,7 +147,7 @@ export class FireSystem {
       // multiplier lands here rather than on SPREAD_BASE so the cascade test's
       // branching-factor argument still reads correctly at 1.0.
       const era = simulation.age.fireSpread;
-      if (Math.random() < SPREAD_BASE * dryness * era) this.ignite(neighbour);
+      if (random() < SPREAD_BASE * dryness * era) this.ignite(neighbour);
     }
 
     for (const tile of spent) {

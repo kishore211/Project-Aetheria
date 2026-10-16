@@ -1,6 +1,7 @@
 // Deterministic-feeling name generation for villages, kingdoms and rulers.
 // Every race has its own syllables so an elven realm never sounds orcish.
 import type { Race } from '../types/world';
+import { random } from './random';
 
 interface RaceLexicon {
   prefixes: string[];
@@ -48,12 +49,12 @@ const LEXICONS: Record<Race, RaceLexicon> = {
   },
 };
 
-const pick = <T>(items: T[]): T => items[Math.floor(Math.random() * items.length)];
+const pick = <T>(items: T[]): T => items[Math.floor(random() * items.length)];
 
 /** A settlement name, e.g. "Brameford" or "Vale of Aeriel". */
 export const generateVillageName = (race: Race): string => {
   const lexicon = LEXICONS[race];
-  if (Math.random() < 0.28) {
+  if (random() < 0.28) {
     return `${pick(lexicon.places)} of ${pick(lexicon.prefixes)}${pick(lexicon.middles)}`;
   }
   return `${pick(lexicon.prefixes)}${pick(lexicon.middles)}${pick(lexicon.suffixes)}`;
@@ -63,7 +64,7 @@ export const generateVillageName = (race: Race): string => {
 export const generateKingdomName = (race: Race): string => {
   const lexicon = LEXICONS[race];
   const root = `${pick(lexicon.prefixes)}${pick(lexicon.middles)}${pick(lexicon.suffixes)}`;
-  return Math.random() < 0.5
+  return random() < 0.5
     ? `${pick(lexicon.realms)} of ${root}`
     : `${root} ${pick(lexicon.realms)}`;
 };

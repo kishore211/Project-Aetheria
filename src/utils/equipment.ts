@@ -12,6 +12,7 @@
 // town rather than a research score running beside it.
 
 import type { Entity } from '../types/world';
+import { random } from './random';
 
 export type Material =
   | 'wood' | 'leather' | 'copper' | 'bronze' | 'silver'
@@ -173,7 +174,7 @@ export const legendName = (kind: WeaponKind | 'armor', roll: Roll): string => {
  * top tier has a chance of being worked in mithril or adamantine.
  */
 export const forgeItem = (
-  slot: ItemSlot, tier: number, race: string, madeIn: string, roll: Roll = Math.random,
+  slot: ItemSlot, tier: number, race: string, madeIn: string, roll: Roll = random,
 ): Item => {
   // Tier 0 is wood and leather: what a town with no metal can still make.
   const t = Math.max(0, Math.min(4, Math.round(tier)));
@@ -313,7 +314,7 @@ const NAMING_KILLS = 10;
  * kills is given a name, which is how a legend starts here rather than at the
  * anvil only.
  */
-export const wearAfterBlow = (attacker: Entity, target: Entity, killed: boolean, roll: Roll = Math.random): void => {
+export const wearAfterBlow = (attacker: Entity, target: Entity, killed: boolean, roll: Roll = random): void => {
   const weapon = attacker.equipment?.weapon;
   if (weapon) {
     weapon.durability -= weapon.material === 'adamantine' ? 0.15 : 0.6;

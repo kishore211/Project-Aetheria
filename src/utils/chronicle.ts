@@ -10,6 +10,8 @@
 // So every topic below has at least two phrasings, and the writing is meant to
 // sound like somebody keeping a record rather than a system emitting a string.
 
+import { random } from './random';
+
 export type ChronicleTopic =
   | 'born'
   | 'died_old'
@@ -262,7 +264,7 @@ const fill = (template: string, vars: ChronicleVars): string =>
 export const chronicle = (
   topic: ChronicleTopic,
   vars: ChronicleVars = {},
-  seed = Math.random(),
+  seed = random(),
 ): string => {
   const options = TEMPLATES[topic];
   let index = Math.floor(Math.abs(seed) * options.length) % options.length;
@@ -327,7 +329,7 @@ const lastToll = new Map<string, number>();
 export const toll = (
   kind: keyof typeof TOLLS,
   count: number,
-  seed = Math.random(),
+  seed = random(),
 ): string => {
   if (count <= 0) return '';
   const options = TOLLS[kind];

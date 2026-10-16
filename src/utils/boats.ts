@@ -11,6 +11,7 @@
 // system decides when a boat is launched and what happens when it arrives,
 // through two hooks, so the whole thing can be tested on a bare grid.
 import { isWaterBiome, type Tile } from '../types/world';
+import { random as sharedRandom } from './random';
 
 export interface Point {
   x: number;
@@ -224,7 +225,7 @@ export class BoatSystem {
     return aboard;
   }
 
-  launchFishing(villageId: string, kingdomId: string, dock: Point, random: () => number = Math.random): Boat | null {
+  launchFishing(villageId: string, kingdomId: string, dock: Point, random: () => number = sharedRandom): Boat | null {
     if (!isSailable(this.tiles[dock.x]?.[dock.y])) return null;
     const boat = this.make('fishing', kingdomId, dock);
     boat.villageId = villageId;
@@ -290,7 +291,7 @@ export class BoatSystem {
     this.boats.clear();
   }
 
-  update(delta: number, random: () => number = Math.random): void {
+  update(delta: number, random: () => number = sharedRandom): void {
     for (const boat of Array.from(this.boats.values())) {
       if (boat.state === 'fishing') {
         boat.timer -= delta;
