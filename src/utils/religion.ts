@@ -95,7 +95,11 @@ export const faithHas = (religionId: string | null | undefined, trait: FaithTrai
 export const entityFaithHas = (entity: Entity, trait: FaithTraitId): boolean =>
   faithHas(entity.religionId, trait);
 
-export const resetFaiths = (): void => faiths.clear();
+/** Forget every faith and restart the faith dice from their first value. */
+export const resetFaiths = (): void => {
+  faiths.clear();
+  dice = 0x9e3779b9;
+};
 
 export const allFaithRecords = (): Map<string, FaithRecord> => faiths;
 

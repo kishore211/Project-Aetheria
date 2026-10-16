@@ -50,6 +50,10 @@ const JOIN_RADIUS = 12;
 
 /** Shared id counter, so two herd systems cannot mint the same herd id. */
 let nextHerdId = 1;
+/** Start herd ids again from 1. Called when a new world is built. */
+export const resetHerdIds = (): void => {
+  nextHerdId = 1;
+};
 /** How far a herd spreads out behind its alpha before members catch up. */
 const FOLLOW_SLACK = 3.5;
 

@@ -201,6 +201,10 @@ const FISHING_TIME = 6;
 export const CATCH = 4;
 
 let boatCounter = 0;
+/** Start boat ids again from 1. Called when a new world is built. */
+export const resetBoatIds = (): void => {
+  boatCounter = 0;
+};
 
 export class BoatSystem {
   readonly boats = new Map<string, Boat>();

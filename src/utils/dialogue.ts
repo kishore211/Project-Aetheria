@@ -189,6 +189,11 @@ const LINES: Record<Occasion, string[]> = {
 /** The last line used per occasion, so consecutive speakers do not echo. */
 const lastUsed = new Map<Occasion, number>();
 
+/** Forget which lines were used last. Called when a new world is built. */
+export const resetDialogue = (): void => {
+  lastUsed.clear();
+};
+
 /**
  * Pick a line.
  *

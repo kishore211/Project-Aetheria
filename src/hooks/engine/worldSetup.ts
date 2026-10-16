@@ -15,24 +15,19 @@ import { HerdSystem } from '../../utils/herdSystem';
 import { UnitIconLayer } from '../../utils/unitIconLayer';
 import { FireSystem } from '../../utils/fireSystem';
 import { publishWorldAccess } from '../../utils/worldAccess';
-import { buildSave } from '../../utils/saveSystem';
-import { clearFloaters } from '../../utils/floatBridge';
+import { applyMinedOre, buildSave } from '../../utils/saveSystem';
 import { RelationLines } from '../../utils/relationLines';
-import { ShotLayer, clearShots } from '../../utils/shotBridge';
+import { ShotLayer } from '../../utils/shotBridge';
 import { CreatureLayer } from '../../utils/creatureLayer';
 import { discover } from '../../utils/knowledge';
-import { magnetReset } from '../../utils/magnet';
 import { describeItem, onItemEvent, type ItemEvent } from '../../utils/equipment';
-import { clearImpacts } from '../../utils/impactBridge';
-import { resetPlotIds } from '../../utils/plots';
-import { resetIdentity } from '../../utils/identity';
 import { visibleWorldSpan } from '../../utils/cameraView';
-import { recordDeath, resetStats, setRealmSource } from '../../utils/worldStats';
+import { recordDeath, setRealmSource } from '../../utils/worldStats';
 import { publishLabels } from '../../utils/labelBridge';
-import { resetFaiths } from '../../utils/religion';
 import { ConwayLayer } from '../../utils/conway';
 import { soundManager } from '../../utils/soundManager';
 import { seedRandom } from '../../utils/random';
+import { resetWorldState } from '../../utils/resetWorldState';
 
 /**
  * Everything world setup reads and writes: the three.js objects it places things
@@ -121,9 +116,12 @@ export function initializeWorld(ctx: WorldSetupContext): void {
     tileWorldPosition,
     setIsInitialized,
   } = ctx;
-  // Seed the simulation before anything else draws, so the same seed and the
-  // same player actions replay the same history. A loaded save comes through
-  // here too: requestLoad sets worldSeed from the save's own seed.
+  // Every module-level counter, registry and cooldown table starts empty, as on
+  // a page load, so a seed replays the same history however many worlds came
+  // before it. Then seed the simulation before anything else draws. A loaded
+  // save comes through here too: requestLoad sets worldSeed from the save's own
+  // seed.
+  resetWorldState();
   seedRandom(worldSeed);
   // Tear down any existing world and free GPU resources
   entityManagerRef.current?.clear();
@@ -140,12 +138,6 @@ export function initializeWorld(ctx: WorldSetupContext): void {
   terrainRef.current = null;
   publishWorldAccess(null);
   publishLabels([]);
-  clearFloaters();
-  clearImpacts();
-  resetStats();
-  resetPlotIds();
-  resetIdentity();
-  resetFaiths();
   relationLinesRef.current?.dispose();
   relationLinesRef.current = null;
   if (creatureLayerRef.current) scene.remove(creatureLayerRef.current.mesh);
@@ -157,8 +149,6 @@ export function initializeWorld(ctx: WorldSetupContext): void {
   if (shotLayerRef.current) scene.remove(shotLayerRef.current.lines);
   shotLayerRef.current?.dispose();
   shotLayerRef.current = null;
-  clearShots();
-  magnetReset();
   onItemEvent(null);
   if (selectionIndicatorRef.current) {
     scene.remove(selectionIndicatorRef.current);
@@ -416,6 +406,11 @@ export function initializeWorld(ctx: WorldSetupContext): void {
       tile.structure = delta.s ? { type: delta.s, health: 100, level: 1 } : null;
       tile.ownerId = delta.o ?? null;
       tile.walkable = !['deep_ocean', 'ocean'].includes(tile.type) && tile.height >= 0.25;
+      terrain.syncTile(tile, pending.world.timeOfDay, pending.world.season);
+    }
+    // Deposits miners dug out stay dug out: the fresh veins are cut back to
+    // what was left, and the tiles repainted.
+    for (const tile of applyMinedOre(tilesData, pending.ore)) {
       terrain.syncTile(tile, pending.world.timeOfDay, pending.world.season);
     }
     settlements.restore(pending.kingdoms, pending.villages);

@@ -129,6 +129,44 @@ describe('settler parties that never arrive', () => {
     }
   });
 
+  it('survivors of an abandoned party go back to their village, with its order cancelled', () => {
+    const world = makeWorld();
+    const { town } = homeTown(world);
+    const colony = new Colonisation(world.host);
+    colony.update(8);
+    const [party] = partiesOf(colony);
+
+    colony.update(SETTLE_TIMEOUT);
+
+    expect(colony.parties.size).toBe(0);
+    expect(party.memberIds.size).toBeGreaterThan(0);
+    for (const id of party.memberIds) {
+      const settler = world.entities.getEntityById(id) as Entity;
+      expect(settler.villageId).toBe(town.id);
+      expect(settler.kingdomId).toBe('kingdom-a');
+      expect(world.entities.hasOrder(settler)).toBe(false);
+    }
+  });
+
+  it('survivors of a party whose village has gone become free wanderers of the realm, not homeless walkers', () => {
+    const world = makeWorld();
+    const { town } = homeTown(world);
+    const colony = new Colonisation(world.host);
+    colony.update(8);
+    const [party] = partiesOf(colony);
+    world.villages.delete(town.id);
+
+    colony.update(SETTLE_TIMEOUT);
+
+    expect(colony.parties.size).toBe(0);
+    for (const id of party.memberIds) {
+      const settler = world.entities.getEntityById(id) as Entity;
+      expect(settler.villageId).toBeNull();
+      expect(settler.kingdomId).toBe('kingdom-a');
+      expect(world.entities.hasOrder(settler)).toBe(false);
+    }
+  });
+
   it('a settler who reaches a viable site founds a village with the party as its founders', () => {
     const world = makeWorld();
     homeTown(world);

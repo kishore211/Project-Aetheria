@@ -5,10 +5,13 @@
 // living creatures and standing settlements. That keeps a 128x128 world well
 // inside a localStorage slot instead of the ~5 MB a full tile dump would cost.
 //
-// Tile resources (berries, timber, ore) are intentionally regenerated rather
-// than stored: the ecology re-seeds them within seconds and they would dominate
-// the payload.
+// Tile resources (berries, timber) are intentionally regenerated rather than
+// stored: the ecology re-seeds them within seconds and they would dominate the
+// payload. Ore is the exception. Nothing puts a mined deposit back, so the
+// deposits miners have dug out are stored as [tile index, remaining quantity]
+// (0 = gone) and laid over the fresh generation on load.
 import { cloneEquipment, type Equipment } from './equipment';
+import { isOre } from './oreVeins';
 import type {
   BiomeType,
   Entity,
@@ -38,6 +41,9 @@ export interface SavedTileDelta {
   /** Kingdom id owning the tile, if any. */
   o?: string;
 }
+
+/** [tile index (x * mapSize + y), ore left on the tile; 0 means mined out]. */
+export type SavedOre = [number, number];
 
 export interface SavedEntity {
   id: string;
@@ -135,6 +141,8 @@ export interface SaveGame {
   };
   population: number;
   tiles: SavedTileDelta[];
+  /** Ore deposits that differ from a fresh generation. Absent in older saves. */
+  ore?: SavedOre[];
   entities: SavedEntity[];
   villages: SavedVillage[];
   kingdoms: SavedKingdom[];
@@ -149,6 +157,32 @@ export interface SaveMeta {
   season: Season;
 }
 
+/** The ore on a tile and how much is left, or null when the tile has none. */
+const oreLeft = (tile: Tile): number | null => {
+  const deposit = tile.resources.find(r => isOre(r.type));
+  return deposit ? deposit.quantity : null;
+};
+
+/**
+ * Lay the mined-out ore of a save over a freshly generated world. Returns the
+ * tiles it changed, so the caller can repaint them.
+ */
+export const applyMinedOre = (tiles: Tile[][], ore: SavedOre[] | undefined): Tile[] => {
+  const changed: Tile[] = [];
+  if (!ore) return changed;
+  const size = tiles.length;
+  for (const [index, left] of ore) {
+    const tile = tiles[Math.floor(index / size)]?.[index % size];
+    if (!tile) continue;
+    const at = tile.resources.findIndex(r => isOre(r.type));
+    if (at === -1) continue;
+    if (left > 0) tile.resources[at].quantity = left;
+    else tile.resources.splice(at, 1);
+    changed.push(tile);
+  }
+  return changed;
+};
+
 /** Collect everything that diverged from a freshly generated world. */
 export const buildSave = (options: {
   label: string;
@@ -162,11 +196,17 @@ export const buildSave = (options: {
   const { liveTiles, pristineTiles } = options;
   const mapSize = liveTiles.length;
   const tiles: SavedTileDelta[] = [];
+  const ore: SavedOre[] = [];
 
   for (let x = 0; x < mapSize; x++) {
     for (let y = 0; y < mapSize; y++) {
       const live = liveTiles[x][y];
       const pristine = pristineTiles[x][y];
+      const pristineOre = oreLeft(pristine);
+      if (pristineOre !== null) {
+        const left = oreLeft(live) ?? 0;
+        if (left !== pristineOre) ore.push([x * mapSize + y, left]);
+      }
       const structure = live.structure?.type ?? null;
       const pristineStructure = pristine.structure?.type ?? null;
       const changed = Math.abs(live.height - pristine.height) > 1e-4
@@ -193,6 +233,7 @@ export const buildSave = (options: {
     world: options.world,
     population: options.entities.length,
     tiles,
+    ore,
     entities: options.entities.map(entity => ({
       id: entity.id,
       type: entity.type,

@@ -611,6 +611,14 @@ export class EntityAI {
     }
   }
 
+  /** Drop the standing order and the walk towards it, so the unit stops where it is. */
+  cancelOrder(): void {
+    this.order = null;
+    this.targetTile = null;
+    this.path = [];
+    this.currentState = 'idle';
+  }
+
   /**
    * Update the entity's AI
    */

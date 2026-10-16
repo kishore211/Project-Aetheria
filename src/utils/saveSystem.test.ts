@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { buildSave, parseSaveFile, SAVE_VERSION } from './saveSystem';
+import { applyMinedOre, buildSave, parseSaveFile, SAVE_VERSION, type SaveGame } from './saveSystem';
+import { isOre } from './oreVeins';
+import type { Tile } from '../types/world';
 import { generateWorld } from './worldGenerator';
 import type { WorldLaws } from '../store/gameStore';
 import { DEFAULT_WORLD_LAWS } from '../store/gameStore';
@@ -84,6 +86,64 @@ describe('buildSave', () => {
     expect(restored).not.toBeNull();
     expect(restored?.tiles).toEqual(save.tiles);
     expect(restored?.entities[0].name).toBe(save.entities[0].name);
+  });
+});
+
+/** How much ore is on a tile: 0 when there is none. */
+const oreOn = (tile: Tile): number => tile.resources.find(r => isOre(r.type))?.quantity ?? 0;
+
+describe('mined ore', () => {
+  it('records the deposits dug out, as tile index and what is left, and nothing else', () => {
+    const { live, pristine } = twoWorlds();
+    const deposits = live.flatMap((column, x) => column.map((tile, y) => ({ tile, x, y })))
+      .filter(({ tile }) => oreOn(tile) > 1);
+    const half = deposits[0];
+    const gone = deposits[1];
+    half.tile.resources.find(r => isOre(r.type))!.quantity = 2;
+    gone.tile.resources.splice(gone.tile.resources.findIndex(r => isOre(r.type)), 1);
+
+    const save = buildSave({
+      label: 'mined', world: world(), liveTiles: live, pristineTiles: pristine,
+      entities: [], villages: [], kingdoms: [],
+    });
+
+    expect(save.ore).toEqual([
+      [half.x * 24 + half.y, 2],
+      [gone.x * 24 + gone.y, 0],
+    ]);
+  });
+
+  it('a save restores the mined-out ore over a fresh world, through JSON', () => {
+    const { live, pristine } = twoWorlds();
+    // Mine a few deposits out and leave one partly dug.
+    const deposits = live.flat().filter(tile => oreOn(tile) > 1);
+    expect(deposits.length).toBeGreaterThan(3);
+    deposits[0].resources.splice(deposits[0].resources.findIndex(r => isOre(r.type)), 1);
+    deposits[1].resources.find(r => isOre(r.type))!.quantity = 1;
+    deposits[2].resources.splice(deposits[2].resources.findIndex(r => isOre(r.type)), 1);
+    const save = buildSave({
+      label: 'dug', world: world(), liveTiles: live, pristineTiles: pristine,
+      entities: [], villages: [], kingdoms: [],
+    });
+    const loaded = parseSaveFile(JSON.stringify(save)) as SaveGame;
+
+    const fresh = generateWorld({ seed: 777, mapSize: 24 }).tilesData;
+    const changed = applyMinedOre(fresh, loaded.ore);
+
+    expect(changed).toHaveLength(3);
+    for (let x = 0; x < 24; x++) {
+      for (let y = 0; y < 24; y++) {
+        expect(oreOn(fresh[x][y])).toBe(oreOn(live[x][y]));
+      }
+    }
+  });
+
+  it('a save from before ore was recorded leaves the fresh veins alone', () => {
+    const fresh = generateWorld({ seed: 777, mapSize: 24 }).tilesData;
+    const before = fresh.flat().map(oreOn);
+
+    expect(applyMinedOre(fresh, undefined)).toEqual([]);
+    expect(fresh.flat().map(oreOn)).toEqual(before);
   });
 });
 
