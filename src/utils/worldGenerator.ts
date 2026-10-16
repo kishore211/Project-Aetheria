@@ -1,6 +1,7 @@
 // Seeded procedural world generation: heightmap, climate, rivers, biomes,
 // resources and decoration. Produces pure tile data — rendering lives in
 // terrainRenderer.ts.
+import { biomesWhere } from '../content/biomes';
 import * as THREE from 'three';
 import SimplexNoise from './simplexNoise';
 import seedrandom from 'seedrandom';
@@ -437,16 +438,9 @@ const generateResources = (tile: Tile, random: RandomSource): Resource[] => {
   return resources;
 };
 
-const FOREST_BIOMES: BiomeType[] = [
-  'deciduous_forest',
-  'coniferous_forest',
-  'taiga',
-  'rainforest',
-  'tropical_forest',
-  'enchanted_forest',
-];
+const FOREST_BIOMES: BiomeType[] = biomesWhere(def => def.forest);
 
-const ROCKY_BIOMES: BiomeType[] = ['mountains', 'hills', 'rocky_shore', 'badlands', 'mesa'];
+const ROCKY_BIOMES: BiomeType[] = biomesWhere(def => def.rocky);
 
 const determineNaturalStructure = (tile: Tile, random: RandomSource): Structure | null => {
   if (FOREST_BIOMES.includes(tile.type)) {

@@ -17,6 +17,7 @@
 // whatever the tile's climate says it should be. That is what makes the whole
 // thing self-undoing: stop pouring heat in and the ground comes back, slowly,
 // on its own. A cascade you cannot reverse is a cascade nobody dares trigger.
+import { biomesWhere } from '../content/biomes';
 import { isWaterBiome, type BiomeType, type Tile } from '../types/world';
 
 /** Snow and ice give up. */
@@ -130,20 +131,12 @@ export interface Cascade {
   note: string | null;
 }
 
-const FROZEN: BiomeType[] = ['snow', 'ice', 'glacier'];
-const BURNABLE: BiomeType[] = [
-  'grassland', 'savanna', 'deciduous_forest', 'coniferous_forest',
-  'rainforest', 'tropical_forest', 'taiga', 'enchanted_forest',
-  'swamp', 'marsh', 'bloom',
-];
-const SOIL: BiomeType[] = [
-  'grassland', 'savanna', 'hills', 'deciduous_forest', 'coniferous_forest',
-  'rainforest', 'tropical_forest', 'taiga', 'badlands', 'tundra', 'marsh',
-  'swamp', 'ashland', 'bloom',
-];
-const SAND: BiomeType[] = ['desert', 'beach', 'mesa', 'salt_flat'];
+const FROZEN: BiomeType[] = biomesWhere(def => def.frozen);
+const BURNABLE: BiomeType[] = biomesWhere(def => def.burnsThermal);
+const SOIL: BiomeType[] = biomesWhere(def => def.soil);
+const SAND: BiomeType[] = biomesWhere(def => def.sand);
 /** Water shallow enough to boil off entirely. */
-const SHALLOW: BiomeType[] = ['shallow_water', 'river', 'lake'];
+const SHALLOW: BiomeType[] = biomesWhere(def => def.shallowWater);
 
 /**
  * Run the ladder on a tile and report what it did.

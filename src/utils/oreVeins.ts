@@ -10,6 +10,7 @@
 // So the scattered minerals are swept up and laid back down as veins: small
 // clusters of deposits, picked by biome, that the map paints and miners dig.
 
+import { biomeTable } from '../content/biomes';
 import type { BiomeType, ResourceType, Tile } from '../types/world';
 
 /** The minerals that form veins. Stone, wood and food are not deposits. */
@@ -31,22 +32,7 @@ export const depositOf = (tile: Tile): OreType | null => {
 };
 
 /** What each biome yields, as weighted choices. Absent biomes grow no ore. */
-const VEIN_TABLE: Partial<Record<BiomeType, Array<[OreType, number]>>> = {
-  mountains: [['iron', 5], ['silver', 2.5], ['gold', 1.5], ['gem', 1], ['mithril', 0.6], ['adamantine', 0.25]],
-  hills: [['iron', 6], ['silver', 2], ['gold', 1.2], ['gem', 0.5]],
-  rocky_shore: [['iron', 3], ['silver', 1]],
-  badlands: [['iron', 3], ['gold', 2], ['gem', 0.6]],
-  mesa: [['gold', 3], ['iron', 2], ['gem', 0.8]],
-  desert: [['gold', 2], ['gem', 0.5]],
-  tundra: [['iron', 2], ['silver', 1.2], ['mithril', 0.5]],
-  snow: [['silver', 2], ['mithril', 1.4], ['gem', 0.4]],
-  taiga: [['iron', 2], ['silver', 0.8]],
-  volcanic: [['adamantine', 1.2], ['gold', 1.5], ['gem', 1], ['iron', 1]],
-  ashland: [['iron', 2], ['adamantine', 0.6]],
-  crystal: [['crystal', 5], ['gem', 1.5]],
-  enchanted_forest: [['crystal', 2], ['mithril', 0.4]],
-  infernal: [['adamantine', 1.5], ['gold', 1]],
-};
+const VEIN_TABLE: Partial<Record<BiomeType, Array<[OreType, number]>>> = biomeTable(def => def.ore);
 
 /** How much each deposit holds: rare metal comes in small seams. */
 const RICHNESS: Record<OreType, [number, number]> = {

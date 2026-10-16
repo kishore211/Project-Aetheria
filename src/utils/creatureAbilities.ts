@@ -7,6 +7,7 @@
 // none of this is a decision, it is an aura — and run on a per-creature
 // clock in simulated seconds so pause and game speed hold.
 
+import { biomesWhere } from '../content/biomes';
 import type { BiomeType, Entity, EntityType, Tile } from '../types/world';
 import { isWaterBiome } from '../types/world';
 import { clearStatus } from './statusEffects';
@@ -63,7 +64,7 @@ interface Ability {
 }
 
 /** Ground a cold one will not freeze: already frozen, or not ground at all. */
-const FROZEN: ReadonlySet<BiomeType> = new Set(['snow', 'ice', 'glacier', 'tundra'] as BiomeType[]);
+const FROZEN: ReadonlySet<BiomeType> = new Set(biomesWhere(def => def.frostbound));
 
 export const ABILITIES: Partial<Record<EntityType, Ability>> = {
   necromancer: {
