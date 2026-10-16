@@ -10,6 +10,7 @@
 import type { Entity, Tile } from '../../types/world';
 import type { EntityManager } from '../entityManagerMinimal';
 import type { BoatSystem, Point } from '../boats';
+import type { WorldLaws } from '../../store/gameStore';
 import type { Kingdom, SettlementEvents, Village } from './types';
 
 export interface SettlementHost {
@@ -19,6 +20,10 @@ export interface SettlementHost {
   readonly boats: BoatSystem;
   readonly villages: Map<string, Village>;
   readonly kingdoms: Map<string, Kingdom>;
+  /** The world's rule switches (warfare, forging, reproduction, ...). */
+  readonly laws: WorldLaws;
+  /** How advanced each village's craft is, 1-4, read off what it has built. */
+  craftTiers(): ReadonlyMap<string, number>;
   /** Everyone who lives in a village, wherever they are standing. */
   residentsOf(village: Village): Entity[];
   /** A water tile a village's boats can use, within `reach` of its centre. */

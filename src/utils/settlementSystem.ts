@@ -74,9 +74,6 @@ import { buildingSprite, roofSprite } from './pixelAtlas';
 import { conquestOutcome, formationSlots } from './army';
 import { foundFaith, holyWarTension } from './religion';
 import {
-  emitItemEvent, equip, forgeItem, forgePriority, MATERIAL_COST, type Material
-} from './equipment'
-import {
   generateKingdomName,
   generateRulerName,
   generateVillageName,
@@ -93,6 +90,7 @@ export { footprintOf, tierOf } from './settlement/helpers';
 import type { SettlementHost } from './settlement/host';
 import { TradeNetwork } from './settlement/trade';
 import { FaithService } from './settlement/faith';
+import { Armoury } from './settlement/armoury';
 import type {
   Building, BuildingKind, BuildingRecipe, DiplomacyAct, Kingdom, SettlementEvents,
   SettlerParty, Village
@@ -147,6 +145,8 @@ export class SettlementSystem implements SettlementHost {
   private trade = new TradeNetwork(this);
   /** Priests, temples and the religions they keep (see settlement/faith.ts). */
   private faith = new FaithService(this);
+  /** Smiths and the drill yard (see settlement/armoury.ts). */
+  private armoury = new Armoury(this);
   /** Finds already announced, so a rich vein is news once, not every load. */
   private announcedFinds = new Set<string>();
   private workTimer = 0;
@@ -163,7 +163,7 @@ export class SettlementSystem implements SettlementHost {
   private plotterIds = new Map<string, number>();
   /** Latest opinion per neighbouring pair, keyed by pairKey. */
   private opinions = new Map<string, OpinionResult>();
-  private laws: WorldLaws = simulation.laws;
+  laws: WorldLaws = simulation.laws;
   /** Diplomacy rounds each active war has lasted, keyed by kingdom pair. */
   private warTimers = new Map<string, number>();
   private unsubscribeOrders: () => void;
@@ -308,9 +308,9 @@ export class SettlementSystem implements SettlementHost {
     this.forgeTimer += delta;
     if (this.forgeTimer >= 12) {
       this.forgeTimer = 0;
-      this.forgeRound();
+      this.armoury.forge();
       this.upgradeRound();
-      this.drillRound();
+      this.armoury.drill();
     }
 
     this.fleetTimer += delta;
@@ -1726,26 +1726,6 @@ export class SettlementSystem implements SettlementHost {
   }
 
   /**
-   * Drill. Warriors of a town with training dummies grow a little stronger
-   * each round, up to a point: WorldBox's dummies are why a garrison town's
-   * soldiers beat a fresh levy.
-   */
-  private drillRound(): void {
-    const byVillage = this.entities.getEntitiesByVillage();
-    for (const village of this.villages.values()) {
-      const dummies = village.buildings.filter(b => b.kind === 'dummy').length;
-      if (dummies === 0) continue;
-      for (const warrior of byVillage.get(village.id) ?? []) {
-        if (warrior.job !== 'warrior') continue;
-        const drilled = warrior.drilled ?? 0;
-        if (drilled >= 4 * dummies) continue;
-        warrior.drilled = drilled + 1;
-        warrior.attributes.strength += 1;
-      }
-    }
-  }
-
-  /**
    * Lay a path from a new building to the two nearest ones already standing.
    *
    * Their trick, and it is almost free: connect each new building to its two
@@ -2776,67 +2756,6 @@ export class SettlementSystem implements SettlementHost {
       }
     }
     return best;
-  }
-
-  /**
-   * Each town's smith makes one piece a round, for whoever most deserves it
-   * and has least: the king, then the captain, the headman, then the
-   * warriors, a weapon before armour. The metal is whatever the town's craft
-   * tier works and its store can pay for, so a town that loses its hall goes
-   * back to arming people in copper.
-   */
-  private forgeRound(): void {
-    if (this.villages.size === 0 || this.laws.forging === false) return;
-    const tiers = this.craftTiers();
-    const byVillage = new Map<string, Entity[]>();
-    for (const entity of this.entities.getAllEntities()) {
-      if (!entity.villageId || entity.health <= 0 || forgePriority(entity) <= 0) continue;
-      const list = byVillage.get(entity.villageId);
-      if (list) list.push(entity);
-      else byVillage.set(entity.villageId, [entity]);
-    }
-    for (const village of this.villages.values()) {
-      const people = byVillage.get(village.id);
-      if (!people) continue;
-      people.sort((a, b) => forgePriority(b) - forgePriority(a));
-      // A smithy is a second pair of hands at the anvil.
-      const pieces = village.buildings.some(b => b.kind === 'smithy') ? 2 : 1;
-      for (let piece = 0; piece < pieces; piece++) this.forgeOne(village, people, tiers);
-    }
-  }
-
-  private forgeOne(village: Village, people: Entity[], tiers: ReadonlyMap<string, number>): void {
-    const needy = people.find(p => !p.equipment?.weapon) ?? people.find(p => !p.equipment?.armor);
-    if (!needy) return;
-    const slot = needy.equipment?.weapon ? 'armor' : 'weapon';
-    const store = village.store;
-    const affordable = (material: Material): boolean => {
-      const cost = MATERIAL_COST[material];
-      return store.wood >= cost.wood && store.stone >= cost.stone && store.gold >= cost.gold
-        && (store.metal ?? 0) >= cost.metal && (!cost.rare || (store[cost.rare] ?? 0) >= 1);
-    };
-    // The smith works the best metal the town has: a town with no mine in
-    // reach arms its people in wood and leather until a trader brings ore.
-    let item = forgeItem(slot, tiers.get(village.id) ?? 1, village.race, village.name);
-    for (let tier = (tiers.get(village.id) ?? 1) - 1; !affordable(item.material) && tier >= 0; tier--) {
-      item = forgeItem(slot, tier, village.race, village.name);
-    }
-    if (!affordable(item.material)) return;
-    const cost = MATERIAL_COST[item.material];
-    store.wood -= cost.wood;
-    store.stone -= cost.stone;
-    store.gold -= cost.gold;
-    store.metal = (store.metal ?? 0) - cost.metal;
-    if (cost.rare) store[cost.rare] = (store[cost.rare] ?? 0) - 1;
-    equip(needy, item);
-    if (item.quality === 'legendary') emitItemEvent({ kind: 'forged', item, owner: needy });
-    // Most pieces go unremarked; a legend never does.
-    if (item.quality === 'legendary' || Math.random() < 0.3) {
-      emitFloater({
-        kind: 'speech', text: speak(item.quality === 'legendary' ? 'legendary' : 'armed', Math.random()),
-        x: needy.position.x, y: needy.position.y, entityId: needy.id,
-      });
-    }
   }
 
   residentsOf(village: Village): Entity[] {
