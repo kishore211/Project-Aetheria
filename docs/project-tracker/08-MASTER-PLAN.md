@@ -494,9 +494,23 @@ merged every step, and ran live browser QA on the merged build.
 - **Tests**: 589 → 658, including unit tests per subsystem against a fixture
   host.
 
-Open: module-level counters (ids, faith dice, plots, herds) are not reset by
-`seedRandom`, so exact replay holds from a fresh page load but not yet for a
-second world in the same session. Known behaviour bugs to fix next (each will
+Correction (round 25): exact replay is proven in tests only. Per-world module
+state is now reset (`resetWorldState`), but creature ids still come from a
+random `uuid` in the live game and leaders' stats hash those ids, so a real
+second world — or a reload — can diverge. Deterministic per-world entity ids
+are the remaining step. Known behaviour bugs to fix next (each will
 move the oracle baseline on purpose): settlers of a timed-out expedition are
 left homeless rather than sent home; a few same-named biome lists disagree
 (`frozen`/`frostbound`, `burnsThermal`/`burnsByPower`) — decide which is meant.
+
+## Round 25 — gold, homecomings, fresh worlds (2026-10-16)
+
+- **Economy subsystem** (`settlement/economy.ts`): the settlement core is now
+  1,906 lines. **Gold matters**: towns pay warriors a wage (unpaid soldiers
+  lose heart), towns with a market buy wood, stone or food they lack, and a
+  rich capital holds a court festival. Treasuries at minute 20 of the oracle
+  worlds fell from ~21,000 to ~3,500 total gold with populations unchanged.
+- **Settlers of a failed expedition go home** (or wander free if home is gone).
+- **Fresh state per world**: `resetWorldState()` resets every per-world module
+  registry and counter before `seedRandom(worldSeed)`.
+- **Saves remember mined ore** (optional `ore` field; old saves load as before).
