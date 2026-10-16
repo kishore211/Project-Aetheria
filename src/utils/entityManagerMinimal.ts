@@ -50,6 +50,7 @@ import type { WorldLaws } from '../store/gameStore';
 import type { GameEvent } from '../store/gameStore';
 import type { SavedEntity } from './saveSystem';
 import { random } from './random';
+import { keepEntityIdAhead } from './ids';
 
 export type DeathCause = 'old_age' | 'health' | 'random' | 'divine' | 'combat' | 'starvation' | 'burned';
 
@@ -242,6 +243,9 @@ export class EntityManager implements EntityIndex {
     const iy = Math.floor(saved.y);
     if (!this.isInBounds(ix, iy)) return null;
     const tile = this.tiles[ix][iy];
+    // Keep the id counter ahead of this creature's id, so a creature born later
+    // in this world cannot take the same id.
+    keepEntityIdAhead(saved.id);
 
     const entity: Entity = {
       id: saved.id,

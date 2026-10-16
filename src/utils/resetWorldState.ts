@@ -32,9 +32,11 @@ import { resetFaiths } from './religion';
 import { resetStats } from './worldStats';
 import { resetIdentifiers } from './settlement/helpers';
 import { resetOrderHandlers } from './simulation';
+import { resetEntityIds } from './ids';
 
 export const resetWorldState = (): void => {
   resetOrderHandlers();
+  resetEntityIds();
   resetIdentifiers();
   resetPlotIds();
   resetIdentity();
