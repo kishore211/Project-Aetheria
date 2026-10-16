@@ -79,12 +79,24 @@ export const civilStats = (entity: Entity): CivilStats => {
 };
 
 /** FNV-1a, so a creature's stats never change and never need saving. */
+/**
+ * FNV-1a over the id, then murmur3's finaliser. Plain FNV leaves its upper
+ * bits barely stirred for short ids, and civilStats reads them directly: when
+ * creature ids became short counters ("e-1", "e-2", ...) neighbouring
+ * creatures came out with nearly the same stats, and one seeded world lost a
+ * whole people to a run of hopeless rulers. The finaliser spreads every bit.
+ */
 const hashId = (id: string): number => {
   let hash = 0x811c9dc5;
   for (let index = 0; index < id.length; index += 1) {
     hash ^= id.charCodeAt(index);
     hash = Math.imul(hash, 0x01000193);
   }
+  hash ^= hash >>> 16;
+  hash = Math.imul(hash, 0x85ebca6b);
+  hash ^= hash >>> 13;
+  hash = Math.imul(hash, 0xc2b2ae35);
+  hash ^= hash >>> 16;
   return hash >>> 0;
 };
 

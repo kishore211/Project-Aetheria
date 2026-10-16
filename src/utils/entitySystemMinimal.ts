@@ -5,7 +5,7 @@
 // sleeps, breeds and dies without any central script.
 import { depositOf, isOre } from './oreVeins';
 import * as THREE from 'three';
-import { v4 as uuidv4 } from 'uuid';
+import { nextEntityId } from './ids';
 import {
   isDrinkableBiome,
   isWaterBiome,
@@ -216,7 +216,7 @@ export function createEntity(
   const profile = PROFILES[type] ?? DEFAULT_PROFILE;
 
   const entity: Entity = {
-    id: uuidv4(),
+    id: nextEntityId(),
     type,
     name: generateEntityName(type),
     age: 0,

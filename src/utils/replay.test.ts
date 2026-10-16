@@ -14,12 +14,12 @@ import type { EntityType } from '../types/world';
  * from its seed. Cosmetic code keeps Math.random on purpose; the allowlist
  * below names the only direct callers let through.
  *
- * Each world is built from a fresh module graph and a fresh id counter, as a
- * page load would give it. Module-level counters (plots, herds, items,
- * settlement ids, religion dice) and uuid ids feed into decisions, so a second
- * world built in the same module graph inherits them and no longer matches its
- * seed. Ids are used inside the simulation here, so they cannot simply be left
- * out of the fingerprint; they are reset instead.
+ * Creature ids come from the live per-world counter (utils/ids.ts), not from a
+ * test double. Module-level counters (plots, herds, items, settlement ids,
+ * religion dice, creature ids) feed into decisions, so a second world built in
+ * the same module graph inherits them and no longer matches its seed. Each
+ * world resets them through resetWorldState(), the same call world creation
+ * makes.
  */
 
 const realMathRandom = Math.random;
@@ -53,21 +53,9 @@ const loadModules = async () => {
 
 type Modules = Awaited<ReturnType<typeof loadModules>>;
 
-/**
- * Entity ids come from uuid, which this test replaces with a counter (the real
- * one is random, and ids feed decisions such as civil stats). A world gets a
- * fresh counter, as a page load does, so the counter is restarted per world.
- */
-let mintedIds = 0;
-const restartIds = (): void => {
-  mintedIds = 0;
-};
-
 /** A fresh module graph, as a page load gives: nothing carried over from an earlier world. */
 const freshModules = async (): Promise<Modules> => {
   vi.resetModules();
-  restartIds();
-  vi.doMock('uuid', () => ({ v4: () => `world-${(mintedIds++).toString(36)}` }));
   return loadModules();
 };
 
@@ -157,7 +145,6 @@ const fingerprint = (entities: Entities, settlements: Settlements): string => {
 describe('a world replays exactly from its seed', () => {
   afterEach(() => {
     Math.random = realMathRandom;
-    vi.doUnmock('uuid');
     vi.resetModules();
   });
 
@@ -176,9 +163,7 @@ describe('a world replays exactly from its seed', () => {
     // Same module graph, no vi.resetModules() in between: the other world's
     // state is still in memory when this one starts.
     const modules = await freshModules();
-    restartIds();
     runWorld(99, modules);
-    restartIds();
     const after = runWorld(1234, modules);
 
     expect(after).toBe(fresh);
