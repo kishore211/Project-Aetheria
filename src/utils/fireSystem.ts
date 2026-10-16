@@ -6,6 +6,7 @@
 // branching factor above one, a single spark deterministically consumes the
 // world. That is not a hypothetical — it happened, and it took a 33-creature
 // world down in 24 seconds.
+import { setTileBiome } from './pathfinding';
 import { isWaterBiome, type Tile } from '../types/world';
 import { simulation } from './simulation';
 import { random } from './random';
@@ -93,7 +94,7 @@ export class FireSystem {
     this.burning.delete(tile);
 
     if (burned && tile.height > 0.25) {
-      tile.type = 'badlands';
+      setTileBiome(tile, 'badlands');
       tile.structure = null;
       tile.fertility = Math.max(0, tile.fertility - 0.4);
       tile.resources = tile.resources.filter(

@@ -16,7 +16,7 @@ import { isWaterBiome, type BiomeType, type Entity, type EntityType, type Tile }
 import { addHeat, MELT, SCORCH } from './thermal';
 import { applyStatus, clearStatus, type StatusId } from './statusEffects';
 import { isSapient } from './entitySystemMinimal';
-import { isAquatic } from './pathfinding';
+import { isAquatic, setTileBiome, setTileWalkable } from './pathfinding';
 import { grantTrait, TRAITS } from './traits';
 import { equip, forgeItem, describeItem } from './equipment';
 import { wieldsGear } from './pixelSprites';
@@ -326,7 +326,7 @@ export const runExtraPower = (
     ctx.forEachBrushTile(tile, 1 + brush, (target) => {
       if (isWaterBiome(target.type) || target.height <= 0.25 || target.villageId) return;
       acted = true;
-      target.type = seed.type;
+      setTileBiome(target, seed.type);
       if (seed.temperature !== undefined) target.temperature = seed.temperature;
       if (seed.moisture !== undefined) target.moisture = seed.moisture;
       if (seed.clear) target.structure = null;
@@ -565,7 +565,7 @@ export const runExtraPower = (
         target.structure = null;
         target.resources = target.resources.filter(r => r.type !== 'wood' && r.type !== 'food');
         target.fertility = Math.max(0, target.fertility - 0.5);
-        if (BURNABLE.includes(target.type)) target.type = 'badlands';
+        if (BURNABLE.includes(target.type)) setTileBiome(target, 'badlands');
         ctx.sync(target);
       });
       const kills = ctx.damageArea(tile.x, tile.y, radius + 0.5, 35);
@@ -605,7 +605,7 @@ export const runExtraPower = (
         if (target.villageId) ctx.demolishAt(target.x, target.y);
         ctx.reshape(target, target.height - 0.25 * k * k);
         if (!isWaterBiome(target.type)) {
-          target.type = distance < radius * 0.6 ? 'ashland' : 'badlands';
+          setTileBiome(target, distance < radius * 0.6 ? 'ashland' : 'badlands');
           target.fertility = 0;
           ctx.sync(target);
         }
@@ -702,7 +702,7 @@ export const runExtraPower = (
       ctx.forEachBrushTile(tile, brush, (target) => {
         if (isWaterBiome(target.type) || target.villageId) return;
         target.structure = { type: 'wall', health: tool === 'wall-stone' ? 400 : 160, level: tool === 'wall-stone' ? 1 : 2 };
-        target.walkable = false;
+        setTileWalkable(target, false);
         ctx.sync(target);
         built += 1;
       });
