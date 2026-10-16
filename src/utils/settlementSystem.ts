@@ -98,6 +98,7 @@ import {
   footprintOf, groundBonus, isRace, keepIdentifierAhead, mintId,
   tierOf, townColour
 } from './settlement/helpers';
+import { random } from './random';
 
 export class SettlementSystem implements SettlementHost {
   readonly tiles: Tile[][];
@@ -426,7 +427,7 @@ export class SettlementSystem implements SettlementHost {
     if (founders[0]) {
       emitFloater({
         kind: 'speech',
-        text: speak('newVillage', Math.random()),
+        text: speak('newVillage', random()),
         x: founders[0].position.x,
         y: founders[0].position.y,
         entityId: founders[0].id,
@@ -780,7 +781,7 @@ export class SettlementSystem implements SettlementHost {
       if (sites.length > 0) {
         for (const member of members) {
           if (member.job !== 'builder' || member.carrying || this.entities.hasOrder(member)) continue;
-          const site = sites[Math.floor(Math.random() * sites.length)];
+          const site = sites[Math.floor(random() * sites.length)];
           this.entities.giveOrder(member, { kind: 'goto', x: site.x, y: site.y, purpose: 'build' });
         }
       }
@@ -790,7 +791,7 @@ export class SettlementSystem implements SettlementHost {
         const fields = village.buildings.filter(b => b.kind === 'farm');
         for (const member of members) {
           if (member.job !== 'farmer' || member.carrying || this.entities.hasOrder(member)) continue;
-          const field = fields[Math.floor(Math.random() * fields.length)];
+          const field = fields[Math.floor(random() * fields.length)];
           this.entities.giveOrder(member, { kind: 'goto', x: field.x, y: field.y, purpose: 'farm' });
         }
       }
@@ -862,7 +863,7 @@ export class SettlementSystem implements SettlementHost {
       applyStatus(leader, 'leader');
       emitFloater({
         kind: 'speech',
-        text: speak('crowned', Math.random()),
+        text: speak('crowned', random()),
         x: leader.position.x,
         y: leader.position.y,
         entityId: leader.id,
@@ -1003,11 +1004,11 @@ export class SettlementSystem implements SettlementHost {
         && p.age <= p.maxAge * 0.8 && !p.status.includes('aboard'));
       if (adults.length < 2) continue;
       const chance = Math.min(0.6, adults.length * BIRTH_CHANCE_PER_ADULT);
-      if (Math.random() >= chance) continue;
+      if (random() >= chance) continue;
       // A couple when there is one together at home; otherwise any grown-up.
       const coupled = adults.filter(p => p.loverId && adults.some(a => a.id === p.loverId));
       const pool = coupled.length > 0 ? coupled : adults;
-      const parent = pool[Math.floor(Math.random() * pool.length)];
+      const parent = pool[Math.floor(random() * pool.length)];
       const partner = parent.loverId ? adults.find(a => a.id === parent.loverId) ?? null : null;
       const child = this.entities.bearChild(parent, partner);
       if (!child) continue;
@@ -1111,7 +1112,7 @@ export class SettlementSystem implements SettlementHost {
         village.store.gold += tax;
         // Being taxed is a small, frequent grievance — which is exactly the
         // sort of thing that shows up later as loyalty.
-        if (tax > 0 && Math.random() < 0.04) applyScenario(resident, 'sleptRough');
+        if (tax > 0 && random() < 0.04) applyScenario(resident, 'sleptRough');
       }
 
       // A windmill grinds what the farms grow: each one turns a little of

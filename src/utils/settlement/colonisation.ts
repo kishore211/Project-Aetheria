@@ -21,6 +21,7 @@ import {
 import { mintId } from './helpers';
 import type { SettlementHost } from './host';
 import type { Kingdom, SettlerParty, Village } from './types';
+import { random } from '../random';
 
 export class Colonisation {
   private colonyTimer = 0;
@@ -117,8 +118,8 @@ export class Colonisation {
     const home = islands ? islands[source.centerY * size + source.centerX] : -1;
 
     for (let attempt = 0; attempt < 90; attempt++) {
-      const angle = Math.random() * Math.PI * 2;
-      const distance = MIN_VILLAGE_SPACING + Math.random() * (SETTLE_RANGE - MIN_VILLAGE_SPACING);
+      const angle = random() * Math.PI * 2;
+      const distance = MIN_VILLAGE_SPACING + random() * (SETTLE_RANGE - MIN_VILLAGE_SPACING);
       const x = Math.round(source.centerX + Math.cos(angle) * distance);
       const y = Math.round(source.centerY + Math.sin(angle) * distance);
 
@@ -153,7 +154,7 @@ export class Colonisation {
     const spare = Math.max(0, residents.length - SETTLER_SOURCE_POPULATION + 1);
     const size = Math.min(
       spare,
-      SETTLER_PARTY_MIN + Math.floor(Math.random() * (SETTLER_PARTY_MAX - SETTLER_PARTY_MIN + 1)),
+      SETTLER_PARTY_MIN + Math.floor(random() * (SETTLER_PARTY_MAX - SETTLER_PARTY_MIN + 1)),
     );
     if (size < SETTLER_PARTY_MIN) return;
     const party: SettlerParty = {
@@ -205,8 +206,8 @@ export class Colonisation {
 
     const candidates: Array<{ site: Point; score: number }> = [];
     for (let attempt = 0; attempt < 120; attempt++) {
-      const angle = Math.random() * Math.PI * 2;
-      const distance = 12 + Math.random() * (OVERSEAS_RANGE - 12);
+      const angle = random() * Math.PI * 2;
+      const distance = 12 + random() * (OVERSEAS_RANGE - 12);
       const x = Math.round(source.centerX + Math.cos(angle) * distance);
       const y = Math.round(source.centerY + Math.sin(angle) * distance);
       const tile = this.host.tileAt(x, y);
@@ -238,7 +239,7 @@ export class Colonisation {
     const spare = Math.max(0, residents.length - SETTLER_SOURCE_POPULATION + 1);
     const size = Math.min(
       spare,
-      SETTLER_PARTY_MIN + Math.floor(Math.random() * (SETTLER_PARTY_MAX - SETTLER_PARTY_MIN + 1)),
+      SETTLER_PARTY_MIN + Math.floor(random() * (SETTLER_PARTY_MAX - SETTLER_PARTY_MIN + 1)),
     );
     if (size < SETTLER_PARTY_MIN) return;
     const crew = residents.slice(0, size);
@@ -308,10 +309,10 @@ export class Colonisation {
       fewest = residents;
       neediest = village;
     }
-    if (!neediest || Math.random() >= 0.35) return;
+    if (!neediest || random() >= 0.35) return;
     {
       const village = neediest;
-      const count = 1 + (Math.random() < 0.4 ? 1 : 0);
+      const count = 1 + (random() < 0.4 ? 1 : 0);
       let arrived = 0;
       for (let i = 0; i < count; i++) {
         if (this.host.entities.spawnEntity(village.race, village.centerX, village.centerY)) arrived++;

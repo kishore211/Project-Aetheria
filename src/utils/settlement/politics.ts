@@ -40,6 +40,7 @@ import {
 } from '../plots';
 import { foundFaith } from '../religion';
 import { EXPANSION_APPETITE, REBELLION_PATIENCE } from './constants';
+import { random } from '../random';
 
 export type ActivePlot = Plot & { plotterName: string; subjectName: string; targetName: string | null };
 
@@ -130,7 +131,7 @@ export class Politics {
           .sort((p, q) => leadership(civilStats(q)) - leadership(civilStats(p)))[0];
         const rivalTown = rival?.villageId ? this.host.villages.get(rival.villageId) : null;
         if (rival && rivalTown && !rivalTown.capital
-          && leadership(civilStats(rival)) >= heirClaim * 0.85 && Math.random() < 0.35) {
+          && leadership(civilStats(rival)) >= heirClaim * 0.85 && random() < 0.35) {
           this.host.events.onEvent(
             `${rival.name} will not kneel to ${heir.name}. ${rivalTown.name} goes to war over the crown of ${kingdom.name}`,
             'war',
@@ -392,7 +393,7 @@ export class Politics {
         // Started well above the rebellion threshold, so the icon appears
         // before the province is already lost. This is the whole point: a
         // warning, not an obituary.
-        if (loyalty < 25 && Math.random() < 0.4) {
+        if (loyalty < 25 && random() < 0.4) {
           this.startPlot('rebellion', leader, village.id, null);
           plotting.add(leader.id);
           continue;
@@ -407,7 +408,7 @@ export class Politics {
         if (
           residents >= 6
           && (loyalty < 55 || inclined)
-          && Math.random() < (inclined ? 0.18 : 0.08)
+          && random() < (inclined ? 0.18 : 0.08)
         ) {
           this.startPlot('schism', leader, village.id, null);
           plotting.add(leader.id);
@@ -422,7 +423,7 @@ export class Politics {
       // on if he is.
       const enemies = Array.from(kingdom.atWar);
       if (enemies.length > 0) {
-        if (stats.diplomacy > stats.warfare && Math.random() < 0.5) {
+        if (stats.diplomacy > stats.warfare && random() < 0.5) {
           this.startPlot('peace', king, kingdom.id, enemies[0]);
           plotting.add(king.id);
           continue;
@@ -432,12 +433,12 @@ export class Politics {
         // finds somebody to bind.
         const neighbour = this.mostTenseNeighbour(kingdom);
         if (neighbour) {
-          if (stats.warfare >= 7 && Math.random() < 0.3) {
+          if (stats.warfare >= 7 && random() < 0.3) {
             this.startPlot('war', king, kingdom.id, neighbour.id);
             plotting.add(king.id);
             continue;
           }
-          if (stats.diplomacy >= 7 && this.host.laws.diplomacy && Math.random() < 0.3) {
+          if (stats.diplomacy >= 7 && this.host.laws.diplomacy && random() < 0.3) {
             this.startPlot('alliance', king, kingdom.id, neighbour.id);
             plotting.add(king.id);
             continue;
@@ -447,7 +448,7 @@ export class Politics {
 
       // A capable steward with a miserable realm throws a party instead.
       const misery = this.averageMoodOf(kingdom);
-      if (misery < -20 && stats.stewardship >= 6 && Math.random() < 0.35) {
+      if (misery < -20 && stats.stewardship >= 6 && random() < 0.35) {
         this.startPlot('festival', king, kingdom.id, null);
         plotting.add(king.id);
       }
@@ -530,7 +531,7 @@ export class Politics {
         // A new culture always; a new faith only sometimes, because a people
         // splitting off usually keeps its gods for a while.
         const culture = mintMeta('culture');
-        const religion = Math.random() < 0.45 ? mintMeta('religion') : null;
+        const religion = random() < 0.45 ? mintMeta('religion') : null;
         if (religion) {
           const prophet = this.host.entities.getAllEntities().find(e => e.villageId === village.id && e.status.includes('priest'));
           foundFaith(religion, prophet?.name ?? null, village.name);

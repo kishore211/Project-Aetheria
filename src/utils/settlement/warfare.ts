@@ -24,6 +24,7 @@ import { TEMPERAMENT, CONTACT_RANGE, WAR_MAX_ROUNDS, WAR_MIN_POPULATION, WAR_WEA
 import { pairKey } from './helpers';
 import type { SettlementHost } from './host';
 import type { Kingdom, Village } from './types';
+import { random } from '../random';
 
 export class Warfare {
   /** Seconds since the last diplomacy round; a round runs every six. */
@@ -274,7 +275,7 @@ export class Warfare {
 
         // Wars burn out — late, and by exhaustion more often than on a clock —
         // or end when one side has nothing left to lose.
-        const weary = rounds > WAR_WEARY_ROUNDS && Math.random() < WAR_WEARY_PEACE_CHANCE;
+        const weary = rounds > WAR_WEARY_ROUNDS && random() < WAR_WEARY_PEACE_CHANCE;
         if (rounds > WAR_MAX_ROUNDS || weary || enemy.villageIds.length === 0 || kingdom.villageIds.length === 0) {
           this.makePeace(kingdom, enemy);
           continue;
@@ -348,7 +349,7 @@ export class Warfare {
       return;
     }
     this.invasionCooldown.set(home.id, now + 120);
-    emitFloater({ kind: 'speech', text: speak('sailing', Math.random()), x: captain.position.x, y: captain.position.y, entityId: captain.id });
+    emitFloater({ kind: 'speech', text: speak('sailing', random()), x: captain.position.x, y: captain.position.y, entityId: captain.id });
     for (const soldier of crew) {
       this.host.entities.setHerdAnchor(soldier, null);
       applyStatus(soldier, 'aboard');
@@ -428,7 +429,7 @@ export class Warfare {
         }
         this.host.removeBuilding(village, building);
         // Raiders torch what they level
-        if (Math.random() < 0.5) simulation.igniteTile?.(building.x, building.y);
+        if (random() < 0.5) simulation.igniteTile?.(building.x, building.y);
       }
     }
 
@@ -477,7 +478,7 @@ export class Warfare {
       if (resident.job === 'warrior') resident.job = null;
     }
     if (conquered[0]) {
-      emitFloater({ kind: 'speech', text: speak('captured', Math.random()), x: conquered[0].position.x, y: conquered[0].position.y, entityId: conquered[0].id });
+      emitFloater({ kind: 'speech', text: speak('captured', random()), x: conquered[0].position.x, y: conquered[0].position.y, entityId: conquered[0].id });
     }
 
     for (const id of village.territory) {

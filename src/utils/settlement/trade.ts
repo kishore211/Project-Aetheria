@@ -17,6 +17,7 @@ import {
 import { pairKey } from './helpers';
 import type { SettlementHost } from './host';
 import type { Caravan, Village } from './types';
+import { random } from '../random';
 
 export class TradeNetwork {
   private timer = 0;
@@ -91,7 +92,7 @@ export class TradeNetwork {
         .sort((a, b) => (a.distance + (a.other.kingdomId === village.kingdomId ? 20 : 0))
           - (b.distance + (b.other.kingdomId === village.kingdomId ? 20 : 0)));
       if (partners.length === 0) continue;
-      const { other } = partners[Math.floor(Math.random() * Math.min(3, partners.length))];
+      const { other } = partners[Math.floor(random() * Math.min(3, partners.length))];
 
       const trader = people.find(p => !isChild(p)
         && p.job !== 'warrior'

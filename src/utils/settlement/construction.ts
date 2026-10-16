@@ -17,6 +17,7 @@ import {
 import { adjacentZonesFilled, fitsLayout, footprintOf, zoneKey } from './helpers';
 import type { SettlementHost } from './host';
 import type { Building, BuildingKind, BuildingRecipe, Village } from './types';
+import { random } from '../random';
 
 export class Construction {
   /** Seconds since the last build round; a round runs every three. */
@@ -41,7 +42,7 @@ export class Construction {
       // read the rule.
       // Sites creep up on their own, slowly; builders are what make them fly.
       this.advanceSites(village, SITE_SELF_PROGRESS);
-      if (!groupHasCultureTrait(village.id, 'industrious') && Math.random() < 0.25) continue;
+      if (!groupHasCultureTrait(village.id, 'industrious') && random() < 0.25) continue;
       // A town works on a couple of things at once, not on every plot it owns.
       const sites = village.buildings.filter(b => b.progress !== undefined).length;
       if (sites >= MAX_SITES) continue;
@@ -174,7 +175,7 @@ export class Construction {
 
         // Prefer close to the centre, so a town grows outward rather than
         // sprinkling itself across its whole claim.
-        candidates.push({ x, y, score: Math.abs(dx) + Math.abs(dy) + Math.random() * 3 });
+        candidates.push({ x, y, score: Math.abs(dx) + Math.abs(dy) + random() * 3 });
       }
     }
 
@@ -238,7 +239,7 @@ export class Construction {
           ring.push({ x, y });
         }
       }
-      if (ring.length > 0) return ring[Math.floor(Math.random() * ring.length)];
+      if (ring.length > 0) return ring[Math.floor(random() * ring.length)];
     }
     return null;
   }

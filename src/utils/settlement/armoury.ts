@@ -13,6 +13,7 @@ import {
 import type { Entity } from '../../types/world';
 import type { SettlementHost } from './host';
 import type { Village } from './types';
+import { random } from '../random';
 
 export class Armoury {
   constructor(private readonly host: SettlementHost) {}
@@ -71,9 +72,9 @@ export class Armoury {
     equip(needy, item);
     if (item.quality === 'legendary') emitItemEvent({ kind: 'forged', item, owner: needy });
     // Most pieces go unremarked; a legend never does.
-    if (item.quality === 'legendary' || Math.random() < 0.3) {
+    if (item.quality === 'legendary' || random() < 0.3) {
       emitFloater({
-        kind: 'speech', text: speak(item.quality === 'legendary' ? 'legendary' : 'armed', Math.random()),
+        kind: 'speech', text: speak(item.quality === 'legendary' ? 'legendary' : 'armed', random()),
         x: needy.position.x, y: needy.position.y, entityId: needy.id,
       });
     }
