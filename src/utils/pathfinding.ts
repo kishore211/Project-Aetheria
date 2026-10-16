@@ -22,6 +22,60 @@ export const canSwim = (type: EntityType): boolean => SWIMMERS.includes(type);
 /** Bumped once per search so tile costs can be invalidated lazily. */
 let searchGeneration = 0;
 
+/** One entry in the A* open set. Stale entries are skipped when popped. */
+interface OpenEntry {
+  tile: Tile;
+  /** gCost when queued; an entry is live only while the tile still has this g. */
+  g: number;
+  f: number;
+  h: number;
+  /** Order in which the tile first joined the open set (the tie-break). */
+  seq: number;
+}
+
+/** Lowest F, then lowest H, then earliest to join: the order the search expands in. */
+function openBefore(a: OpenEntry, b: OpenEntry): boolean {
+  // `|| Infinity` mirrors the scalar costs, where an unset or zero cost ranks last.
+  const fa = a.f || Infinity;
+  const fb = b.f || Infinity;
+  if (fa !== fb) return fa < fb;
+  const ha = a.h || Infinity;
+  const hb = b.h || Infinity;
+  if (ha !== hb) return ha < hb;
+  return a.seq < b.seq;
+}
+
+function heapPush(heap: OpenEntry[], entry: OpenEntry): void {
+  heap.push(entry);
+  let i = heap.length - 1;
+  while (i > 0) {
+    const parent = (i - 1) >> 1;
+    if (!openBefore(heap[i], heap[parent])) break;
+    [heap[i], heap[parent]] = [heap[parent], heap[i]];
+    i = parent;
+  }
+}
+
+function heapPop(heap: OpenEntry[]): OpenEntry | undefined {
+  const top = heap[0];
+  const last = heap.pop();
+  if (heap.length > 0 && last) {
+    heap[0] = last;
+    let i = 0;
+    for (;;) {
+      const left = 2 * i + 1;
+      const right = left + 1;
+      let best = i;
+      if (left < heap.length && openBefore(heap[left], heap[best])) best = left;
+      if (right < heap.length && openBefore(heap[right], heap[best])) best = right;
+      if (best === i) break;
+      [heap[i], heap[best]] = [heap[best], heap[i]];
+      i = best;
+    }
+  }
+  return top;
+}
+
 /**
  * A* Pathfinding algorithm for entities to navigate the world
  */
@@ -43,48 +97,46 @@ export function findPath(
       tile.fCost = undefined;
       tile.parent = undefined;
       tile.closed = false;
+      tile.openSeq = undefined;
     }
     return tile;
   };
 
-  const openSet: Tile[] = [];
+  // The open set is a heap ordered by openBefore. Costs only ever fall while a
+  // tile is open, so a cheaper route is queued as a fresh entry and the old one
+  // is ignored when it surfaces. Each tile joins the open set once (its seq).
+  const openHeap: OpenEntry[] = [];
+  let nextSeq = 0;
 
   visit(startTile);
   visit(targetTile);
-  openSet.push(startTile);
 
   startTile.gCost = 0;
   startTile.hCost = calculateHeuristic(startTile, targetTile);
   startTile.fCost = startTile.hCost;
+  startTile.openSeq = nextSeq++;
+  heapPush(openHeap, { tile: startTile, g: 0, f: startTile.fCost, h: startTile.hCost, seq: startTile.openSeq });
 
   // A hard ceiling keeps one hopeless search from stalling a frame
   let expansions = 0;
   const maxExpansions = 4000;
 
-  while (openSet.length > 0) {
+  for (;;) {
+    // Find the lowest-F open tile, discarding entries superseded by a cheaper route
+    let entry = heapPop(openHeap);
+    while (entry && (entry.tile.closed || entry.tile.gCost !== entry.g)) entry = heapPop(openHeap);
+    if (!entry) break;
+
     if (++expansions > maxExpansions) return [];
-    // Find tile with lowest F cost
-    let currentIndex = 0;
-    for (let i = 1; i < openSet.length; i++) {
-      if ((openSet[i].fCost || Infinity) < (openSet[currentIndex].fCost || Infinity)) {
-        currentIndex = i;
-      } else if ((openSet[i].fCost || Infinity) === (openSet[currentIndex].fCost || Infinity)) {
-        // If F costs are equal, prefer the one with lower H cost
-        if ((openSet[i].hCost || Infinity) < (openSet[currentIndex].hCost || Infinity)) {
-          currentIndex = i;
-        }
-      }
-    }
-    
-    const currentTile = openSet[currentIndex];
-    
+
+    const currentTile = entry.tile;
+
     // Check if we reached the target
     if (currentTile === targetTile) {
       return reconstructPath(currentTile);
     }
-    
+
     // Move current tile from open set to closed set
-    openSet.splice(currentIndex, 1);
     currentTile.closed = true;
 
     const neighbors = getNeighbors(currentTile, tiles);
@@ -106,26 +158,31 @@ export function findPath(
         if (!sideA || !isWalkableForEntity(sideA, entityType)) continue;
         if (!sideB || !isWalkableForEntity(sideB, entityType)) continue;
       }
-      
+
       // Calculate tentative G cost (distance from start)
       const tentativeGCost = (currentTile.gCost || 0) + getMovementCost(currentTile, neighbor, entityType);
-      
-      // Check if neighbor is not in open set or if we found a better path
-      const isNewPath = !openSet.includes(neighbor);
+
+      // Not yet open, or a cheaper route to an open tile
+      const isNewPath = neighbor.openSeq === undefined;
       if (isNewPath || tentativeGCost < (neighbor.gCost || Infinity)) {
         // Update neighbor's costs and parent
         neighbor.gCost = tentativeGCost;
         neighbor.hCost = calculateHeuristic(neighbor, targetTile);
         neighbor.fCost = (neighbor.gCost || 0) + (neighbor.hCost || 0);
         neighbor.parent = currentTile;
-        
-        if (isNewPath) {
-          openSet.push(neighbor);
-        }
+
+        if (isNewPath) neighbor.openSeq = nextSeq++;
+        heapPush(openHeap, {
+          tile: neighbor,
+          g: neighbor.gCost,
+          f: neighbor.fCost,
+          h: neighbor.hCost,
+          seq: neighbor.openSeq as number,
+        });
       }
     }
   }
-  
+
   // No path found
   return [];
 }

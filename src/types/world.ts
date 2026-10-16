@@ -520,6 +520,8 @@ export interface Tile {
   walkable?: boolean;
   searchStamp?: number;
   closed?: boolean;
+  /** Order this tile joined the open set in the current search. */
+  openSeq?: number;
   fCost?: number;
   gCost?: number;
   hCost?: number;
