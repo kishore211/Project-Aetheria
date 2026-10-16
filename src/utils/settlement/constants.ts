@@ -334,3 +334,40 @@ export const MIN_COLONY_ISLAND = 24;
 export const TRADE_PROFIT = 3;
 /** A town needs this many people before it runs a trade route. */
 export const TRADE_MIN_POPULATION = 10;
+
+// -- gold: what a treasury is for ----------------------------------------
+// Towns used to hoard gold with nothing to spend it on. These are the three
+// things it buys: soldiers' pay, what a town is short of, and a court's
+// festivals. Rounds are the economy's five-second beat (see economy.ts).
+
+/**
+ * A soldier's wage, paid out of the town treasury every economy round: half a
+ * gold, six a minute. A full gold a round starved two of the three oracle
+ * worlds of their treasuries and stalled one people's growth.
+ */
+export const WARRIOR_WAGE = 0.5;
+/** Happiness a warrior loses each round its town cannot pay them. */
+export const UNPAID_WARRIOR_MOOD = 2;
+/** Gold a town keeps back, and will not spend on goods below. */
+export const BUY_RESERVE = 150;
+/** Units a market sells in one lot. */
+export const BUY_LOT = 10;
+/** Stock below which a town is short of wood, stone and food, and will buy. */
+export const BUY_BELOW_WOOD = 60;
+export const BUY_BELOW_STONE = 60;
+export const BUY_BELOW_FOOD = 100;
+/** Gold per unit a market charges for each good. */
+export const BUY_PRICE_WOOD = 2;
+export const BUY_PRICE_STONE = 2;
+export const BUY_PRICE_FOOD = 1;
+/** Treasury a capital needs before its court throws a festival. */
+export const FESTIVAL_TREASURY = 1500;
+/** Share of the treasury one festival spends, and the most it may cost. */
+export const FESTIVAL_SHARE = 0.2;
+export const FESTIVAL_MAX_COST = 800;
+/** Happiness each resident of the capital gains from a festival. */
+export const FESTIVAL_MOOD = 12;
+/** Rounds between one court's festivals (five minutes). */
+export const FESTIVAL_ROUNDS = 60;
+/** Rounds before a realm's court is chronicled again (twenty minutes). */
+export const CHRONICLE_ROUNDS = 240;

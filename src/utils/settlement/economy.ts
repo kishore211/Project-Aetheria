@@ -20,13 +20,24 @@ import { isChild } from '../size';
 import { formationSlots } from '../army';
 import { groupHasCultureTrait } from '../identity';
 import { random } from '../random';
+import { nudgeMood } from '../mood';
 import {
-  BIRTH_CHANCE_PER_ADULT, BIRTH_FOOD, BIRTH_INTERVAL, BUILDING_YIELD, FEEDING_RADIUS,
-  HOUSING_SLACK, MAX_BUILDERS, MAX_MINERS, MAX_WOODCUTTERS, MEAL_PRICE, TAX_RATE,
+  BIRTH_CHANCE_PER_ADULT, BIRTH_FOOD, BIRTH_INTERVAL, BUILDING_YIELD, BUY_BELOW_FOOD,
+  BUY_BELOW_STONE, BUY_BELOW_WOOD, BUY_LOT, BUY_PRICE_FOOD, BUY_PRICE_STONE, BUY_PRICE_WOOD,
+  BUY_RESERVE, CHRONICLE_ROUNDS, FEEDING_RADIUS, FESTIVAL_MAX_COST, FESTIVAL_MOOD,
+  FESTIVAL_ROUNDS, FESTIVAL_SHARE, FESTIVAL_TREASURY, HOUSING_SLACK, MAX_BUILDERS,
+  MAX_MINERS, MAX_WOODCUTTERS, MEAL_PRICE, TAX_RATE, UNPAID_WARRIOR_MOOD, WARRIOR_WAGE,
 } from './constants';
 import { groundBonus } from './helpers';
 import type { SettlementHost } from './host';
 import type { Village } from './types';
+
+/** The goods a market sells a town when it is short of them. */
+const MARKET_GOODS: ReadonlyArray<{ resource: 'wood' | 'stone' | 'food'; below: number; price: number }> = [
+  { resource: 'wood', below: BUY_BELOW_WOOD, price: BUY_PRICE_WOOD },
+  { resource: 'stone', below: BUY_BELOW_STONE, price: BUY_PRICE_STONE },
+  { resource: 'food', below: BUY_BELOW_FOOD, price: BUY_PRICE_FOOD },
+];
 
 export class Economy {
   private workTimer = 0;
@@ -38,6 +49,10 @@ export class Economy {
   private captains = new Map<string, string>();
   /** Village id -> its governing leader (the capital's leader is the king). */
   private leaders = new Map<string, string>();
+  /** Economy rounds run so far, the court's clock. */
+  private rounds = 0;
+  /** Round on which each realm's court was last chronicled. */
+  private lastCourtChronicle = new Map<string, number>();
 
   constructor(private readonly host: SettlementHost) {}
 
@@ -403,18 +418,23 @@ export class Economy {
   // -- the ledger ---------------------------------------------------------
 
   /**
-   * Wages, tax, and the village ledger.
+   * Wages, tax, the village ledger, and the market.
    *
-   * Three steps, in this order, because the order *is* the politics:
+   * Four steps, in this order, because the order *is* the politics:
    *
    * 1. Buildings yield loot, scaled by tier and modified by the ground they
    *    stand on. The architecture is the income graph.
    * 2. Loot is taxed on its way to becoming spendable coin, and the tax lands
    *    in the treasury. Every wage passes visibly through a lord's hands.
-   * 3. The village pays its bills — their four one-line terms, where
-   *    homelessness costs twice a soldier and over-building bankrupts you.
+   * 3. The village pays its bills: soldiers' wages first, then the ledger's
+   *    four one-line terms, where homelessness costs twice a soldier and
+   *    over-building bankrupts you.
+   * 4. A market spends what is left on whatever the town is short of.
+   *
+   * Festivals, held by capitals, run after every town has had its round.
    */
   private economyRound(): void {
+    this.rounds += 1;
     const members = this.entities.getEntitiesByVillage();
 
     for (const village of this.villages.values()) {
@@ -468,7 +488,8 @@ export class Economy {
         village.store.food += mills * Math.min(4, 1 + farms);
       }
 
-      // -- 3. the ledger --------------------------------------------------
+      // -- 3. the bills: wages, then the ledger ---------------------------
+      this.paySoldiers(village, residents);
       const homeless = Math.max(0, residents.length - this.host.homesIn(village));
       const warriors = residents.filter(r => r.job === 'warrior').length;
       const ledger = Math.floor(residents.length / 2)
@@ -476,7 +497,77 @@ export class Economy {
         - Math.floor(warriors / 2)
         - Math.floor(village.buildings.length / 2);
       village.store.gold = Math.max(0, village.store.gold + ledger);
+
+      // -- 4. the market: gold turns into what the town lacks -------------
+      this.buyShortages(village);
     }
+
+    // The court's festivals fall on their own clock, one capital at a time.
+    if (this.rounds % FESTIVAL_ROUNDS === 0) {
+      for (const village of this.villages.values()) {
+        if (village.capital) this.courtFestival(village);
+      }
+    }
+  }
+
+  /**
+   * Soldiers' pay. Each economy round a town pays every warrior a small wage
+   * from its treasury, and the warrior keeps it as coin. A town that cannot
+   * cover its payroll pays whoever it can, and the warriors it cannot pay
+   * grow sour about it.
+   */
+  paySoldiers(village: Village, residents: Entity[]): void {
+    for (const soldier of residents) {
+      if (soldier.job !== 'warrior') continue;
+      if (village.store.gold >= WARRIOR_WAGE) {
+        village.store.gold -= WARRIOR_WAGE;
+        soldier.coins = (soldier.coins ?? 0) + WARRIOR_WAGE;
+      } else {
+        nudgeMood(soldier, -UNPAID_WARRIOR_MOOD);
+      }
+    }
+  }
+
+  /**
+   * Buying what a town lacks. A town with a market and a comfortable treasury
+   * buys one lot of the first good it is short of, from its own market, at a
+   * price. Timber and stone become roofs, so gold turns into growth instead
+   * of sitting in a chest. Returns true when a lot was bought.
+   */
+  buyShortages(village: Village): boolean {
+    if (!village.buildings.some(b => b.kind === 'market')) return false;
+    for (const good of MARKET_GOODS) {
+      if (village.store[good.resource] >= good.below) continue;
+      const cost = good.price * BUY_LOT;
+      if (village.store.gold - cost < BUY_RESERVE) continue;
+      village.store.gold -= cost;
+      village.store[good.resource] += BUY_LOT;
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * The king's court. A capital with a large treasury spends a share of it on
+   * a festival that cheers every resident of the town. The realm is
+   * chronicled when a festival is held, but no more often than
+   * CHRONICLE_ROUNDS. Returns true when a festival was held.
+   */
+  courtFestival(village: Village): boolean {
+    if (!village.capital || village.store.gold < FESTIVAL_TREASURY) return false;
+    const cost = Math.min(FESTIVAL_MAX_COST, Math.floor(village.store.gold * FESTIVAL_SHARE));
+    village.store.gold -= cost;
+    for (const resident of this.entities.getEntitiesByVillage().get(village.id) ?? []) {
+      nudgeMood(resident, FESTIVAL_MOOD);
+    }
+    const last = this.lastCourtChronicle.get(village.kingdomId);
+    if (last === undefined || this.rounds - last >= CHRONICLE_ROUNDS) {
+      this.lastCourtChronicle.set(village.kingdomId, this.rounds);
+      this.host.events.onEvent(
+        `${village.name} keeps a festival in the king's name`, 'kingdom', { x: village.centerX, y: village.centerY },
+      );
+    }
+    return true;
   }
 
   deposit(village: Village, type: ResourceType, quantity: number): void {
