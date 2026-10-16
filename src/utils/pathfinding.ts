@@ -531,6 +531,21 @@ export function findNearestStandable(
 }
 
 /**
+ * The tile itself if this creature can stand on it, otherwise the nearest one
+ * it can. A goal chosen from a tile the walker cannot enter is never reached,
+ * so callers aim for this instead of the raw tile.
+ */
+export function standableNear(
+  tile: Tile,
+  tiles: Tile[][],
+  entityType: EntityType,
+  maxRadius = 3,
+): Tile | null {
+  if (isWalkableForEntity(tile, entityType)) return tile;
+  return findNearestStandable(tiles, tile.x, tile.y, entityType, maxRadius);
+}
+
+/**
  * Reconstruct the path by following parent pointers
  */
 function reconstructPath(endTile: Tile): Tile[] {

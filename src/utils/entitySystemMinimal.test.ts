@@ -5,8 +5,9 @@ import { EntityManager } from './entityManagerMinimal';
 import { rollSize } from './size';
 import { DEFAULT_WORLD_LAWS } from '../store/gameStore';
 import { publishSimulationContext, simulation } from './simulation';
+import { seedRandom, unseedRandom } from './random';
 import type { Tile } from '../types/world';
-import { computeScaledHeight } from '../types/world';
+import { computeScaledHeight, isWaterBiome } from '../types/world';
 
 const makeTile = (x: number, y: number, overrides: Partial<Tile> = {}): Tile => ({
   x, y,
@@ -345,5 +346,77 @@ describe('drinking at the well', () => {
       simulation.wellFor = before.wellFor;
       simulation.isWell = before.isWell;
     }
+  });
+});
+
+describe('goals the creature can stand on', () => {
+  const paintLake = (grid: Tile[][], type: 'lake' | 'shallow_water', xs: number[]) => {
+    for (const x of xs) for (let y = 0; y < grid[0].length; y++) {
+      grid[x][y] = makeTile(x, y, { type, height: 0.26, scaledHeight: computeScaledHeight(0.26, type) });
+    }
+  };
+
+  it('a thirsty land animal beside a lake walks to the bank and drinks', () => {
+    const grid = makeGrid(14);
+    paintLake(grid, 'lake', [7, 8, 9]);
+    const entity = createEntity('elf', 4.5, 4.5, ['swift']);
+    entity.needs.thirst = 0.1;
+    const ai = new EntityAI(entity);
+
+    let wet = false;
+    for (let i = 0; i < 400; i++) {
+      ai.update(grid, 0.1);
+      const under = grid[Math.floor(entity.position.x)][Math.floor(entity.position.y)];
+      if (isWaterBiome(under.type)) wet = true;
+    }
+
+    expect(wet).toBe(false);
+    expect(entity.needs.thirst).toBeGreaterThan(0.5);
+  });
+
+  it('a fleeing land creature never steps into the water', () => {
+    const grid = makeGrid(20);
+    paintLake(grid, 'lake', [0, 1, 2, 3]);
+    const manager = new EntityManager(grid, new THREE.Scene());
+    const wolf = manager.spawnEntity('wolf', 10.5, 10.5)!;
+    const rabbit = manager.spawnEntity('rabbit', 7.5, 10.5)!;
+    expect(wolf && rabbit).toBeTruthy();
+
+    let wet = false;
+    for (let i = 0; i < 200 && manager.getEntityById(rabbit.id); i++) {
+      manager.update(0.1);
+      const under = grid[Math.floor(rabbit.position.x)][Math.floor(rabbit.position.y)];
+      if (isWaterBiome(under.type)) wet = true;
+    }
+
+    expect(wet).toBe(false);
+  });
+
+  it('a herd follower whose leader stands in the shallows waits on the bank', () => {
+    const grid = makeGrid(16);
+    paintLake(grid, 'shallow_water', [7, 8, 9, 10]);
+    const leader = createEntity('rabbit', 10.5, 5.5, []);
+
+    // Several seeds, so the result does not hinge on one wander roll
+    const failedSeeds: number[] = [];
+    for (const seed of [1, 2, 3, 4, 5, 6]) {
+      seedRandom(seed);
+      const follower = createEntity('rabbit', 2.5, 5.5, []);
+      const ai = new EntityAI(follower);
+      ai.anchor = leader;
+
+      let wet = false;
+      let drankOnBank = false;
+      for (let i = 0; i < 200; i++) {
+        ai.update(grid, 0.1);
+        const under = grid[Math.floor(follower.position.x)][Math.floor(follower.position.y)];
+        if (isWaterBiome(under.type)) wet = true;
+        if (under.type === 'grassland' && follower.status.includes('drinking')) drankOnBank = true;
+      }
+      if (wet || !drankOnBank) failedSeeds.push(seed);
+    }
+    unseedRandom();
+
+    expect(failedSeeds).toEqual([]);
   });
 });
