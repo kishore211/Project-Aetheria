@@ -45,13 +45,20 @@ function openBefore(a: OpenEntry, b: OpenEntry): boolean {
   return a.seq < b.seq;
 }
 
+/** Swap two heap slots in place (destructuring would allocate on every swap). */
+function swapEntries(heap: OpenEntry[], a: number, b: number): void {
+  const held = heap[a];
+  heap[a] = heap[b];
+  heap[b] = held;
+}
+
 function heapPush(heap: OpenEntry[], entry: OpenEntry): void {
   heap.push(entry);
   let i = heap.length - 1;
   while (i > 0) {
     const parent = (i - 1) >> 1;
     if (!openBefore(heap[i], heap[parent])) break;
-    [heap[i], heap[parent]] = [heap[parent], heap[i]];
+    swapEntries(heap, i, parent);
     i = parent;
   }
 }
@@ -69,7 +76,7 @@ function heapPop(heap: OpenEntry[]): OpenEntry | undefined {
       if (left < heap.length && openBefore(heap[left], heap[best])) best = left;
       if (right < heap.length && openBefore(heap[right], heap[best])) best = right;
       if (best === i) break;
-      [heap[i], heap[best]] = [heap[best], heap[i]];
+      swapEntries(heap, i, best);
       i = best;
     }
   }
