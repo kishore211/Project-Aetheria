@@ -4,6 +4,7 @@ import {
   isWalkableForEntity,
   provablyUnreachable,
   setTileBiome,
+  standableNear,
   setTileWalkable,
 } from './pathfinding';
 import type { BiomeType, EntityType, Tile } from '../types/world';
@@ -183,5 +184,23 @@ describe('reachability pre-check', () => {
         expect(reachable).toBe(!provablyUnreachable(a, b, grid, kind));
       }
     }
+  });
+});
+
+describe('standableNear', () => {
+  it('returns the tile itself when the walker can stand on it', () => {
+    const grid = makeGrid(6);
+    expect(standableNear(grid[2][2], grid, 'human')).toBe(grid[2][2]);
+  });
+
+  it('returns the nearest bank for a land walker and the water itself for a swimmer', () => {
+    const grid = makeGrid(8);
+    for (let y = 0; y < 8; y++) setTileBiome(grid[4][y], 'lake');
+
+    const bank = standableNear(grid[4][3], grid, 'elf');
+    expect(bank).not.toBeNull();
+    expect(Math.abs(bank!.x - 4)).toBe(1);
+    expect(isWalkableForEntity(bank!, 'elf')).toBe(true);
+    expect(standableNear(grid[4][3], grid, 'bear')).toBe(grid[4][3]);
   });
 });

@@ -27,8 +27,10 @@ import {
   findNearestStandable,
   findPath,
   isAirborne,
+  isAquatic,
   isShoreTile,
   isWalkableForEntity,
+  standableNear,
 } from './pathfinding';
 import { applyTraits, rollTraitsForType, traitDamageFactor } from './traits';
 import { simulation } from './simulation';
@@ -1095,7 +1097,7 @@ export class EntityAI {
     const bloodthirsty = this.entity.traits?.includes('bloodthirsty') ?? false;
     if (this.entity.needs.hunger <= (bloodthirsty ? 0.75 : 0.4)) {
       if (this.isPredator() && wants(this.entity, 'hunt')) {
-        const prey = this.findNearbyPrey();
+        const prey = this.findNearbyPrey(tiles);
         if (prey) {
           this.targetEntity = prey;
           this.currentState = 'hunting';
@@ -1104,7 +1106,7 @@ export class EntityAI {
         }
       }
       const foodTile = this.findNearbyTile(tiles, 10, (tile) =>
-        tile.resources.some(r => r.type === 'food' && r.quantity > 0));
+        this.standsOn(tile) && tile.resources.some(r => r.type === 'food' && r.quantity > 0));
       if (foodTile) {
         this.targetTile = foodTile;
         this.path = [];
@@ -1125,10 +1127,10 @@ export class EntityAI {
       && this.entity.needs.hunger > 0.35
     ) {
       const workTile = this.entity.job === 'miner'
-        ? this.findNearbyTile(tiles, 18, tile => depositOf(tile) !== null)
-          ?? this.findNearbyTile(tiles, 10, tile => tile.resources.some(r => r.type === 'stone' && r.quantity > 0))
-        : this.findNearbyTile(tiles, 14, tile => isStandingTree(tile) && hasWood(tile))
-          ?? this.findNearbyTile(tiles, 10, hasWood);
+        ? this.findNearbyTile(tiles, 18, tile => this.standsOn(tile) && depositOf(tile) !== null)
+          ?? this.findNearbyTile(tiles, 10, tile => this.standsOn(tile) && tile.resources.some(r => r.type === 'stone' && r.quantity > 0))
+        : this.findNearbyTile(tiles, 14, tile => this.standsOn(tile) && isStandingTree(tile) && hasWood(tile))
+          ?? this.findNearbyTile(tiles, 10, tile => this.standsOn(tile) && hasWood(tile));
       if (workTile) {
         this.targetTile = workTile;
         this.path = [];
@@ -1147,7 +1149,7 @@ export class EntityAI {
       && this.entity.needs.hunger > 0.5
     ) {
       const supplyTile = this.findNearbyTile(tiles, 9, (tile) =>
-        tile.resources.some(r => (r.type === 'wood' || r.type === 'stone') && r.quantity > 0));
+        this.standsOn(tile) && tile.resources.some(r => (r.type === 'wood' || r.type === 'stone') && r.quantity > 0));
       if (supplyTile) {
         this.targetTile = supplyTile;
         this.path = [];
@@ -1528,9 +1530,18 @@ export class EntityAI {
       return;
     }
 
-    // Something is in the way — walk to the alpha's tile properly instead
-    const target = this.tileAt(tiles, Math.floor(anchor.position.x), Math.floor(anchor.position.y));
-    if (target && isWalkableForEntity(target, this.entity.type)) {
+    // Something is in the way — walk to the alpha's tile properly instead. If the
+    // alpha is standing in the water, go to the bank on this side of the step that
+    // was blocked; the nearest bank to the alpha may be on the far shore.
+    const anchorTile = this.tileAt(tiles, Math.floor(anchor.position.x), Math.floor(anchor.position.y));
+    let target: Tile | null = null;
+    if (anchorTile && isWalkableForEntity(anchorTile, this.entity.type)) {
+      target = anchorTile;
+    } else {
+      const blocked = this.tileAt(tiles, Math.floor(nextX), Math.floor(nextY));
+      target = blocked ? standableNear(blocked, tiles, this.entity.type, 2) : null;
+    }
+    if (target) {
       this.targetTile = target;
       this.path = [];
       this.currentState = 'moving';
@@ -2027,6 +2038,11 @@ export class EntityAI {
     return tile.walkable !== false && isWalkableForEntity(tile, this.entity.type);
   }
 
+  /** Whether this creature can stand on a tile. Resources it cannot reach are not worth a trip. */
+  private standsOn(tile: Tile): boolean {
+    return isWalkableForEntity(tile, this.entity.type);
+  }
+
   /** Closest tile within `radius` satisfying a predicate. */
   private findNearbyTile(tiles: Tile[][], radius: number, predicate: (tile: Tile) => boolean): Tile | null {
     const cx = Math.floor(this.entity.position.x);
@@ -2048,7 +2064,7 @@ export class EntityAI {
     return best;
   }
 
-  private findNearbyPrey(): Entity | null {
+  private findNearbyPrey(tiles: Tile[][]): Entity | null {
     if (!this.index) return null;
     // A peaceful creature leaves the others alone until hunger forces it.
     if (this.entity.traits?.includes('peaceful') && this.entity.needs.hunger > 0.2) return null;
@@ -2060,6 +2076,10 @@ export class EntityAI {
     let bestDistance = Infinity;
 
     const tame = simulation.laws.peacefulMonsters && MONSTERS.has(this.entity.type);
+    // A land animal with no reach cannot follow prey into the water; it would
+    // only stop at the shore and retry. Archers and swimmers still go after it.
+    const landBound = !isAquatic(this.entity.type) && !canSwim(this.entity.type)
+      && !isAirborne(this.entity.type) && !RANGED[this.entity.type];
     for (const candidate of this.index.query(this.entity.position.x, this.entity.position.y, perception)) {
       if (candidate.id === this.entity.id) continue;
       if (!preyTypes.includes(candidate.type)) continue;
@@ -2069,6 +2089,10 @@ export class EntityAI {
       // is big enough to try it. A runt fox leaves the chickens alone and a
       // monstrous one takes a deer, out of one comparison.
       if (!canPreyOn(this.entity, candidate)) continue;
+      if (landBound) {
+        const under = this.tileAt(tiles, Math.floor(candidate.position.x), Math.floor(candidate.position.y));
+        if (under && !isWalkableForEntity(under, this.entity.type)) continue;
+      }
       const distance = (candidate.position.x - this.entity.position.x) ** 2
         + (candidate.position.y - this.entity.position.y) ** 2;
       if (distance < bestDistance) {
