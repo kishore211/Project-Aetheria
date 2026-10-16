@@ -20,7 +20,7 @@ import { seedMood } from './mood';
 import { viewFraction } from './cameraView';
 import { applyScenario } from './scenarios';
 import { childAgingRate, isChild } from './size';
-import { mapAll } from '../content/creatures';
+import { mapAll, typesWhere } from '../content/creatures';
 
 /**
  * Races that need a partner to reproduce. Animals are deliberately absent:
@@ -40,7 +40,8 @@ const isNotable = (entity: Entity): boolean =>
   || MONSTERS.has(entity.type);
 /** A royal birth, or a favourite's child: the only births worth a line. */
 const isRoyal = (entity: Entity): boolean => Boolean(entity.favourite) || entity.status.includes('king');
-const MONSTERS = new Set<string>(['dragon', 'demon', 'crabzilla', 'ufo', 'sandworm', 'cold_one', 'yeti', 'necromancer', 'treant', 'robot_santa']);
+/** Every kind the registry flags as a monster, so the chronicle never lags a new one. */
+const MONSTERS = new Set<string>(typesWhere(c => c.monster));
 
 /** Population cap per kind at medium density. See CreatureDef.maxPopulation. */
 const BASE_MAX_COUNTS: Record<EntityType, number> = mapAll(c => c.maxPopulation);
