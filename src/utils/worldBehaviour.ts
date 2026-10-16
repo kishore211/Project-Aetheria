@@ -152,6 +152,12 @@ const COLD_GROUND = new Set<string>(biomesWhere(def => def.coldGround));
 /** Passes of the thermal row since each note was last written. */
 const noteAge = new Map<string, number>();
 let thermalPass = 0;
+
+/** Forget the thermal notes of the last world. Called when a new world is built. */
+export const resetThermalNotes = (): void => {
+  noteAge.clear();
+  thermalPass = 0;
+};
 /** A thermal note may be written again after ~30 passes (about a minute). */
 const thermalNoteDue = (note: string): boolean => {
   const last = noteAge.get(note);

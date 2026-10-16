@@ -187,5 +187,8 @@ export const clearFloaters = (): void => {
   }
   lastSpoke.clear();
   speechBudget = 2;
+  speechRefill = 0;
   clock = 0;
+  cursor = 0;
+  nextId = 1;
 };

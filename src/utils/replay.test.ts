@@ -41,27 +41,50 @@ const sealedMathRandom = (): number => {
 const SIM_SECONDS = 120;
 const STEP = 0.5;
 
-const runWorld = async (seed: number): Promise<string> => {
-  vi.resetModules();
-  let minted = 0;
-  vi.doMock('uuid', () => ({ v4: () => `world-${(minted++).toString(36)}` }));
-
-  const { seedRandom, unseedRandom } = await import('./random');
+const loadModules = async () => {
+  const random = await import('./random');
+  const { resetWorldState } = await import('./resetWorldState');
   const { generateWorld } = await import('./worldGenerator');
   const { TerrainRenderer } = await import('./terrainRenderer');
   const { EntityManager } = await import('./entityManagerMinimal');
   const { SettlementSystem } = await import('./settlementSystem');
+  return { ...random, resetWorldState, generateWorld, TerrainRenderer, EntityManager, SettlementSystem };
+};
 
-  seedRandom(seed);
+type Modules = Awaited<ReturnType<typeof loadModules>>;
+
+/**
+ * Entity ids come from uuid, which this test replaces with a counter (the real
+ * one is random, and ids feed decisions such as civil stats). A world gets a
+ * fresh counter, as a page load does, so the counter is restarted per world.
+ */
+let mintedIds = 0;
+const restartIds = (): void => {
+  mintedIds = 0;
+};
+
+/** A fresh module graph, as a page load gives: nothing carried over from an earlier world. */
+const freshModules = async (): Promise<Modules> => {
+  vi.resetModules();
+  restartIds();
+  vi.doMock('uuid', () => ({ v4: () => `world-${(mintedIds++).toString(36)}` }));
+  return loadModules();
+};
+
+/** Build one world from `seed` in whatever module graph `m` came from, and run it. */
+const runWorld = (seed: number, m: Modules): string => {
+  // What world creation does first: clear the world state, then seed the draws.
+  m.resetWorldState();
+  m.seedRandom(seed);
   try {
     // The scene graph is built on the ordinary Math.random: three.js gives
     // every Object3D a uuid from it, which is scaffolding, not history.
-    const { tilesData } = generateWorld({ seed: 7, mapSize: 64 });
+    const { tilesData } = m.generateWorld({ seed: 7, mapSize: 64 });
     const scene = new THREE.Scene();
-    const terrain = new TerrainRenderer(tilesData, 'day', 'summer');
-    const entities = new EntityManager(tilesData, scene);
+    const terrain = new m.TerrainRenderer(tilesData, 'day', 'summer');
+    const entities = new m.EntityManager(tilesData, scene);
     entities.setWorldLaws({ ...DEFAULT_WORLD_LAWS });
-    const settlements = new SettlementSystem(tilesData, terrain, entities, scene, {
+    const settlements = new m.SettlementSystem(tilesData, terrain, entities, scene, {
       onEvent: () => undefined,
       onKingdomsChanged: () => undefined,
     });
@@ -85,7 +108,7 @@ const runWorld = async (seed: number): Promise<string> => {
       Math.random = realMathRandom;
     }
   } finally {
-    unseedRandom();
+    m.unseedRandom();
   }
 };
 
@@ -139,11 +162,25 @@ describe('a world replays exactly from its seed', () => {
   });
 
   it('gives the same history twice from one seed, and a different one from another', async () => {
-    const first = await runWorld(1234);
-    const again = await runWorld(1234);
-    const other = await runWorld(99);
+    const first = runWorld(1234, await freshModules());
+    const again = runWorld(1234, await freshModules());
+    const other = runWorld(99, await freshModules());
 
     expect(again).toBe(first);
     expect(other).not.toBe(first);
+  }, 120_000);
+
+  it('a world built after another world in the same module graph replays as it does fresh', async () => {
+    const fresh = runWorld(1234, await freshModules());
+
+    // Same module graph, no vi.resetModules() in between: the other world's
+    // state is still in memory when this one starts.
+    const modules = await freshModules();
+    restartIds();
+    runWorld(99, modules);
+    restartIds();
+    const after = runWorld(1234, modules);
+
+    expect(after).toBe(fresh);
   }, 120_000);
 });

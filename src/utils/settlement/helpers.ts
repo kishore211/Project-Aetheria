@@ -87,6 +87,11 @@ export const groundBonus = (tile: Tile): number => {
 let nextIdentifier = 1;
 export const mintId = (prefix: string): string => `${prefix}-${nextIdentifier++}`;
 
+/** Start settlement ids again from 1. Called when a new world is built. */
+export const resetIdentifiers = (): void => {
+  nextIdentifier = 1;
+};
+
 /** Stable key for a pair of kingdoms, order-independent. */
 export const pairKey = (a: string, b: string): string => (a < b ? `${a}|${b}` : `${b}|${a}`);
 

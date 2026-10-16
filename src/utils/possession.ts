@@ -58,6 +58,13 @@ export const releaseAllKeys = (): void => {
   held.clear();
 };
 
+/** Let go of the creature being worn and every held key. Called when a new world is built. */
+export const resetPossession = (): void => {
+  held.clear();
+  possession.id = null;
+  possession.attackQueued = false;
+};
+
 export const possess = (id: string | null): void => {
   possession.id = id;
   possession.attackQueued = false;

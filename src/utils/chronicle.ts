@@ -322,6 +322,12 @@ const TOLLS: Record<'dead' | 'slain' | 'claimed' | 'healed', string[]> = {
 
 const lastToll = new Map<string, number>();
 
+/** Forget which templates were used last. Called when a new world is built. */
+export const resetChronicle = (): void => {
+  lastUsed.clear();
+  lastToll.clear();
+};
+
 /**
  * The tail of a disaster line. Returns an empty string for a count of zero, so
  * a caller can append it unconditionally.

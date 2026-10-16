@@ -78,6 +78,11 @@ export const registerOrderHandler = (handler: OrderHandler): (() => void) => {
   return () => orderHandlers.delete(handler);
 };
 
+/** Drop every subscriber left from an earlier world. Called when a new world is built. */
+export const resetOrderHandlers = (): void => {
+  orderHandlers.clear();
+};
+
 simulation.onOrderComplete = (entity, order) => {
   for (const handler of orderHandlers) handler(entity, order);
 };

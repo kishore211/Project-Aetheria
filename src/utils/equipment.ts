@@ -145,6 +145,10 @@ const MODIFIER_LABEL: Record<Modifier, string> = {
 };
 
 let nextItemId = 1;
+/** Start item ids again from 1. Called when a new world is built. */
+export const resetItemIds = (): void => {
+  nextItemId = 1;
+};
 
 /** One draw, so a forge spends a known amount of the shared random stream. */
 type Roll = () => number;
