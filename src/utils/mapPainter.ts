@@ -26,32 +26,14 @@
 //    pixel stamps with a cast shadow, drawn bottom-to-top so nearer canopies
 //    overlap farther ones. A forest is a texture of canopy, not a lattice of
 //    billboards.
+import { biomeRecord, PaintMaterial as Mat } from '../content/biomes';
 import { depositOf, type OreType } from './oreVeins';
 import { isWaterBiome, type BiomeType, type Tile } from '../types/world';
 
 /** Pixels per tile edge. Their tiles are 8x8, and so are ours. */
 export const PX = 8;
 
-/** What kind of surface a biome paints as. */
-const enum Mat {
-  Grass, Forest, Sand, Desert, Rock, Hills, Snow, Ice, Swamp, Volcanic,
-  Corrupt, Enchanted, Savanna, Tundra, Strata, Ash, Salt, Bloom, Water,
-  Candy, Crystal, Mushroom, Infernal, Waste,
-}
-
-const MATERIAL: Record<BiomeType, Mat> = {
-  deep_ocean: Mat.Water, ocean: Mat.Water, shallow_water: Mat.Water, river: Mat.Water, lake: Mat.Water,
-  beach: Mat.Sand, rocky_shore: Mat.Rock,
-  grassland: Mat.Grass, deciduous_forest: Mat.Forest, coniferous_forest: Mat.Forest,
-  hills: Mat.Hills, mountains: Mat.Rock, taiga: Mat.Forest, tundra: Mat.Tundra,
-  snow: Mat.Snow, ice: Mat.Ice, glacier: Mat.Ice,
-  desert: Mat.Desert, savanna: Mat.Savanna, mesa: Mat.Strata, badlands: Mat.Strata,
-  swamp: Mat.Swamp, marsh: Mat.Swamp, rainforest: Mat.Forest, tropical_forest: Mat.Forest,
-  ashland: Mat.Ash, salt_flat: Mat.Salt, bloom: Mat.Bloom,
-  volcanic: Mat.Volcanic, corrupted: Mat.Corrupt, enchanted_forest: Mat.Enchanted,
-  sky_island: Mat.Grass,
-  candy: Mat.Candy, crystal: Mat.Crystal, mushroom: Mat.Mushroom, infernal: Mat.Infernal, wasteland: Mat.Waste,
-};
+const MATERIAL: Record<BiomeType, Mat> = biomeRecord(def => def.paint);
 
 /**
  * How strongly each surface takes the hill shade. Rock is lit hardest because

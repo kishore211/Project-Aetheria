@@ -11,6 +11,7 @@
 //
 // Every power returns whether it did anything, so a click on the wrong ground
 // gets the refusal cue instead of looking like a broken game.
+import { biomesWhere } from '../content/biomes';
 import { isWaterBiome, type BiomeType, type Entity, type EntityType, type Tile } from '../types/world';
 import { addHeat, MELT, SCORCH } from './thermal';
 import { applyStatus, clearStatus, type StatusId } from './statusEffects';
@@ -183,10 +184,7 @@ const CLOUDS: Record<string, DropKind> = {
   'life-cloud': 'life',
 };
 
-const BURNABLE: BiomeType[] = [
-  'grassland', 'deciduous_forest', 'coniferous_forest', 'taiga', 'savanna', 'rainforest',
-  'tropical_forest', 'enchanted_forest', 'bloom', 'hills', 'marsh',
-];
+const BURNABLE: BiomeType[] = biomesWhere(def => def.burnsByPower);
 
 const at = (tile: Tile) => ({ x: tile.x, y: tile.y });
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : `${n} ${many}`);

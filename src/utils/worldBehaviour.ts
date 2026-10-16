@@ -17,6 +17,7 @@
 // so processes drift apart instead of locking into a rhythm. Everything runs on
 // simulated seconds: at triple speed the world should get three times as busy,
 // and a paused world should be still.
+import { biomesWhere, biomeTable } from '../content/biomes';
 import {
   isWaterBiome,
   type BiomeType,
@@ -68,43 +69,14 @@ export interface WorldProcess {
   action: (ctx: WorldContext) => void;
 }
 
-const FORESTS: BiomeType[] = [
-  'deciduous_forest', 'coniferous_forest', 'rainforest',
-  'tropical_forest', 'taiga', 'enchanted_forest',
-];
+const FORESTS: BiomeType[] = biomesWhere(def => def.forest);
 
 /** Forests that spread. The enchanted one does not: it is placed, not grown. */
-const SPREADING_FORESTS: BiomeType[] = [
-  'deciduous_forest', 'coniferous_forest', 'rainforest', 'tropical_forest', 'taiga',
-];
+const SPREADING_FORESTS: BiomeType[] = biomesWhere(def => def.spreadsForest);
 
 /** What lives where, for the wildlife row. */
-export const NATIVES: Partial<Record<BiomeType, EntityType[]>> = {
-  grassland: ['sheep', 'rabbit', 'chicken', 'cow', 'pig', 'grasshopper', 'butterfly', 'bee'],
-  savanna: ['buffalo', 'hyena', 'rhino', 'snake', 'ostrich'],
-  hills: ['sheep', 'rabbit', 'buffalo', 'goat'],
-  mountains: ['goat'],
-  deciduous_forest: ['deer', 'rabbit', 'fox', 'pig', 'beetle', 'bee'],
-  coniferous_forest: ['deer', 'wolf', 'bear'],
-  taiga: ['wolf', 'bear'],
-  tundra: ['wolf', 'penguin', 'seal', 'polar_bear'],
-  snow: ['wolf', 'penguin', 'polar_bear', 'yeti'],
-  ice: ['penguin'],
-  glacier: ['penguin'],
-  rainforest: ['monkey', 'bird', 'snake', 'frog'],
-  tropical_forest: ['monkey', 'deer', 'bird'],
-  swamp: ['snake', 'frog', 'crocodile'],
-  marsh: ['bird', 'frog', 'flamingo'],
-  beach: ['crab', 'turtle'],
-  desert: ['snake', 'camel', 'sand_spider', 'beetle', 'sandworm'],
-  enchanted_forest: ['unicorn', 'fairy', 'deer', 'treant'],
-  corrupted: ['ghost'],
-  candy: ['gummy_bear', 'lil_pumpkin', 'fairy', 'candy_man'],
-  crystal: ['unicorn'],
-  mushroom: ['frog', 'snake', 'acid_blob'],
-  infernal: ['demon', 'fire_skull'],
-  wasteland: ['rat', 'hyena'],
-};
+/** What lives where, for the wildlife row. */
+export const NATIVES: Partial<Record<BiomeType, EntityType[]>> = biomeTable(def => def.natives);
 
 /** Natives too dangerous to be waiting when a world is first made. */
 const NOT_AT_DAWN = new Set<EntityType>(['yeti', 'sandworm', 'demon', 'fire_skull', 'ghost', 'candy_man', 'acid_blob', 'treant']);
@@ -175,7 +147,7 @@ const addResource = (tile: Tile, type: 'food' | 'wood' | 'stone', cap = 10): voi
 const samplesFor = (ctx: WorldContext, per = 220): number =>
   Math.max(12, Math.floor((ctx.size * ctx.size) / per));
 
-const COLD_GROUND = new Set<string>(['snow', 'tundra', 'ice', 'glacier', 'taiga']);
+const COLD_GROUND = new Set<string>(biomesWhere(def => def.coldGround));
 
 /** Passes of the thermal row since each note was last written. */
 const noteAge = new Map<string, number>();

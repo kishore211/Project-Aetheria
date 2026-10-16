@@ -1,4 +1,5 @@
 // src/utils/pathfinding.ts
+import { biomesWhere } from '../content/biomes';
 import { Tile, BiomeType, EntityType, isWaterBiome } from '../types/world';
 
 /** Creatures that live in water and cannot leave it. */
@@ -12,7 +13,7 @@ const AIRBORNE: EntityType[] = ['bird', 'dragon', 'fairy', 'ghost', 'bee', 'butt
  */
 const SWIMMERS: EntityType[] = ['bear', 'wolf', 'deer', 'orc', 'human', 'elemental', 'crocodile', 'turtle', 'frog', 'penguin', 'dog', 'buffalo', 'seal', 'polar_bear', 'flamingo', 'crabzilla'];
 /** Water a swimmer will cross, as opposed to open sea nobody crosses. */
-const SHALLOW: BiomeType[] = ['shallow_water', 'river', 'lake'];
+const SHALLOW: BiomeType[] = biomesWhere(def => def.shallowWater);
 
 export const isAquatic = (type: EntityType): boolean => AQUATIC.includes(type);
 export const isAirborne = (type: EntityType): boolean => AIRBORNE.includes(type);
