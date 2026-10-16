@@ -61,6 +61,10 @@ export interface SettlementHost {
   kingCivilStats(kingdom: Kingdom): CivilStats | null;
   /** Total claimed tiles of a kingdom, for judging who is winning a war. */
   landOf(kingdom: Kingdom): number;
+  /** Is this unit a trader somewhere on a caravan route? */
+  isOnCaravan(entityId: string): boolean;
+  /** The nearest enemy town to a unit, if its kingdom is at war. */
+  warFront(kingdomId: string, from: Entity): { x: number; y: number } | null;
   /** True while two realms' caravans have been on the road lately. */
   tradePartners(a: string, b: string): boolean;
   /** A village changing hands drops its captain and its leader. */

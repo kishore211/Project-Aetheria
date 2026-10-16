@@ -122,6 +122,8 @@ export const makeWorld = (options: WorldOptions = {}): World => {
     kingCivilStats: () => null,
     landOf: (kingdom) => kingdom.villageIds.length,
     tradePartners: () => false,
+    isOnCaravan: () => false,
+    warFront: () => null,
     forgetLeadership: () => undefined,
     leaderIdOf: () => undefined,
     createKingdom: (race) => {

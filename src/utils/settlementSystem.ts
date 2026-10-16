@@ -7,14 +7,12 @@
 //
 // Everything here is driven by the same units the player can inspect — there is
 // no separate "civ AI" acting at a distance.
-import { isOre, ORE_VALUE } from './oreVeins';
 import * as THREE from 'three';
 import {
   TILE_SIZE,
   isWaterBiome,
   type Entity,
   type Race,
-  type ResourceType,
   type Tile,
 } from '../types/world';
 import type {
@@ -27,7 +25,6 @@ import { BoatSystem, nearestWater, type Boat, type Point } from './boats';
 import type { TerrainRenderer } from './terrainRenderer';
 import { registerOrderHandler, simulation } from './simulation';
 import { emitFloater } from './floatBridge';
-import { applyScenario } from './scenarios';
 import { isIdentityLayer, type MapLayer } from './mapLayers';
 import {
   allMetas,
@@ -42,11 +39,10 @@ import {
 } from './identity';
 import type { Plot } from './plots';
 import { chronicle } from './chronicle';
-import { applyStatus, clearStatus, type StatusId } from './statusEffects';
+import { clearStatus, type StatusId } from './statusEffects';
 import {
   civilStats,
   governableVillages,
-  leadership,
   type CivilStats,
 } from './politics';
 import { speak } from './dialogue';
@@ -55,7 +51,6 @@ import { emitDamage } from './floatBridge';
 import { MONSTERS } from './entitySystemMinimal';
 import { isChild } from './size';
 import { buildingSprite, roofSprite } from './pixelAtlas';
-import { formationSlots } from './army';
 import { foundFaith } from './religion';
 import {
   generateKingdomName,
@@ -79,23 +74,24 @@ import { Colonisation } from './settlement/colonisation';
 import { Warfare } from './settlement/warfare';
 import { Construction } from './settlement/construction';
 import { Politics, type ActivePlot } from './settlement/politics';
+import { Economy } from './settlement/economy';
 import type {
   Building, BuildingKind, DiplomacyAct, Kingdom, SettlementEvents,
   SettlerParty, Village
 } from './settlement/types';
 import {
-  BIRTH_CHANCE_PER_ADULT, BIRTH_FOOD, BIRTH_INTERVAL, BOAT_CAPACITY, BUILDER_STROKE,
-  BUILDING_CLOUD_CAPACITY, BUILDING_DRAW_SCALE, BUILDING_HEALTH, BUILDING_YIELD, BUILD_EASE,
+  BOAT_CAPACITY, BUILDER_STROKE,
+  BUILDING_CLOUD_CAPACITY, BUILDING_DRAW_SCALE, BUILDING_HEALTH, BUILD_EASE,
   CLAIM_RADIUS,
-  EXPANSION_APPETITE, FARM_HARVEST, FEEDING_RADIUS, FISHING_MIN_POPULATION, FOUNDING_CLUSTER,
-  FOUNDING_RADIUS, HOUSING, HOUSING_SLACK, MAX_BUILDERS, MAX_MINERS,
-  MAX_WOODCUTTERS, MEAL_PRICE, MIN_VILLAGE_SPACING,
+  EXPANSION_APPETITE, FARM_HARVEST, FISHING_MIN_POPULATION, FOUNDING_CLUSTER,
+  FOUNDING_RADIUS, HOUSING,
+  MIN_VILLAGE_SPACING,
   OVERREACH_ALLOWANCE, PULSE_BY_BUILDING, REBELLION_PATIENCE, RECIPES, ROOF_LIGHT,
-  TAX_RATE, TOWER_DAMAGE, TOWER_RANGE,
+  TOWER_DAMAGE, TOWER_RANGE,
   UNKNOWN_IDENTITY_COLOR
 } from './settlement/constants';
 import {
-  footprintOf, groundBonus, isRace, keepIdentifierAhead, mintId,
+  footprintOf, isRace, keepIdentifierAhead, mintId,
   tierOf, townColour
 } from './settlement/helpers';
 import { random } from './random';
@@ -129,7 +125,6 @@ export class SettlementSystem implements SettlementHost {
   }
 
   private foundTimer = 0;
-  private birthTimer = 0;
   /** Caravans and merchant ships (see settlement/trade.ts). */
   private trade = new TradeNetwork(this);
   /** Priests, temples and the religions they keep (see settlement/faith.ts). */
@@ -144,18 +139,12 @@ export class SettlementSystem implements SettlementHost {
   private construction = new Construction(this);
   /** Succession, loyalty, secession and plots (see settlement/politics.ts). */
   private politics = new Politics(this);
-  /** Finds already announced, so a rich vein is news once, not every load. */
-  private announcedFinds = new Set<string>();
-  private workTimer = 0;
+  /** Workforce, births, feeding, officials and the village ledger (see settlement/economy.ts). */
+  private economy = new Economy(this);
   private expansionTimer = 0;
   private publishTimer = 0;
-  private economyTimer = 0;
   laws: WorldLaws = simulation.laws;
   private unsubscribeOrders: () => void;
-  /** Village id -> the warrior currently carrying its banner. */
-  private captains = new Map<string, string>();
-  /** Village id -> its governing leader (the capital's leader is the king). */
-  private leaders = new Map<string, string>();
 
   constructor(
     tiles: Tile[][],
@@ -233,26 +222,11 @@ export class SettlementSystem implements SettlementHost {
       this.tryFoundVillages();
     }
 
-    this.workTimer += delta;
-    if (this.workTimer >= 1.5) {
-      this.workTimer = 0;
-      this.manageWorkforce();
-      this.feedVillagers();
-    }
-
-    this.birthTimer += delta;
-    if (this.birthTimer >= BIRTH_INTERVAL) {
-      this.birthTimer = 0;
-      if (this.laws.reproduction !== false) this.birthRound();
-    }
+    this.economy.update(delta);
 
     this.trade.update(delta);
 
-    this.economyTimer += delta;
-    if (this.economyTimer >= 5) {
-      this.economyTimer = 0;
-      this.economyRound();
-    }
+    this.economy.settle(delta);
 
     this.construction.update(delta);
 
@@ -672,235 +646,7 @@ export class SettlementSystem implements SettlementHost {
     }
   }
 
-  // -- work --------------------------------------------------------------
 
-  /** Keep every village staffed and send loaded gatherers home. */
-  private manageWorkforce(): void {
-    const byVillage = new Map<string, Entity[]>();
-    for (const entity of this.entities.getAllEntities()) {
-      if (!entity.villageId) continue;
-      const list = byVillage.get(entity.villageId);
-      if (list) list.push(entity);
-      else byVillage.set(entity.villageId, [entity]);
-    }
-
-    for (const [villageId, members] of byVillage) {
-      const village = this.villages.get(villageId);
-      if (!village) {
-        for (const member of members) {
-          member.villageId = null;
-          member.job = null;
-          this.clearOffices(member);
-          this.entities.setHerdAnchor(member, null);
-        }
-        continue;
-      }
-
-      const kingdom = this.kingdoms.get(village.kingdomId);
-      const atWar = (kingdom?.atWar.size ?? 0) > 0;
-
-      // Jobs are staffed by what the village is short of, with caps — WorldBox
-      // hires one berry gatherer when the granary is full and ten when it is
-      // empty (research doc section 6).
-      // Culture decides how much of a town is under arms. This is the first
-      // place a culture trait becomes visible without opening a panel: a
-      // warlike town simply has more soldiers standing around in it.
-      const martial = groupHasCultureTrait(village.id, 'warlike') ? 1.6
-        : groupHasCultureTrait(village.id, 'pacifist') ? 0.45
-          : 1;
-      // A barracks is somewhere to keep soldiers, so a town with one keeps more.
-      const drilled = village.buildings.some(b => b.kind === 'barracks') ? 1.5 : 1;
-      const warriorTarget = members.length >= 8
-        ? Math.max(1, Math.round(members.length * (atWar ? 0.4 : 0.15) * martial * drilled))
-        : 0;
-      const appetite = groupHasCultureTrait(village.id, 'frugal') ? 0.7 : 1;
-      const foragingNeed = village.store.food > 100 ? 1
-        : village.store.food > 60 ? 3
-        : village.store.food > 40 ? 5
-        : village.store.food > 20 ? 7
-        : members.length;
-      // Leave room for the warband: without this clamp, everyone is already a
-      // gatherer by the time warriors are considered and a village never arms
-      // itself at all.
-      const gathererTarget = Math.max(
-        0, Math.min(Math.ceil(foragingNeed * appetite), members.length - warriorTarget),
-      );
-
-      // Everyone else has a trade, as in WorldBox: farmers on the fields,
-      // woodcutters in the trees, miners up at the ore, and whoever is left
-      // hauling stone and timber. A town of idlers standing round the
-      // bonfire was the single biggest reason nothing seemed to happen.
-      const adults = members.filter(m => !isChild(m)).length;
-      const farms = village.buildings.filter(b => b.kind === 'farm').length;
-      const openSites = village.buildings.filter(b => b.progress !== undefined).length;
-      const targets: Record<'warrior' | 'gatherer' | 'builder' | 'farmer' | 'miner' | 'woodcutter', number> = {
-        warrior: warriorTarget,
-        gatherer: gathererTarget,
-        // Somebody always has a hammer while there is a site to put up.
-        builder: openSites > 0 ? Math.min(MAX_BUILDERS, Math.max(1, Math.round(adults * 0.15))) : 0,
-        farmer: Math.min(farms, Math.ceil(adults * 0.3)),
-        miner: Math.min(MAX_MINERS, Math.max(1, Math.round(adults * 0.14))),
-        woodcutter: Math.min(MAX_WOODCUTTERS, Math.max(1, Math.round(adults * 0.16))),
-      };
-      // Foragers take what is left after the soldiers and the builders: a
-      // hungry town still keeps a hammer going, or it never gets a roof up.
-      targets.gatherer = Math.max(0, Math.min(targets.gatherer, adults - targets.warrior - targets.builder));
-      const counts = { warrior: 0, gatherer: 0, builder: 0, farmer: 0, miner: 0, woodcutter: 0, trader: 0 };
-      const ORDER = ['warrior', 'builder', 'gatherer', 'farmer', 'miner', 'woodcutter'] as const;
-
-      // Whoever already holds a blade is first in line for a soldier's post:
-      // the smith armed them for it, and a town should not hand its swords to
-      // its farmers the moment the quotas shift.
-      members.sort((a, b) => Number(Boolean(b.equipment?.weapon)) - Number(Boolean(a.equipment?.weapon)));
-
-      // Existing holders keep their posts where the village still needs them.
-      // Children have no post: they play until they are grown. A trader on
-      // the road keeps its post until the caravan comes home.
-      for (const member of members) {
-        if (isChild(member)) { member.job = null; continue; }
-        const job = member.job;
-        if (job === 'trader' && this.trade.isOnRoad(member.id)) { counts.trader++; continue; }
-        if (job && job !== 'trader' && counts[job] < targets[job]) counts[job]++;
-        else member.job = null;
-      }
-
-      for (const member of members) {
-        if (member.job || isChild(member)) continue;
-        // The armed are soldiers or nothing: they wait for a post under arms
-        // rather than being sent to the fields with a sword on their back.
-        const job = member.equipment?.weapon && counts.warrior < targets.warrior
-          ? 'warrior'
-          : ORDER.find(kind => counts[kind] < targets[kind]);
-        // Past every quota, a spare pair of hands hauls for the builders.
-        member.job = job ?? 'builder';
-        if (job) counts[job]++;
-      }
-
-      // Builders walk to the nearest site and put it up.
-      const sites = village.buildings.filter(b => b.progress !== undefined);
-      if (sites.length > 0) {
-        for (const member of members) {
-          if (member.job !== 'builder' || member.carrying || this.entities.hasOrder(member)) continue;
-          const site = sites[Math.floor(random() * sites.length)];
-          this.entities.giveOrder(member, { kind: 'goto', x: site.x, y: site.y, purpose: 'build' });
-        }
-      }
-
-      // Farmers walk out to a field and work it.
-      if (farms > 0) {
-        const fields = village.buildings.filter(b => b.kind === 'farm');
-        for (const member of members) {
-          if (member.job !== 'farmer' || member.carrying || this.entities.hasOrder(member)) continue;
-          const field = fields[Math.floor(random() * fields.length)];
-          this.entities.giveOrder(member, { kind: 'goto', x: field.x, y: field.y, purpose: 'farm' });
-        }
-      }
-
-      this.appointOfficials(village, members);
-
-      // Loaded gatherers walk their haul back to the village centre
-      for (const member of members) {
-        if (member.job === 'warrior') continue;
-        if (member.carrying) {
-          this.entities.giveOrder(member, {
-            kind: 'goto',
-            x: village.centerX,
-            y: village.centerY,
-            purpose: 'deliver',
-          });
-        }
-      }
-
-      // Recruit newcomers standing on village land
-      const recruits = this.entities
-        .query(village.centerX, village.centerY,
-          groupHasCultureTrait(village.id, 'hospitable') ? 14 : 8)
-        .filter(entity => entity.type === village.race && !entity.villageId);
-      for (const recruit of recruits) {
-        recruit.villageId = village.id;
-        recruit.kingdomId = village.kingdomId;
-        recruit.job = 'gatherer';
-      }
-    }
-  }
-
-  /**
-   * Give a village its officials: a leader, a captain, and — if this is the
-   * capital — the kingdom's king. These were names on a kingdom record before;
-   * making them real units means the HUD can point at them and Phase 14 has
-   * something to build succession on.
-   */
-  private appointOfficials(village: Village, members: Entity[]): void {
-    this.appointLeader(village, members);
-    this.appointCaptain(village, members);
-  }
-
-  /** The shrewdest resident governs; the capital's leader wears the crown. */
-  private appointLeader(village: Village, members: Entity[]): void {
-    const eligible = members.filter(member => member.age > member.maxAge * 0.2);
-    if (eligible.length === 0) {
-      this.leaders.delete(village.id);
-      return;
-    }
-
-    let leader = this.entities.getEntityById(this.leaders.get(village.id) ?? '');
-    if (!leader || leader.villageId !== village.id) {
-      // Governors are chosen on stewardship rather than raw intelligence now
-      // — it is the stat the job is actually measured by, and it is what
-      // loyalty reads.
-      leader = eligible.reduce((best, member) => (
-        leadership(civilStats(member)) > leadership(civilStats(best)) ? member : best
-      ), eligible[0]);
-      for (const member of members) this.stripStatus(member, 'leader');
-      this.leaders.set(village.id, leader.id);
-    }
-
-    // Only the governor's badge is set here. The crown belongs to `succession`
-    // — when both places assigned it, the capital's governor and the realm's
-    // ablest leader took turns claiming it every pass, and a kingdom whose
-    // ruler changes every five seconds has no politics at all.
-    if (!leader.status.includes('leader')) {
-      applyStatus(leader, 'leader');
-      emitFloater({
-        kind: 'speech',
-        text: speak('crowned', random()),
-        x: leader.position.x,
-        y: leader.position.y,
-        entityId: leader.id,
-      });
-    }
-  }
-
-  private appointCaptain(village: Village, members: Entity[]): void {
-    const warriors = members.filter(member => member.job === 'warrior');
-    if (warriors.length === 0) {
-      this.captains.delete(village.id);
-      for (const member of members) this.stripStatus(member, 'captain');
-      return;
-    }
-
-    let captain = this.entities.getEntityById(this.captains.get(village.id) ?? '');
-    if (!captain || captain.job !== 'warrior' || captain.villageId !== village.id) {
-      // The toughest warrior takes the banner
-      captain = warriors.reduce((best, warrior) => (
-        warrior.attributes.strength > best.attributes.strength ? warrior : best
-      ), warriors[0]);
-      for (const warrior of warriors) this.stripStatus(warrior, 'captain');
-      this.captains.set(village.id, captain.id);
-    }
-
-    applyStatus(captain, 'captain');
-
-    // At peace the warband loafs about its captain. At war it falls in: ranks
-    // of four behind the banner, facing the nearest enemy town.
-    const front = this.warFront(village.kingdomId, captain);
-    const soldiers = warriors.filter(w => w.id !== captain!.id);
-    const slots = front ? formationSlots(soldiers.length, front.x - captain.position.x, front.y - captain.position.y) : null;
-    soldiers.forEach((warrior, i) => {
-      if (slots) this.entities.setHerdAnchor(warrior, captain!, 0.6, slots[i]);
-      else this.entities.setHerdAnchor(warrior, captain!, 2.5);
-    });
-  }
 
   /**
    * Watchtowers defend. Each tower looses an arrow at the nearest enemy
@@ -947,7 +693,7 @@ export class SettlementSystem implements SettlementHost {
   }
 
   /** The nearest enemy town to a unit, if its kingdom is at war. */
-  private warFront(kingdomId: string, from: Entity): { x: number; y: number } | null {
+  warFront(kingdomId: string, from: Entity): { x: number; y: number } | null {
     const kingdom = this.kingdoms.get(kingdomId);
     if (!kingdom || kingdom.atWar.size === 0) return null;
     let best: Village | null = null;
@@ -974,164 +720,9 @@ export class SettlementSystem implements SettlementHost {
     this.stripStatus(entity, 'priest');
   }
 
-  /** Villages feed their residents from the granary. */
-  /**
-   * Feeding the village, as a transaction.
-   *
-   * A meal costs coins. Rulers, children and the genuinely starving eat free,
-   * and anyone who cannot pay and is desperate enough steals from the treasury
-   * — and is unhappy about having had to.
-   *
-   * One rule, and food stops being a progress bar and becomes a class system:
-   * you can watch a village where the warriors eat and the gatherers do not
-   * (09-WORLDBOX-VISUAL-RESEARCH.md §7).
-   */
-  /**
-   * Families, the WorldBox way: a town grows while it has roofs to spare and
-   * food in the granary, and stops when it runs out of either. The houses
-   * the builders put up are what let it keep growing, and a full town is
-   * what sends settlers out to found the next one.
-   */
-  private birthRound(): void {
-    const members = this.entities.getEntitiesByVillage();
-    for (const village of this.villages.values()) {
-      const people = members.get(village.id);
-      if (!people || people.length === 0) continue;
-      if (this.laws.populationCap && people.length >= 100) continue;
-      if (people.length >= this.homesIn(village) + HOUSING_SLACK) continue;
-      if (village.store.food < BIRTH_FOOD * 2) continue;
-      const adults = people.filter(p => !isChild(p) && p.health > p.maxHealth * 0.4
-        && p.age <= p.maxAge * 0.8 && !p.status.includes('aboard'));
-      if (adults.length < 2) continue;
-      const chance = Math.min(0.6, adults.length * BIRTH_CHANCE_PER_ADULT);
-      if (random() >= chance) continue;
-      // A couple when there is one together at home; otherwise any grown-up.
-      const coupled = adults.filter(p => p.loverId && adults.some(a => a.id === p.loverId));
-      const pool = coupled.length > 0 ? coupled : adults;
-      const parent = pool[Math.floor(random() * pool.length)];
-      const partner = parent.loverId ? adults.find(a => a.id === parent.loverId) ?? null : null;
-      const child = this.entities.bearChild(parent, partner);
-      if (!child) continue;
-      village.store.food -= BIRTH_FOOD;
-      // The granary paid for it, not the parent's own stomach.
-      parent.needs.hunger = Math.min(1, parent.needs.hunger + 0.35);
-    }
-  }
-
-  private feedVillagers(): void {
-    for (const village of this.villages.values()) {
-      const nearby = this.entities
-        .query(village.centerX, village.centerY, FEEDING_RADIUS)
-        .filter(entity => entity.villageId === village.id);
-
-      // Water is carried in from the well and the river: a town's people do
-      // not die of thirst at their own front door.
-      for (const resident of nearby) {
-        if (resident.needs.thirst < 0.4) resident.needs.thirst = 1;
-      }
-
-      if (village.store.food <= 0) continue;
-      const residents = nearby.filter(entity => entity.needs.hunger < 0.6);
-
-      for (const resident of residents) {
-        if (village.store.food <= 0) break;
-
-        const exempt = resident.status.includes('king')
-          || resident.status.includes('leader')
-          || resident.age < resident.maxAge * 0.18;
-        const desperate = resident.needs.hunger < 0.3;
-
-        if (!exempt && !desperate) {
-          if ((resident.coins ?? 0) < MEAL_PRICE) continue;
-          resident.coins = (resident.coins ?? 0) - MEAL_PRICE;
-          village.store.gold += MEAL_PRICE;
-        } else if (!exempt && desperate && (resident.coins ?? 0) < MEAL_PRICE) {
-          // Starving and broke: takes what it needs and feels it.
-          village.store.gold = Math.max(0, village.store.gold - MEAL_PRICE);
-          applyScenario(resident, 'turnedOut');
-        }
-
-        village.store.food -= 1;
-        resident.needs.hunger = Math.min(1, resident.needs.hunger + 0.4);
-      }
-    }
-  }
-
-  /**
-   * Wages, tax, and the village ledger.
-   *
-   * Three steps, in this order, because the order *is* the politics:
-   *
-   * 1. Buildings yield loot, scaled by tier and modified by the ground they
-   *    stand on. The architecture is the income graph.
-   * 2. Loot is taxed on its way to becoming spendable coin, and the tax lands
-   *    in the treasury. Every wage passes visibly through a lord's hands.
-   * 3. The village pays its bills — their four one-line terms, where
-   *    homelessness costs twice a soldier and over-building bankrupts you.
-   */
-  private economyRound(): void {
-    const members = this.entities.getEntitiesByVillage();
-
-    for (const village of this.villages.values()) {
-      const residents = members.get(village.id) ?? [];
-      if (residents.length === 0) continue;
-
-      // A stockpile keeps what the gatherers bring in from spoiling or
-      // walking off: a little wood and stone saved every round.
-      if (village.buildings.some(b => b.kind === 'stockpile')) {
-        village.store.wood += 1;
-        village.store.stone += 1;
-      }
-      // A mine shaft brings up a little ore of its own, between the miners'
-      // trips out to the veins.
-      const shafts = village.buildings.filter(b => b.kind === 'mine').length;
-      if (shafts > 0) village.store.metal = (village.store.metal ?? 0) + shafts;
-
-      // -- 1. buildings earn --------------------------------------------
-      let yield_ = 0;
-      for (const building of village.buildings) {
-        if (building.progress !== undefined) continue;
-        const base = (BUILDING_YIELD[building.kind] ?? 1) + ((building.level ?? 1) - 1);
-        const tile = this.tileAt(building.x, building.y);
-        yield_ += base * (tile ? groundBonus(tile) : 1);
-      }
-      // Split across whoever is working, so a big town with few people does
-      // not make each of them rich.
-      const share = yield_ / Math.max(1, residents.length);
-      for (const resident of residents) {
-        resident.loot = (resident.loot ?? 0) + share;
-      }
-
-      // -- 2. the lord takes a cut ---------------------------------------
-      for (const resident of residents) {
-        const loot = resident.loot ?? 0;
-        if (loot < 1) continue;
-        const tax = Math.floor(loot * TAX_RATE);
-        resident.loot = loot - Math.floor(loot);
-        resident.coins = (resident.coins ?? 0) + (Math.floor(loot) - tax);
-        village.store.gold += tax;
-        // Being taxed is a small, frequent grievance — which is exactly the
-        // sort of thing that shows up later as loyalty.
-        if (tax > 0 && random() < 0.04) applyScenario(resident, 'sleptRough');
-      }
-
-      // A windmill grinds what the farms grow: each one turns a little of
-      // the harvest into extra bread.
-      const mills = village.buildings.filter(b => b.kind === 'windmill').length;
-      if (mills > 0) {
-        const farms = village.buildings.filter(b => b.kind === 'farm').length;
-        village.store.food += mills * Math.min(4, 1 + farms);
-      }
-
-      // -- 3. the ledger --------------------------------------------------
-      const homeless = Math.max(0, residents.length - this.homesIn(village));
-      const warriors = residents.filter(r => r.job === 'warrior').length;
-      const ledger = Math.floor(residents.length / 2)
-        - homeless
-        - Math.floor(warriors / 2)
-        - Math.floor(village.buildings.length / 2);
-      village.store.gold = Math.max(0, village.store.gold + ledger);
-    }
+  /** Staff every village now, outside the work clock (the economy runs this on its own timer). */
+  manageWorkforce(): void {
+    this.economy.manageWorkforce();
   }
 
   /** How many residents this village can actually house. */
@@ -1150,7 +741,7 @@ export class SettlementSystem implements SettlementHost {
     if (order.purpose === 'deliver') {
       const village = entity.villageId ? this.villages.get(entity.villageId) : null;
       if (village && entity.carrying) {
-        this.deposit(village, entity.carrying.type, entity.carrying.quantity);
+        this.economy.deposit(village, entity.carrying.type, entity.carrying.quantity);
         // The granary filling up is the whole point of the errand, and until
         // now it happened entirely in a number nobody could see.
         emitFloater({
@@ -1205,27 +796,6 @@ export class SettlementSystem implements SettlementHost {
           && other.kingdomId !== entity.kingdomId
           && this.atWar(entity.kingdomId, other.kingdomId));
       if (enemy) this.entities.engage(entity, enemy);
-    }
-  }
-
-  private deposit(village: Village, type: ResourceType, quantity: number): void {
-    if (type === 'food') village.store.food += quantity;
-    else if (type === 'wood') village.store.wood += quantity;
-    else if (type === 'stone') village.store.stone += quantity;
-    else if (isOre(type)) {
-      const value = ORE_VALUE[type];
-      const store = village.store;
-      store.metal = (store.metal ?? 0) + (value.metal ?? 0) * quantity;
-      store.gold += (value.gold ?? 0) * quantity;
-      store.gems = (store.gems ?? 0) + (value.gems ?? 0) * quantity;
-      store.mithril = (store.mithril ?? 0) + (value.mithril ?? 0) * quantity;
-      store.adamantine = (store.adamantine ?? 0) + (value.adamantine ?? 0) * quantity;
-      // A rare find is news.
-      const find = `${village.id}:${type}`;
-      if ((type === 'mithril' || type === 'adamantine' || type === 'gem') && !this.announcedFinds.has(find)) {
-        this.announcedFinds.add(find);
-        this.events.onEvent(`Miners of ${village.name} bring ${type === 'gem' ? 'gems' : type} up out of the hills`, 'info', { x: village.centerX, y: village.centerY });
-      }
     }
   }
 
@@ -1721,8 +1291,7 @@ export class SettlementSystem implements SettlementHost {
     for (const party of Array.from(this.parties.values())) {
       if (party.sourceVillageId === village.id) this.parties.delete(party.id);
     }
-    this.captains.delete(village.id);
-    this.leaders.delete(village.id);
+    this.economy.forgetLeadership(village.id);
 
     const kingdom = this.kingdoms.get(village.kingdomId);
     if (kingdom) {
@@ -1865,7 +1434,7 @@ export class SettlementSystem implements SettlementHost {
     const rows = [];
     const byVillage = this.entities.getEntitiesByVillage();
     for (const village of this.villages.values()) {
-      const captain = this.entities.getEntityById(this.captains.get(village.id) ?? '');
+      const captain = this.entities.getEntityById(this.economy.captainIdOf(village.id) ?? '');
       if (!captain || captain.health <= 0) continue;
       const kingdom = this.kingdoms.get(village.kingdomId);
       if (!kingdom) continue;
@@ -2069,7 +1638,7 @@ export class SettlementSystem implements SettlementHost {
 
   /** Who a village has appointed as its leader, if anybody. */
   leaderIdOf(villageId: string): string | undefined {
-    return this.leaders.get(villageId);
+    return this.economy.leaderIdOf(villageId);
   }
 
   /** Open a war between two realms, as a secession or a disputed crown leaves them. */
@@ -2094,8 +1663,12 @@ export class SettlementSystem implements SettlementHost {
 
   /** A village changing hands drops its captain and its leader. */
   forgetLeadership(villageId: string): void {
-    this.captains.delete(villageId);
-    this.leaders.delete(villageId);
+    this.economy.forgetLeadership(villageId);
+  }
+
+  /** Is this unit a trader somewhere on a caravan route? */
+  isOnCaravan(entityId: string): boolean {
+    return this.trade.isOnRoad(entityId);
   }
 
   // -- helpers -----------------------------------------------------------
