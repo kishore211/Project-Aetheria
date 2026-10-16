@@ -1,6 +1,7 @@
 // Seeded procedural world generation: heightmap, climate, rivers, biomes,
 // resources and decoration. Produces pure tile data — rendering lives in
 // terrainRenderer.ts.
+import { setTileBiome, setTileWalkable } from './pathfinding';
 import { biomesWhere } from '../content/biomes';
 import * as THREE from 'three';
 import SimplexNoise from './simplexNoise';
@@ -536,8 +537,8 @@ const carveRivers = (tiles: Tile[][], mapSize: number, random: RandomSource, cou
             const pool = tiles[nx][ny];
             if (pool.height < 0.26) continue;
             pool.height = 0.255;
-            pool.type = 'lake';
-            pool.walkable = true;
+            setTileBiome(pool, 'lake');
+            setTileWalkable(pool, true);
           }
         }
         break;
@@ -552,8 +553,8 @@ const carveRivers = (tiles: Tile[][], mapSize: number, random: RandomSource, cou
     for (const tile of walked) {
       if (tile.type === 'lake') continue;
       tile.height = Math.min(tile.height, 0.265);
-      tile.type = 'river';
-      tile.walkable = true;
+      setTileBiome(tile, 'river');
+      setTileWalkable(tile, true);
       // Wet the banks
       for (let dx = -2; dx <= 2; dx++) {
         for (let dy = -2; dy <= 2; dy++) {
@@ -667,7 +668,7 @@ export const generateWorld = ({
 
       // Rivers and lakes were assigned during carving; keep them.
       if (tile.type !== 'river' && tile.type !== 'lake') {
-        tile.type = determineBiome(tile.height, tile.moisture, tile.temperature);
+        setTileBiome(tile, determineBiome(tile.height, tile.moisture, tile.temperature));
       }
 
       // Two different kinds of randomness, deliberately kept apart.
@@ -693,7 +694,7 @@ export const generateWorld = ({
       tile.resources = generateResources(tile, random);
       tile.structure = determineNaturalStructure(tile, random);
       tile.scaledHeight = computeScaledHeight(tile.height, tile.type);
-      tile.walkable = !['deep_ocean', 'ocean'].includes(tile.type) && tile.height >= 0.25;
+      setTileWalkable(tile, !['deep_ocean', 'ocean'].includes(tile.type) && tile.height >= 0.25);
 
       // Fresh water is drinkable and supports life on its banks
       if (isWaterBiome(tile.type)) {
@@ -759,7 +760,7 @@ export const shapeCoastlines = (tiles: Tile[][], size: number): void => {
       // worse than no beaches at all. A coast that is partly sand and partly
       // grass reads as a coast; one that is entirely sand reads as a border.
       if ((tile.variant ?? 0.5) < COAST_SAND_SPARSITY) continue;
-      tile.type = 'beach';
+      setTileBiome(tile, 'beach');
     }
   }
 
@@ -778,7 +779,7 @@ export const shapeCoastlines = (tiles: Tile[][], size: number): void => {
       for (const [dx, dy] of ORTHOGONAL) {
         if (SHORE_OR_LAND.has(`${x + dx},${y + dy}`)) { coastal = true; break; }
       }
-      if (coastal) tile.type = 'shallow_water';
+      if (coastal) setTileBiome(tile, 'shallow_water');
     }
   }
 
@@ -790,7 +791,7 @@ export const shapeCoastlines = (tiles: Tile[][], size: number): void => {
       for (let y = 0; y < size; y++) {
         const tile = tiles[x][y];
         if (tile.type !== 'deep_ocean') continue;
-        if (touches(x, y, SHALLOW)) tile.type = 'ocean';
+        if (touches(x, y, SHALLOW)) setTileBiome(tile, 'ocean');
       }
     }
   }
@@ -800,7 +801,7 @@ export const shapeCoastlines = (tiles: Tile[][], size: number): void => {
     for (let y = 0; y < size; y++) {
       const tile = tiles[x][y];
       tile.scaledHeight = computeScaledHeight(tile.height, tile.type);
-      tile.walkable = !['deep_ocean', 'ocean'].includes(tile.type) && tile.height >= 0.25;
+      setTileWalkable(tile, !['deep_ocean', 'ocean'].includes(tile.type) && tile.height >= 0.25);
       if (isWaterBiome(tile.type)) tile.structure = null;
     }
   }

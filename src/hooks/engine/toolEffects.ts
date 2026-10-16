@@ -1,3 +1,4 @@
+import { setTileBiome } from '../../utils/pathfinding';
 import type { RefObject } from 'react';
 import * as THREE from 'three';
 
@@ -139,7 +140,7 @@ export function applyToolEffect(ctx: ToolEffectContext, tile: Tile, tool: string
       forEachBrushTile(tile, radius, (target) => {
         if (target.height <= 0.28 || target.height >= 0.78 || isWaterBiome(target.type)) return;
         acted = true;
-        target.type = target.temperature < 0.32 ? 'coniferous_forest' : 'deciduous_forest';
+        setTileBiome(target, target.temperature < 0.32 ? 'coniferous_forest' : 'deciduous_forest');
         target.structure = { type: 'mature_tree', health: 100, level: 2 };
         if (!target.resources.some(r => r.type === 'wood')) {
           target.resources.push({ type: 'wood', quantity: 6, discovered: true });
@@ -322,7 +323,7 @@ export function applyToolEffect(ctx: ToolEffectContext, tile: Tile, tool: string
       forEachBrushTile(tile, blessRadius, (target) => {
         target.fertility = Math.min(1, target.fertility + 0.3);
         if (target.type === 'corrupted' || target.type === 'badlands') {
-          target.type = determineBiome(target.height, target.moisture, target.temperature);
+          setTileBiome(target, determineBiome(target.height, target.moisture, target.temperature));
         }
         if (target.isOnFire) extinguishTile(target, false);
         if (random() < 0.35 && target.height > 0.25 && !target.resources.some(r => r.type === 'food')) {
@@ -372,7 +373,7 @@ export function applyToolEffect(ctx: ToolEffectContext, tile: Tile, tool: string
         target.resources = target.resources.filter(r => r.type !== 'wood');
         if (target.type.includes('forest') || target.type === 'taiga') {
           // Back to whatever the climate would have grown without trees.
-          target.type = target.moisture > 0.55 ? 'grassland' : 'savanna';
+          setTileBiome(target, target.moisture > 0.55 ? 'grassland' : 'savanna');
         }
         syncTile(target);
       });
@@ -444,7 +445,7 @@ export function applyToolEffect(ctx: ToolEffectContext, tile: Tile, tool: string
       const curseRadius = 3 + store.brushRadius;
       forEachBrushTile(tile, curseRadius, (target) => {
         if (target.height <= 0.25) return;
-        target.type = 'corrupted';
+        setTileBiome(target, 'corrupted');
         target.fertility = Math.max(0, target.fertility - 0.5);
         target.structure = null;
         syncTile(target);

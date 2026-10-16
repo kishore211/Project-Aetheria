@@ -10,6 +10,7 @@
 // arrives the same way — you see it coming, you can watch where it is going,
 // and it passes. A plague that appears as a status on forty creatures at once
 // is a notification; a green cloud crossing a valley is an event.
+import { setTileBiome } from './pathfinding';
 import * as THREE from 'three';
 import { isWaterBiome, type Entity, type Tile } from '../types/world';
 import { addHeat, chill } from './thermal';
@@ -99,7 +100,7 @@ export const DROPS: Record<DropKind, DropDef> = {
       // shows it. Only open grass: a blessing should not erase a forest to
       // improve it, and a bloom that can appear anywhere means nothing.
       if (tile.type === 'grassland' && tile.fertility > 0.85 && !tile.villageId) {
-        tile.type = 'bloom';
+        setTileBiome(tile, 'bloom');
         return true;
       }
       return false;
@@ -188,7 +189,7 @@ export const DROPS: Record<DropKind, DropDef> = {
       tile.fertility = Math.min(1, tile.fertility + 0.05);
       if (tile.isOnFire) { tile.isOnFire = false; return true; }
       if ((tile.type === 'ashland' || tile.type === 'badlands' || tile.type === 'wasteland') && !tile.villageId) {
-        tile.type = 'grassland';
+        setTileBiome(tile, 'grassland');
         return true;
       }
       return false;
@@ -212,7 +213,7 @@ export const DROPS: Record<DropKind, DropDef> = {
       if (isWaterBiome(tile.type) || tile.villageId) return false;
       if (tile.type !== 'grassland' && tile.type !== 'hills') return false;
       if (tile.moisture < 0.4 || tile.fertility < 0.35) return false;
-      tile.type = tile.temperature < 0.32 ? 'coniferous_forest' : 'deciduous_forest';
+      setTileBiome(tile, tile.temperature < 0.32 ? 'coniferous_forest' : 'deciduous_forest');
       tile.structure = { type: 'sapling', health: 100, level: 1 };
       tile.resources.push({ type: 'wood', quantity: 3, discovered: true });
       return true;

@@ -17,6 +17,7 @@
 // so processes drift apart instead of locking into a rhythm. Everything runs on
 // simulated seconds: at triple speed the world should get three times as busy,
 // and a paused world should be still.
+import { setTileBiome, setTileWalkable } from './pathfinding';
 import { biomesWhere, biomeTable } from '../content/biomes';
 import {
   isWaterBiome,
@@ -210,7 +211,7 @@ export const WORLD_PROCESSES: WorldProcess[] = [
         if (neighbour.villageId) continue;
         if (ctx.random() >= 0.25 * ctx.growth) continue;
 
-        neighbour.type = tile.type;
+        setTileBiome(neighbour, tile.type);
         neighbour.structure = { type: 'young_tree', health: 100, level: 1 };
         neighbour.resources.push({ type: 'wood', quantity: 4, discovered: true });
         ctx.syncTile(neighbour);
@@ -230,7 +231,7 @@ export const WORLD_PROCESSES: WorldProcess[] = [
         if (!neighbour || neighbour.height <= 0.25) continue;
         if (isWaterBiome(neighbour.type) || neighbour.type === 'corrupted') continue;
 
-        neighbour.type = 'corrupted';
+        setTileBiome(neighbour, 'corrupted');
         neighbour.structure = null;
         neighbour.fertility = Math.max(0, neighbour.fertility - 0.3);
         ctx.syncTile(neighbour);
@@ -256,7 +257,7 @@ export const WORLD_PROCESSES: WorldProcess[] = [
         if (ctx.random() >= (ash ? 0.4 : 0.18)) continue;
         tile.fertility = Math.min(1, tile.fertility + (ash ? 0.22 : 0.15));
         if (tile.fertility > 0.5) {
-          tile.type = determineBiome(tile.height, tile.moisture, tile.temperature);
+          setTileBiome(tile, determineBiome(tile.height, tile.moisture, tile.temperature));
           ctx.syncTile(tile);
         }
       }
@@ -294,13 +295,13 @@ export const WORLD_PROCESSES: WorldProcess[] = [
         const change = cascade(tile);
         if (!change) continue;
         if (change.became) {
-          tile.type = change.became;
+          setTileBiome(tile, change.became);
           tile.structure = null;
           if (change.step === 'scorch' || change.step === 'strip' || change.step === 'melt') {
             tile.fertility = Math.max(0, tile.fertility - 0.4);
             tile.resources = tile.resources.filter(r => r.type !== 'food' && r.type !== 'wood');
           }
-          tile.walkable = !isWaterBiome(tile.type) && tile.height >= 0.25;
+          setTileWalkable(tile, !isWaterBiome(tile.type) && tile.height >= 0.25);
           ctx.syncTile(tile);
         }
         if (change.ignites) ctx.ignite(tile);
@@ -400,9 +401,9 @@ export const WORLD_PROCESSES: WorldProcess[] = [
         const sea = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) =>
           ctx.inBounds(x + dx, y + dy) && ['ocean', 'shallow_water', 'deep_ocean'].includes(ctx.tiles[x + dx][y + dy].type));
         if (!sea || ctx.random() >= 0.35) continue;
-        tile.type = 'shallow_water';
+        setTileBiome(tile, 'shallow_water');
         tile.height = 0.22;
-        tile.walkable = false;
+        setTileWalkable(tile, false);
         tile.structure = null;
         ctx.syncTile(tile);
       }

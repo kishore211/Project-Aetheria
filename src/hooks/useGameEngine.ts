@@ -1,3 +1,4 @@
+import { setTileBiome, setTileWalkable } from '../utils/pathfinding';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { useThree, useFrame } from '@react-three/fiber';
@@ -245,9 +246,9 @@ export const useGameEngine = () => {
   /** Terraform a tile and keep its biome/height/visuals consistent. */
   const reshapeTile = useCallback((tile: Tile, height: number, type?: Tile['type']) => {
     tile.height = Math.max(0, Math.min(1, height));
-    tile.type = type ?? determineBiome(tile.height, tile.moisture, tile.temperature);
+    setTileBiome(tile, type ?? determineBiome(tile.height, tile.moisture, tile.temperature));
     tile.scaledHeight = computeScaledHeight(tile.height, tile.type);
-    tile.walkable = !['deep_ocean', 'ocean'].includes(tile.type) && tile.height >= 0.25;
+    setTileWalkable(tile, !['deep_ocean', 'ocean'].includes(tile.type) && tile.height >= 0.25);
     if (isWaterBiome(tile.type)) tile.structure = null;
     syncTile(tile);
   }, [syncTile]);

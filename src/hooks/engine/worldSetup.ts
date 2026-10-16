@@ -1,3 +1,4 @@
+import { setTileBiome, setTileWalkable } from '../../utils/pathfinding';
 import type { RefObject } from 'react';
 import * as THREE from 'three';
 import type { RootState } from '@react-three/fiber';
@@ -402,10 +403,10 @@ export function initializeWorld(ctx: WorldSetupContext): void {
       if (x < 0 || x >= size || y < 0 || y >= size) continue;
       const tile = tilesData[x][y];
       tile.height = delta.h;
-      tile.type = delta.t;
+      setTileBiome(tile, delta.t);
       tile.structure = delta.s ? { type: delta.s, health: 100, level: 1 } : null;
       tile.ownerId = delta.o ?? null;
-      tile.walkable = !['deep_ocean', 'ocean'].includes(tile.type) && tile.height >= 0.25;
+      setTileWalkable(tile, !['deep_ocean', 'ocean'].includes(tile.type) && tile.height >= 0.25);
       terrain.syncTile(tile, pending.world.timeOfDay, pending.world.season);
     }
     // Deposits miners dug out stay dug out: the fresh veins are cut back to
