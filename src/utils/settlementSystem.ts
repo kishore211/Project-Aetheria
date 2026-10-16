@@ -90,21 +90,23 @@ export type {
   Building, BuildingKind, DiplomacyAct, Kingdom, SettlementEvents, SettlerParty, Village, VillageStore,
 } from './settlement/types';
 export { footprintOf, tierOf } from './settlement/helpers';
+import type { SettlementHost } from './settlement/host';
+import { TradeNetwork } from './settlement/trade';
 import type {
-  Building, BuildingKind, BuildingRecipe, Caravan, DiplomacyAct, Kingdom, SettlementEvents,
+  Building, BuildingKind, BuildingRecipe, DiplomacyAct, Kingdom, SettlementEvents,
   SettlerParty, Village
 } from './settlement/types';
 import {
   BIRTH_CHANCE_PER_ADULT, BIRTH_FOOD, BIRTH_INTERVAL, BOAT_CAPACITY, BUILDER_STROKE,
   BUILDING_CLOUD_CAPACITY, BUILDING_DRAW_SCALE, BUILDING_HEALTH, BUILDING_YIELD, BUILD_EASE,
-  CARAVAN_INTERVAL, CARAVAN_PROFIT, CARAVAN_RANGE, CARAVAN_TIMEOUT, CLAIM_RADIUS, CONTACT_RANGE,
+  CLAIM_RADIUS, CONTACT_RANGE,
   EXPANSION_APPETITE, FARM_HARVEST, FEEDING_RADIUS, FISHING_MIN_POPULATION, FOUNDING_CLUSTER,
   FOUNDING_RADIUS, HALL_UPGRADE, HOUSE_UPGRADE, HOUSING, HOUSING_SLACK, MAX_BUILDERS, MAX_MINERS,
   MAX_SITES, MAX_WOODCUTTERS, MEAL_PRICE, MIN_COLONY_ISLAND, MIN_VILLAGE_SPACING,
   OVERREACH_ALLOWANCE, OVERSEAS_RANGE, PULSE_BY_BUILDING, REBELLION_PATIENCE, RECIPES, ROOF_LIGHT,
   SETTLER_PARTY_MAX, SETTLER_PARTY_MIN, SETTLER_SOURCE_POPULATION, SETTLE_RANGE, SETTLE_TIMEOUT,
   SITE_SELF_PROGRESS, SITING, TAX_RATE, TEMPERAMENT, TOWER_DAMAGE, TOWER_RANGE,
-  TRADE_MIN_POPULATION, TRADE_PROFIT, TRADE_TIE_MEMORY, UNKNOWN_IDENTITY_COLOR, WAR_MAX_ROUNDS,
+  UNKNOWN_IDENTITY_COLOR, WAR_MAX_ROUNDS,
   WAR_MIN_POPULATION, WAR_WEARY_PEACE_CHANCE, WAR_WEARY_ROUNDS, YOUNG_REALM_PEACE, ZONE_SIZE
 } from './settlement/constants';
 import {
@@ -112,16 +114,16 @@ import {
   pairKey, tierOf, townColour, zoneKey
 } from './settlement/helpers';
 
-export class SettlementSystem {
-  private tiles: Tile[][];
+export class SettlementSystem implements SettlementHost {
+  readonly tiles: Tile[][];
   private terrain: TerrainRenderer;
-  private entities: EntityManager;
-  private events: SettlementEvents;
+  readonly entities: EntityManager;
+  readonly events: SettlementEvents;
   private buildingCloud: SpriteCloud;
   /** Kingdom-coloured roofs, drawn over the buildings slot for slot. */
   private roofCloud: SpriteCloud;
   /** Fishing boats and settler transports, and the sprites that draw them. */
-  private boats: BoatSystem;
+  readonly boats: BoatSystem;
   private boatCloud: SpriteCloud;
   private boatSlots = new Map<string, number>();
   private freeBoatSlots: number[] = Array.from({ length: BOAT_CAPACITY }, (_, i) => BOAT_CAPACITY - 1 - i);
@@ -141,12 +143,8 @@ export class SettlementSystem {
 
   private foundTimer = 0;
   private birthTimer = 0;
-  private caravanTimer = 0;
-  /** Traders on the road, keyed by the trader's id. */
-  private caravans = new Map<string, Caravan>();
-  /** Kingdom pairs that have traded, and how many caravans ago (by round). */
-  private tradeTies = new Map<string, number>();
-  private caravanRounds = 0;
+  /** Caravans and merchant ships (see settlement/trade.ts). */
+  private trade = new TradeNetwork(this);
   /** Finds already announced, so a rich vein is news once, not every load. */
   private announcedFinds = new Set<string>();
   private workTimer = 0;
@@ -197,7 +195,7 @@ export class SettlementSystem {
       onLand: (boat, shore) => (boat.payload?.startsWith('invasion:')
         ? this.landInvasion(boat, shore)
         : this.landSettlers(boat, shore)),
-      onTrade: (boat) => this.landTrade(boat),
+      onTrade: (boat) => this.trade.landBoat(boat),
     });
 
     // Own the wiring rather than relying on a caller to remember it
@@ -261,12 +259,7 @@ export class SettlementSystem {
       if (this.laws.reproduction !== false) this.birthRound();
     }
 
-    this.caravanTimer += delta;
-    if (this.caravanTimer >= CARAVAN_INTERVAL) {
-      const elapsed = this.caravanTimer;
-      this.caravanTimer = 0;
-      this.caravanRound(elapsed);
-    }
+    this.trade.update(delta);
 
     this.economyTimer += delta;
     if (this.economyTimer >= 5) {
@@ -819,7 +812,7 @@ export class SettlementSystem {
       for (const member of members) {
         if (isChild(member)) { member.job = null; continue; }
         const job = member.job;
-        if (job === 'trader' && this.caravans.has(member.id)) { counts.trader++; continue; }
+        if (job === 'trader' && this.trade.isOnRoad(member.id)) { counts.trader++; continue; }
         if (job && job !== 'trader' && counts[job] < targets[job]) counts[job]++;
         else member.job = null;
       }
@@ -1332,7 +1325,7 @@ export class SettlementSystem {
     }
 
     if (order.purpose === 'trade') {
-      this.caravanArrived(entity);
+      this.trade.arrived(entity);
       return;
     }
 
@@ -1562,7 +1555,7 @@ export class SettlementSystem {
    * Where a town's boats put out from: the water beside its dock if it has
    * one, otherwise whatever water is nearest its centre.
    */
-  private harbourOf(village: Village, reach: number): Point | null {
+  harbourOf(village: Village, reach: number): Point | null {
     const dock = village.buildings.find(b => b.kind === 'dock');
     if (dock) {
       const water = nearestWater(this.tiles, { x: dock.x, y: dock.y }, 2);
@@ -2688,7 +2681,7 @@ export class SettlementSystem {
       temperament: Math.max(TEMPERAMENT[a.race] ?? 0, TEMPERAMENT[b.race] ?? 0)
         + Math.min(TEMPERAMENT[a.race] ?? 0, TEMPERAMENT[b.race] ?? 0) / 2,
       landHungry: this.isLandHungry(a) || this.isLandHungry(b),
-      tradePartners: this.tradePartners(a.id, b.id),
+      tradePartners: this.trade.partners(a.id, b.id),
     });
   }
 
@@ -2933,7 +2926,7 @@ export class SettlementSystem {
     }
   }
 
-  private residentsOf(village: Village): Entity[] {
+  residentsOf(village: Village): Entity[] {
     return this.entities.getAllEntities()
       .filter(entity => entity.villageId === village.id);
   }
@@ -3120,19 +3113,6 @@ export class SettlementSystem {
   }
 
   /**
-   * A merchant made port. Both ends profit — that is the whole case for
-   * trade — and the arriving town gets a coin floater so you can see why the
-   * boat was worth building.
-   */
-  private landTrade(boat: Boat): void {
-    const port = boat.payload ? this.villages.get(boat.payload) : undefined;
-    const origin = boat.villageId ? this.villages.get(boat.villageId) : undefined;
-    if (port) port.store.gold += TRADE_PROFIT * (port.buildings.some(b => b.kind === 'market') ? 2 : 1);
-    if (origin) origin.store.gold += Math.ceil(TRADE_PROFIT / 2);
-    emitFloater({ kind: 'gain', text: `+${TRADE_PROFIT} gold`, x: boat.x, y: boat.y });
-  }
-
-  /**
    * WorldBox's Handsome Migrants: a struggling town now and then gets one or
    * two strangers turning up at the bonfire. It is what stops a village of
    * three from being a dead end, and nobody ever asks where they came from.
@@ -3196,146 +3176,7 @@ export class SettlementSystem {
       const dock = this.harbourOf(village, 6);
       if (dock) this.boats.launchFishing(village.id, village.kingdomId, dock);
     }
-    this.tradeRound();
-  }
-
-  /**
-   * Caravans, WorldBox's land trade. A town with something to sell sends a
-   * trader walking to a neighbour it is at peace with; both ends earn, the
-   * trader walks home with the takings, and realms that trade come to like
-   * each other. It is the peaceful counterweight to land hunger.
-   */
-  private caravanRound(elapsed: number): void {
-    this.caravanRounds++;
-    for (const [id, caravan] of Array.from(this.caravans)) {
-      const trader = this.entities.getEntityById(id);
-      caravan.timeout -= elapsed;
-      if (!trader || trader.health <= 0 || caravan.timeout <= 0
-        || !this.villages.has(caravan.from) || !this.villages.has(caravan.to)) {
-        this.caravans.delete(id);
-        if (trader?.job === 'trader') trader.job = null;
-      }
-    }
-
-    const members = this.entities.getEntitiesByVillage();
-    const busy = new Set(Array.from(this.caravans.values()).map(c => c.from));
-    let masses: { label: Int32Array; sizes: number[] } | null = null;
-    const size = this.tiles.length;
-    for (const village of this.villages.values()) {
-      if (busy.has(village.id)) continue;
-      const people = members.get(village.id) ?? [];
-      if (people.length < TRADE_MIN_POPULATION) continue;
-      const kingdom = this.kingdoms.get(village.kingdomId);
-      if (!kingdom) continue;
-      masses ??= landmasses(this.tiles);
-      const home = masses.label[village.centerY * size + village.centerX];
-
-      const partners = Array.from(this.villages.values())
-        .filter(other => other.id !== village.id
-          && !kingdom.atWar.has(other.kingdomId)
-          && masses!.label[other.centerY * size + other.centerX] === home)
-        .map(other => ({ other, distance: Math.hypot(other.centerX - village.centerX, other.centerY - village.centerY) }))
-        .filter(({ distance }) => distance <= CARAVAN_RANGE)
-        // A foreign market pays better than a sister town.
-        .sort((a, b) => (a.distance + (a.other.kingdomId === village.kingdomId ? 20 : 0))
-          - (b.distance + (b.other.kingdomId === village.kingdomId ? 20 : 0)));
-      if (partners.length === 0) continue;
-      const { other } = partners[Math.floor(Math.random() * Math.min(3, partners.length))];
-
-      const trader = people.find(p => !isChild(p)
-        && p.job !== 'warrior'
-        && !p.carrying
-        && p.health > p.maxHealth * 0.6
-        && !p.status.some(s => s === 'king' || s === 'leader' || s === 'captain' || s === 'priest'));
-      if (!trader) continue;
-      trader.job = 'trader';
-      this.caravans.set(trader.id, { from: village.id, to: other.id, leg: 'out', timeout: CARAVAN_TIMEOUT });
-      this.entities.giveOrder(trader, { kind: 'goto', x: other.centerX, y: other.centerY, purpose: 'trade' });
-
-      if (other.kingdomId !== village.kingdomId) {
-        const key = pairKey(village.kingdomId, other.kingdomId);
-        if (!this.tradeTies.has(key)) {
-          const theirs = this.kingdoms.get(other.kingdomId);
-          this.events.onEvent(
-            `A trade road opens between ${kingdom.name} and ${theirs?.name ?? 'a neighbour'}`,
-            'kingdom',
-            { x: village.centerX, y: village.centerY },
-          );
-        }
-        this.tradeTies.set(key, this.caravanRounds);
-      }
-    }
-  }
-
-  /** A trader reached the end of a leg: sell, or bring the takings home. */
-  private caravanArrived(trader: Entity): void {
-    const caravan = this.caravans.get(trader.id);
-    if (!caravan) return;
-    const from = this.villages.get(caravan.from);
-    const to = this.villages.get(caravan.to);
-    if (!from || !to) {
-      this.caravans.delete(trader.id);
-      trader.job = null;
-      return;
-    }
-    const market = (village: Village) => (village.buildings.some(b => b.kind === 'market') ? 2 : 1);
-    if (caravan.leg === 'out') {
-      const profit = CARAVAN_PROFIT * market(to);
-      to.store.gold += profit;
-      // Goods change hands: food goes where it is short, and metal too.
-      if (from.store.food > to.store.food + 20) {
-        from.store.food -= 10;
-        to.store.food += 10;
-      }
-      if ((from.store.metal ?? 0) > (to.store.metal ?? 0) + 4) {
-        from.store.metal = (from.store.metal ?? 0) - 2;
-        to.store.metal = (to.store.metal ?? 0) + 2;
-      }
-      emitFloater({ kind: 'gain', text: `+${profit} gold`, x: trader.position.x, y: trader.position.y });
-      caravan.leg = 'home';
-      caravan.timeout = CARAVAN_TIMEOUT;
-      this.entities.giveOrder(trader, { kind: 'goto', x: from.centerX, y: from.centerY, purpose: 'trade' });
-      return;
-    }
-    const takings = CARAVAN_PROFIT * market(from);
-    from.store.gold += takings;
-    emitFloater({ kind: 'gain', text: `+${takings} gold`, x: trader.position.x, y: trader.position.y });
-    this.caravans.delete(trader.id);
-    trader.job = null;
-  }
-
-  /** True while two realms' caravans have been on the road lately. */
-  private tradePartners(a: string, b: string): boolean {
-    const last = this.tradeTies.get(pairKey(a, b));
-    return last !== undefined && this.caravanRounds - last <= TRADE_TIE_MEMORY;
-  }
-
-  /**
-   * Open a trade route between two coastal towns of one realm, or of two
-   * realms that are allied. One route per town: a harbour full of merchants
-   * is a traffic jam, not an economy.
-   */
-  private tradeRound(): void {
-    const ports: Array<{ village: Village; dock: Point }> = [];
-    for (const village of this.villages.values()) {
-      if (!village.kingdomId) continue;
-      if (this.residentsOf(village).length < TRADE_MIN_POPULATION) continue;
-      if (this.boats.tradersOf(village.id) > 0) continue;
-      const dock = this.harbourOf(village, 6);
-      if (dock) ports.push({ village, dock });
-    }
-    for (let i = 0; i < ports.length; i++) {
-      const a = ports[i];
-      if (this.boats.tradersOf(a.village.id) > 0) continue;
-      for (let j = i + 1; j < ports.length; j++) {
-        const b = ports[j];
-        if (this.boats.tradersOf(b.village.id) > 0) continue;
-        const ka = this.kingdoms.get(a.village.kingdomId!);
-        // Any two ports at peace trade by sea, as caravans do by land.
-        if (ka?.atWar.has(b.village.kingdomId!)) continue;
-        if (this.boats.launchTrade(a.village.kingdomId!, a.village.id, a.dock, b.village.id, b.dock)) break;
-      }
-    }
+    this.trade.seaRound();
   }
 
   /** Move every boat's sprite, and its passengers with it. */
