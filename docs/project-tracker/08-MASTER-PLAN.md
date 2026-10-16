@@ -467,3 +467,36 @@ caravans and settlers in every run, all four peoples alive.
 - **World**: new worlds start with native herds. Weather can no longer freeze
   a meadow into glacier (it reached half the map in year one).
 - **Chronicle**: notable lives only — no line per birth.
+
+## Round 24 — architecture, built by an agent team (2026-10-16)
+
+Branch `arch/refactor` (off `main`). Behaviour-preserving throughout: every
+step was gated on `tsc`, `eslint`, the full test suite, `vite build`, and a
+**behaviour oracle** — three seeded 20-minute headless worlds whose output had
+to stay byte-identical (`src/diag/`, git-ignored). Haiku engineers worked in
+three parallel tracks on disjoint files; the lead reviewed, re-verified and
+merged every step, and ran live browser QA on the merged build.
+
+- **Settlement core split** (4,979 → 2,332 lines): `src/utils/settlement/`
+  holds types, constants, helpers and seven subsystems — `TradeNetwork`,
+  `FaithService`, `Armoury`, `Colonisation`, `Warfare`, `Construction`,
+  `Politics` — each owning its own state and timers and seeing the core only
+  through `SettlementHost` (`host.ts`), which is now the documented coupling.
+- **Engine hook split** (2,323 → 802 lines): `src/hooks/engine/` — god-power
+  effects, labels, ages, camera, world setup, input, frame loop.
+- **Content as data**: `src/content/creatures.ts` and `src/content/biomes.ts`
+  registries replace a dozen scattered per-kind tables (the hand-tuned colour
+  palette stays in `worldGenerator.ts`).
+- **Seeded worlds**: all simulation randomness goes through
+  `src/utils/random.ts`; cosmetic effects keep `Math.random` so frame rate can
+  never change history. A world's seed seeds its simulation, and
+  `replay.test.ts` proves a world replays exactly from its seed.
+- **Tests**: 589 → 658, including unit tests per subsystem against a fixture
+  host.
+
+Open: module-level counters (ids, faith dice, plots, herds) are not reset by
+`seedRandom`, so exact replay holds from a fresh page load but not yet for a
+second world in the same session. Known behaviour bugs to fix next (each will
+move the oracle baseline on purpose): settlers of a timed-out expedition are
+left homeless rather than sent home; a few same-named biome lists disagree
+(`frozen`/`frostbound`, `burnsThermal`/`burnsByPower`) — decide which is meant.
