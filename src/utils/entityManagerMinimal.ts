@@ -20,6 +20,7 @@ import { seedMood } from './mood';
 import { viewFraction } from './cameraView';
 import { applyScenario } from './scenarios';
 import { childAgingRate, isChild } from './size';
+import { mapAll } from '../content/creatures';
 
 /**
  * Races that need a partner to reproduce. Animals are deliberately absent:
@@ -40,6 +41,9 @@ const isNotable = (entity: Entity): boolean =>
 /** A royal birth, or a favourite's child: the only births worth a line. */
 const isRoyal = (entity: Entity): boolean => Boolean(entity.favourite) || entity.status.includes('king');
 const MONSTERS = new Set<string>(['dragon', 'demon', 'crabzilla', 'ufo', 'sandworm', 'cold_one', 'yeti', 'necromancer', 'treant', 'robot_santa']);
+
+/** Population cap per kind at medium density. See CreatureDef.maxPopulation. */
+const BASE_MAX_COUNTS: Record<EntityType, number> = mapAll(c => c.maxPopulation);
 
 const PAIRING_TYPES = new Set<string>(['human', 'elf', 'dwarf', 'orc']);
 import type { WorldLaws } from '../store/gameStore';
@@ -760,26 +764,7 @@ export class EntityManager implements EntityIndex {
   }
 
   private getMaxEntityCount(type: EntityType): number {
-    const baseMaxCounts: Record<EntityType, number> = {
-      // The peoples are the point of the world. WorldBox runs thousands of
-      // them; drawing a creature is now nearly free, so these are set by what
-      // the simulation can carry rather than what the renderer could.
-      human: 600, elf: 450, dwarf: 400, orc: 450,
-      wolf: 30, bear: 15, deer: 40, rabbit: 60, bird: 60, fish: 90,
-      sheep: 50, chicken: 60, fox: 25, snake: 25,
-      dragon: 3, demon: 5, zombie: 60, skeleton: 70, elemental: 10, bandit: 25,
-      cat: 25, dog: 25, cow: 40, pig: 40, crab: 40, frog: 40, penguin: 40, turtle: 20,
-      monkey: 30, rat: 60, crocodile: 12, piranha: 60, hyena: 25, rhino: 10, buffalo: 40,
-      unicorn: 4, fairy: 15, ghost: 15, mage: 4, druid: 6, alien: 8, snowman: 20,
-      goat: 40, camel: 25, ostrich: 25, flamingo: 40, seal: 30, polar_bear: 10,
-      beetle: 40, bee: 50, butterfly: 40, grasshopper: 50,
-      necromancer: 3, plague_doctor: 6, fire_skull: 12, cold_one: 6, ufo: 3,
-      sand_spider: 20, acid_blob: 10, lil_pumpkin: 25, gummy_bear: 30, crabzilla: 1,
-      flame_tower: 12, ice_tower: 12,
-      white_mage: 4, angel: 4, sandworm: 2, langton_ant: 6, tumor: 30, treant: 6,
-      candy_man: 25, jumpy_skull: 15, robot_santa: 2, yeti: 6, monolith: 3, grey_goo: 120,
-    };
-    const baseMax = baseMaxCounts[type] ?? 50;
+    const baseMax = BASE_MAX_COUNTS[type] ?? 50;
     switch (this.entityPopulationDensity) {
       case 'low': return Math.floor(baseMax * 0.5);
       case 'high': return Math.floor(baseMax * 2);

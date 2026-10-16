@@ -1,0 +1,2807 @@
+{
+  "foodChain": [
+    [
+      "human",
+      [
+        "rabbit",
+        "deer",
+        "fish",
+        "sheep",
+        "chicken"
+      ]
+    ],
+    [
+      "elf",
+      [
+        "fish",
+        "deer"
+      ]
+    ],
+    [
+      "dwarf",
+      [
+        "fish"
+      ]
+    ],
+    [
+      "orc",
+      [
+        "rabbit",
+        "deer",
+        "fish",
+        "sheep",
+        "pig",
+        "cow"
+      ]
+    ],
+    [
+      "wolf",
+      [
+        "rabbit",
+        "deer",
+        "sheep",
+        "chicken",
+        "goat"
+      ]
+    ],
+    [
+      "bear",
+      [
+        "fish",
+        "rabbit",
+        "deer",
+        "human",
+        "sheep"
+      ]
+    ],
+    [
+      "deer",
+      []
+    ],
+    [
+      "rabbit",
+      []
+    ],
+    [
+      "bird",
+      [
+        "beetle",
+        "grasshopper",
+        "butterfly"
+      ]
+    ],
+    [
+      "fish",
+      []
+    ],
+    [
+      "sheep",
+      []
+    ],
+    [
+      "chicken",
+      [
+        "grasshopper",
+        "beetle"
+      ]
+    ],
+    [
+      "fox",
+      [
+        "rabbit",
+        "chicken"
+      ]
+    ],
+    [
+      "snake",
+      [
+        "rabbit",
+        "chicken"
+      ]
+    ],
+    [
+      "dragon",
+      [
+        "human",
+        "elf",
+        "dwarf",
+        "orc",
+        "wolf",
+        "bear",
+        "deer",
+        "rabbit",
+        "sheep"
+      ]
+    ],
+    [
+      "demon",
+      [
+        "human",
+        "elf",
+        "dwarf",
+        "orc"
+      ]
+    ],
+    [
+      "zombie",
+      [
+        "human",
+        "elf",
+        "dwarf",
+        "orc"
+      ]
+    ],
+    [
+      "skeleton",
+      [
+        "human",
+        "elf",
+        "dwarf"
+      ]
+    ],
+    [
+      "elemental",
+      []
+    ],
+    [
+      "bandit",
+      [
+        "human",
+        "elf"
+      ]
+    ],
+    [
+      "cat",
+      [
+        "rat",
+        "chicken",
+        "fish"
+      ]
+    ],
+    [
+      "dog",
+      [
+        "rabbit",
+        "rat",
+        "chicken"
+      ]
+    ],
+    [
+      "cow",
+      []
+    ],
+    [
+      "pig",
+      []
+    ],
+    [
+      "crab",
+      []
+    ],
+    [
+      "frog",
+      [
+        "bee",
+        "grasshopper",
+        "beetle",
+        "butterfly"
+      ]
+    ],
+    [
+      "penguin",
+      [
+        "fish"
+      ]
+    ],
+    [
+      "turtle",
+      []
+    ],
+    [
+      "monkey",
+      []
+    ],
+    [
+      "rat",
+      []
+    ],
+    [
+      "crocodile",
+      [
+        "deer",
+        "sheep",
+        "fish",
+        "human",
+        "buffalo",
+        "pig",
+        "frog",
+        "flamingo",
+        "camel"
+      ]
+    ],
+    [
+      "piranha",
+      [
+        "fish"
+      ]
+    ],
+    [
+      "hyena",
+      [
+        "rabbit",
+        "deer",
+        "sheep",
+        "pig",
+        "ostrich",
+        "goat"
+      ]
+    ],
+    [
+      "rhino",
+      []
+    ],
+    [
+      "buffalo",
+      []
+    ],
+    [
+      "unicorn",
+      []
+    ],
+    [
+      "fairy",
+      []
+    ],
+    [
+      "ghost",
+      [
+        "human",
+        "elf",
+        "dwarf",
+        "orc"
+      ]
+    ],
+    [
+      "mage",
+      [
+        "human",
+        "elf",
+        "dwarf",
+        "orc"
+      ]
+    ],
+    [
+      "druid",
+      []
+    ],
+    [
+      "alien",
+      [
+        "human",
+        "cow",
+        "sheep"
+      ]
+    ],
+    [
+      "snowman",
+      []
+    ],
+    [
+      "goat",
+      []
+    ],
+    [
+      "camel",
+      []
+    ],
+    [
+      "ostrich",
+      [
+        "grasshopper",
+        "beetle"
+      ]
+    ],
+    [
+      "flamingo",
+      [
+        "fish"
+      ]
+    ],
+    [
+      "seal",
+      [
+        "fish",
+        "piranha"
+      ]
+    ],
+    [
+      "polar_bear",
+      [
+        "seal",
+        "penguin",
+        "fish",
+        "human"
+      ]
+    ],
+    [
+      "beetle",
+      []
+    ],
+    [
+      "bee",
+      []
+    ],
+    [
+      "butterfly",
+      []
+    ],
+    [
+      "grasshopper",
+      []
+    ],
+    [
+      "necromancer",
+      [
+        "human",
+        "elf",
+        "dwarf",
+        "orc"
+      ]
+    ],
+    [
+      "plague_doctor",
+      []
+    ],
+    [
+      "fire_skull",
+      []
+    ],
+    [
+      "cold_one",
+      [
+        "human",
+        "elf",
+        "dwarf",
+        "orc",
+        "deer"
+      ]
+    ],
+    [
+      "ufo",
+      [
+        "cow",
+        "sheep",
+        "human"
+      ]
+    ],
+    [
+      "sand_spider",
+      [
+        "rabbit",
+        "rat",
+        "beetle",
+        "grasshopper",
+        "human"
+      ]
+    ],
+    [
+      "acid_blob",
+      [
+        "human",
+        "elf",
+        "dwarf",
+        "orc"
+      ]
+    ],
+    [
+      "lil_pumpkin",
+      []
+    ],
+    [
+      "gummy_bear",
+      []
+    ],
+    [
+      "crabzilla",
+      [
+        "human",
+        "elf",
+        "dwarf",
+        "orc",
+        "cow",
+        "buffalo",
+        "rhino"
+      ]
+    ],
+    [
+      "flame_tower",
+      []
+    ],
+    [
+      "ice_tower",
+      []
+    ],
+    [
+      "white_mage",
+      [
+        "zombie",
+        "skeleton",
+        "demon",
+        "ghost"
+      ]
+    ],
+    [
+      "angel",
+      [
+        "demon",
+        "zombie",
+        "skeleton",
+        "ghost",
+        "necromancer"
+      ]
+    ],
+    [
+      "sandworm",
+      [
+        "camel",
+        "human",
+        "elf",
+        "dwarf",
+        "orc",
+        "goat",
+        "ostrich"
+      ]
+    ],
+    [
+      "langton_ant",
+      []
+    ],
+    [
+      "tumor",
+      []
+    ],
+    [
+      "treant",
+      []
+    ],
+    [
+      "candy_man",
+      []
+    ],
+    [
+      "jumpy_skull",
+      [
+        "human",
+        "elf",
+        "dwarf",
+        "rabbit",
+        "chicken"
+      ]
+    ],
+    [
+      "robot_santa",
+      []
+    ],
+    [
+      "yeti",
+      [
+        "human",
+        "elf",
+        "dwarf",
+        "orc",
+        "penguin",
+        "seal",
+        "goat"
+      ]
+    ],
+    [
+      "monolith",
+      []
+    ],
+    [
+      "grey_goo",
+      []
+    ]
+  ],
+  "profiles": [
+    [
+      "human",
+      {
+        "maxAge": 80,
+        "maxHealth": 100,
+        "strength": 10,
+        "intelligence": 15,
+        "speed": 10,
+        "resilience": 10
+      }
+    ],
+    [
+      "elf",
+      {
+        "maxAge": 500,
+        "maxHealth": 90,
+        "strength": 8,
+        "intelligence": 18,
+        "speed": 12,
+        "resilience": 8
+      }
+    ],
+    [
+      "dwarf",
+      {
+        "maxAge": 250,
+        "maxHealth": 120,
+        "strength": 15,
+        "intelligence": 12,
+        "speed": 8,
+        "resilience": 15
+      }
+    ],
+    [
+      "orc",
+      {
+        "maxAge": 60,
+        "maxHealth": 115,
+        "strength": 18,
+        "intelligence": 8,
+        "speed": 10,
+        "resilience": 12
+      }
+    ],
+    [
+      "wolf",
+      {
+        "maxAge": 15,
+        "maxHealth": 80,
+        "strength": 12,
+        "intelligence": 8,
+        "speed": 15,
+        "resilience": 10
+      }
+    ],
+    [
+      "bear",
+      {
+        "maxAge": 25,
+        "maxHealth": 150,
+        "strength": 18,
+        "intelligence": 7,
+        "speed": 8,
+        "resilience": 15
+      }
+    ],
+    [
+      "deer",
+      {
+        "maxAge": 12,
+        "maxHealth": 70,
+        "strength": 5,
+        "intelligence": 6,
+        "speed": 16,
+        "resilience": 8
+      }
+    ],
+    [
+      "rabbit",
+      {
+        "maxAge": 5,
+        "maxHealth": 30,
+        "strength": 2,
+        "intelligence": 5,
+        "speed": 18,
+        "resilience": 4
+      }
+    ],
+    [
+      "bird",
+      {
+        "maxAge": 6,
+        "maxHealth": 25,
+        "strength": 2,
+        "intelligence": 6,
+        "speed": 20,
+        "resilience": 4
+      }
+    ],
+    [
+      "fish",
+      {
+        "maxAge": 6,
+        "maxHealth": 25,
+        "strength": 2,
+        "intelligence": 3,
+        "speed": 12,
+        "resilience": 4
+      }
+    ],
+    [
+      "sheep",
+      {
+        "maxAge": 12,
+        "maxHealth": 60,
+        "strength": 4,
+        "intelligence": 4,
+        "speed": 8,
+        "resilience": 8
+      }
+    ],
+    [
+      "chicken",
+      {
+        "maxAge": 6,
+        "maxHealth": 20,
+        "strength": 1,
+        "intelligence": 3,
+        "speed": 9,
+        "resilience": 3
+      }
+    ],
+    [
+      "fox",
+      {
+        "maxAge": 10,
+        "maxHealth": 50,
+        "strength": 8,
+        "intelligence": 10,
+        "speed": 16,
+        "resilience": 7
+      }
+    ],
+    [
+      "snake",
+      {
+        "maxAge": 12,
+        "maxHealth": 35,
+        "strength": 10,
+        "intelligence": 4,
+        "speed": 7,
+        "resilience": 6
+      }
+    ],
+    [
+      "dragon",
+      {
+        "maxAge": 900,
+        "maxHealth": 600,
+        "strength": 45,
+        "intelligence": 20,
+        "speed": 14,
+        "resilience": 35
+      }
+    ],
+    [
+      "demon",
+      {
+        "maxAge": 400,
+        "maxHealth": 260,
+        "strength": 30,
+        "intelligence": 16,
+        "speed": 12,
+        "resilience": 22
+      }
+    ],
+    [
+      "zombie",
+      {
+        "maxAge": 9999,
+        "maxHealth": 70,
+        "strength": 12,
+        "intelligence": 2,
+        "speed": 5,
+        "resilience": 12
+      }
+    ],
+    [
+      "skeleton",
+      {
+        "maxAge": 9999,
+        "maxHealth": 60,
+        "strength": 11,
+        "intelligence": 3,
+        "speed": 8,
+        "resilience": 10
+      }
+    ],
+    [
+      "elemental",
+      {
+        "maxAge": 600,
+        "maxHealth": 180,
+        "strength": 20,
+        "intelligence": 12,
+        "speed": 11,
+        "resilience": 25
+      }
+    ],
+    [
+      "bandit",
+      {
+        "maxAge": 60,
+        "maxHealth": 105,
+        "strength": 14,
+        "intelligence": 11,
+        "speed": 12,
+        "resilience": 10
+      }
+    ],
+    [
+      "cat",
+      {
+        "maxAge": 14,
+        "maxHealth": 35,
+        "strength": 5,
+        "intelligence": 9,
+        "speed": 16,
+        "resilience": 5
+      }
+    ],
+    [
+      "dog",
+      {
+        "maxAge": 14,
+        "maxHealth": 60,
+        "strength": 9,
+        "intelligence": 9,
+        "speed": 15,
+        "resilience": 8
+      }
+    ],
+    [
+      "cow",
+      {
+        "maxAge": 20,
+        "maxHealth": 110,
+        "strength": 6,
+        "intelligence": 4,
+        "speed": 6,
+        "resilience": 12
+      }
+    ],
+    [
+      "pig",
+      {
+        "maxAge": 15,
+        "maxHealth": 70,
+        "strength": 5,
+        "intelligence": 7,
+        "speed": 7,
+        "resilience": 9
+      }
+    ],
+    [
+      "crab",
+      {
+        "maxAge": 8,
+        "maxHealth": 30,
+        "strength": 4,
+        "intelligence": 2,
+        "speed": 6,
+        "resilience": 10
+      }
+    ],
+    [
+      "frog",
+      {
+        "maxAge": 6,
+        "maxHealth": 18,
+        "strength": 1,
+        "intelligence": 3,
+        "speed": 12,
+        "resilience": 3
+      }
+    ],
+    [
+      "penguin",
+      {
+        "maxAge": 18,
+        "maxHealth": 40,
+        "strength": 3,
+        "intelligence": 5,
+        "speed": 7,
+        "resilience": 7
+      }
+    ],
+    [
+      "turtle",
+      {
+        "maxAge": 150,
+        "maxHealth": 90,
+        "strength": 3,
+        "intelligence": 6,
+        "speed": 3,
+        "resilience": 25
+      }
+    ],
+    [
+      "monkey",
+      {
+        "maxAge": 25,
+        "maxHealth": 45,
+        "strength": 5,
+        "intelligence": 12,
+        "speed": 15,
+        "resilience": 5
+      }
+    ],
+    [
+      "rat",
+      {
+        "maxAge": 3,
+        "maxHealth": 12,
+        "strength": 1,
+        "intelligence": 6,
+        "speed": 14,
+        "resilience": 2
+      }
+    ],
+    [
+      "crocodile",
+      {
+        "maxAge": 70,
+        "maxHealth": 170,
+        "strength": 20,
+        "intelligence": 4,
+        "speed": 7,
+        "resilience": 18
+      }
+    ],
+    [
+      "piranha",
+      {
+        "maxAge": 8,
+        "maxHealth": 20,
+        "strength": 6,
+        "intelligence": 2,
+        "speed": 15,
+        "resilience": 3
+      }
+    ],
+    [
+      "hyena",
+      {
+        "maxAge": 16,
+        "maxHealth": 70,
+        "strength": 11,
+        "intelligence": 7,
+        "speed": 15,
+        "resilience": 9
+      }
+    ],
+    [
+      "rhino",
+      {
+        "maxAge": 45,
+        "maxHealth": 220,
+        "strength": 22,
+        "intelligence": 4,
+        "speed": 9,
+        "resilience": 24
+      }
+    ],
+    [
+      "buffalo",
+      {
+        "maxAge": 25,
+        "maxHealth": 140,
+        "strength": 14,
+        "intelligence": 4,
+        "speed": 9,
+        "resilience": 14
+      }
+    ],
+    [
+      "unicorn",
+      {
+        "maxAge": 1000,
+        "maxHealth": 160,
+        "strength": 12,
+        "intelligence": 16,
+        "speed": 18,
+        "resilience": 14
+      }
+    ],
+    [
+      "fairy",
+      {
+        "maxAge": 300,
+        "maxHealth": 30,
+        "strength": 2,
+        "intelligence": 18,
+        "speed": 18,
+        "resilience": 4
+      }
+    ],
+    [
+      "ghost",
+      {
+        "maxAge": 9999,
+        "maxHealth": 50,
+        "strength": 8,
+        "intelligence": 10,
+        "speed": 9,
+        "resilience": 30
+      }
+    ],
+    [
+      "mage",
+      {
+        "maxAge": 200,
+        "maxHealth": 120,
+        "strength": 22,
+        "intelligence": 22,
+        "speed": 9,
+        "resilience": 12
+      }
+    ],
+    [
+      "druid",
+      {
+        "maxAge": 300,
+        "maxHealth": 110,
+        "strength": 10,
+        "intelligence": 20,
+        "speed": 10,
+        "resilience": 14
+      }
+    ],
+    [
+      "alien",
+      {
+        "maxAge": 400,
+        "maxHealth": 120,
+        "strength": 16,
+        "intelligence": 24,
+        "speed": 12,
+        "resilience": 12
+      }
+    ],
+    [
+      "snowman",
+      {
+        "maxAge": 40,
+        "maxHealth": 60,
+        "strength": 6,
+        "intelligence": 4,
+        "speed": 5,
+        "resilience": 6
+      }
+    ],
+    [
+      "goat",
+      {
+        "maxAge": 14,
+        "maxHealth": 55,
+        "strength": 6,
+        "intelligence": 5,
+        "speed": 13,
+        "resilience": 8
+      }
+    ],
+    [
+      "camel",
+      {
+        "maxAge": 25,
+        "maxHealth": 120,
+        "strength": 8,
+        "intelligence": 5,
+        "speed": 9,
+        "resilience": 14
+      }
+    ],
+    [
+      "ostrich",
+      {
+        "maxAge": 20,
+        "maxHealth": 70,
+        "strength": 7,
+        "intelligence": 3,
+        "speed": 19,
+        "resilience": 7
+      }
+    ],
+    [
+      "flamingo",
+      {
+        "maxAge": 20,
+        "maxHealth": 35,
+        "strength": 2,
+        "intelligence": 4,
+        "speed": 9,
+        "resilience": 4
+      }
+    ],
+    [
+      "seal",
+      {
+        "maxAge": 25,
+        "maxHealth": 70,
+        "strength": 5,
+        "intelligence": 6,
+        "speed": 10,
+        "resilience": 10
+      }
+    ],
+    [
+      "polar_bear",
+      {
+        "maxAge": 25,
+        "maxHealth": 170,
+        "strength": 19,
+        "intelligence": 7,
+        "speed": 9,
+        "resilience": 16
+      }
+    ],
+    [
+      "beetle",
+      {
+        "maxAge": 2,
+        "maxHealth": 10,
+        "strength": 2,
+        "intelligence": 1,
+        "speed": 6,
+        "resilience": 6
+      }
+    ],
+    [
+      "bee",
+      {
+        "maxAge": 1,
+        "maxHealth": 6,
+        "strength": 2,
+        "intelligence": 3,
+        "speed": 16,
+        "resilience": 1
+      }
+    ],
+    [
+      "butterfly",
+      {
+        "maxAge": 1,
+        "maxHealth": 5,
+        "strength": 0,
+        "intelligence": 2,
+        "speed": 12,
+        "resilience": 1
+      }
+    ],
+    [
+      "grasshopper",
+      {
+        "maxAge": 1,
+        "maxHealth": 8,
+        "strength": 1,
+        "intelligence": 1,
+        "speed": 14,
+        "resilience": 2
+      }
+    ],
+    [
+      "necromancer",
+      {
+        "maxAge": 300,
+        "maxHealth": 140,
+        "strength": 14,
+        "intelligence": 22,
+        "speed": 8,
+        "resilience": 12
+      }
+    ],
+    [
+      "plague_doctor",
+      {
+        "maxAge": 70,
+        "maxHealth": 100,
+        "strength": 8,
+        "intelligence": 18,
+        "speed": 10,
+        "resilience": 12
+      }
+    ],
+    [
+      "fire_skull",
+      {
+        "maxAge": 9999,
+        "maxHealth": 40,
+        "strength": 9,
+        "intelligence": 4,
+        "speed": 16,
+        "resilience": 8
+      }
+    ],
+    [
+      "cold_one",
+      {
+        "maxAge": 500,
+        "maxHealth": 160,
+        "strength": 18,
+        "intelligence": 8,
+        "speed": 8,
+        "resilience": 20
+      }
+    ],
+    [
+      "ufo",
+      {
+        "maxAge": 9999,
+        "maxHealth": 200,
+        "strength": 12,
+        "intelligence": 30,
+        "speed": 16,
+        "resilience": 18
+      }
+    ],
+    [
+      "sand_spider",
+      {
+        "maxAge": 12,
+        "maxHealth": 60,
+        "strength": 12,
+        "intelligence": 3,
+        "speed": 14,
+        "resilience": 8
+      }
+    ],
+    [
+      "acid_blob",
+      {
+        "maxAge": 30,
+        "maxHealth": 90,
+        "strength": 10,
+        "intelligence": 2,
+        "speed": 5,
+        "resilience": 14
+      }
+    ],
+    [
+      "lil_pumpkin",
+      {
+        "maxAge": 10,
+        "maxHealth": 25,
+        "strength": 3,
+        "intelligence": 3,
+        "speed": 9,
+        "resilience": 4
+      }
+    ],
+    [
+      "gummy_bear",
+      {
+        "maxAge": 12,
+        "maxHealth": 40,
+        "strength": 4,
+        "intelligence": 4,
+        "speed": 10,
+        "resilience": 6
+      }
+    ],
+    [
+      "crabzilla",
+      {
+        "maxAge": 400,
+        "maxHealth": 900,
+        "strength": 50,
+        "intelligence": 6,
+        "speed": 7,
+        "resilience": 40
+      }
+    ],
+    [
+      "flame_tower",
+      {
+        "maxAge": 9999,
+        "maxHealth": 500,
+        "strength": 0,
+        "intelligence": 0,
+        "speed": 0,
+        "resilience": 30
+      }
+    ],
+    [
+      "ice_tower",
+      {
+        "maxAge": 9999,
+        "maxHealth": 500,
+        "strength": 0,
+        "intelligence": 0,
+        "speed": 0,
+        "resilience": 30
+      }
+    ],
+    [
+      "white_mage",
+      {
+        "maxAge": 220,
+        "maxHealth": 120,
+        "strength": 14,
+        "intelligence": 24,
+        "speed": 9,
+        "resilience": 12
+      }
+    ],
+    [
+      "angel",
+      {
+        "maxAge": 9999,
+        "maxHealth": 260,
+        "strength": 26,
+        "intelligence": 22,
+        "speed": 15,
+        "resilience": 24
+      }
+    ],
+    [
+      "sandworm",
+      {
+        "maxAge": 300,
+        "maxHealth": 700,
+        "strength": 40,
+        "intelligence": 4,
+        "speed": 9,
+        "resilience": 30
+      }
+    ],
+    [
+      "langton_ant",
+      {
+        "maxAge": 9999,
+        "maxHealth": 40,
+        "strength": 0,
+        "intelligence": 1,
+        "speed": 0,
+        "resilience": 6
+      }
+    ],
+    [
+      "tumor",
+      {
+        "maxAge": 9999,
+        "maxHealth": 160,
+        "strength": 0,
+        "intelligence": 0,
+        "speed": 0,
+        "resilience": 18
+      }
+    ],
+    [
+      "treant",
+      {
+        "maxAge": 2000,
+        "maxHealth": 420,
+        "strength": 24,
+        "intelligence": 14,
+        "speed": 5,
+        "resilience": 32
+      }
+    ],
+    [
+      "candy_man",
+      {
+        "maxAge": 40,
+        "maxHealth": 60,
+        "strength": 5,
+        "intelligence": 6,
+        "speed": 9,
+        "resilience": 6
+      }
+    ],
+    [
+      "jumpy_skull",
+      {
+        "maxAge": 9999,
+        "maxHealth": 35,
+        "strength": 9,
+        "intelligence": 3,
+        "speed": 19,
+        "resilience": 6
+      }
+    ],
+    [
+      "robot_santa",
+      {
+        "maxAge": 9999,
+        "maxHealth": 300,
+        "strength": 10,
+        "intelligence": 20,
+        "speed": 10,
+        "resilience": 30
+      }
+    ],
+    [
+      "yeti",
+      {
+        "maxAge": 120,
+        "maxHealth": 320,
+        "strength": 30,
+        "intelligence": 8,
+        "speed": 10,
+        "resilience": 22
+      }
+    ],
+    [
+      "monolith",
+      {
+        "maxAge": 9999,
+        "maxHealth": 2000,
+        "strength": 0,
+        "intelligence": 50,
+        "speed": 0,
+        "resilience": 60
+      }
+    ],
+    [
+      "grey_goo",
+      {
+        "maxAge": 9999,
+        "maxHealth": 60,
+        "strength": 0,
+        "intelligence": 0,
+        "speed": 0,
+        "resilience": 10
+      }
+    ]
+  ],
+  "ranged": [
+    [
+      "dragon",
+      {
+        "reach": 3.2,
+        "kind": "fire",
+        "ignite": true
+      }
+    ],
+    [
+      "mage",
+      {
+        "reach": 3.5,
+        "kind": "magic"
+      }
+    ],
+    [
+      "necromancer",
+      {
+        "reach": 3,
+        "kind": "dark"
+      }
+    ],
+    [
+      "ufo",
+      {
+        "reach": 3.5,
+        "kind": "laser"
+      }
+    ],
+    [
+      "white_mage",
+      {
+        "reach": 3.5,
+        "kind": "magic"
+      }
+    ],
+    [
+      "angel",
+      {
+        "reach": 3,
+        "kind": "magic"
+      }
+    ],
+    [
+      "demon",
+      {
+        "reach": 2.4,
+        "kind": "fire",
+        "ignite": true
+      }
+    ],
+    [
+      "elemental",
+      {
+        "reach": 2.6,
+        "kind": "magic"
+      }
+    ]
+  ],
+  "baseSize": [
+    [
+      "human",
+      0.15
+    ],
+    [
+      "elf",
+      0.17
+    ],
+    [
+      "dwarf",
+      0.12
+    ],
+    [
+      "orc",
+      0.18
+    ],
+    [
+      "wolf",
+      0.12
+    ],
+    [
+      "bear",
+      0.2
+    ],
+    [
+      "deer",
+      0.15
+    ],
+    [
+      "rabbit",
+      0.08
+    ],
+    [
+      "bird",
+      0.07
+    ],
+    [
+      "fish",
+      0.09
+    ],
+    [
+      "sheep",
+      0.12
+    ],
+    [
+      "chicken",
+      0.08
+    ],
+    [
+      "fox",
+      0.11
+    ],
+    [
+      "snake",
+      0.11
+    ],
+    [
+      "dragon",
+      0.35
+    ],
+    [
+      "demon",
+      0.25
+    ],
+    [
+      "zombie",
+      0.16
+    ],
+    [
+      "skeleton",
+      0.16
+    ],
+    [
+      "elemental",
+      0.2
+    ],
+    [
+      "bandit",
+      0.15
+    ],
+    [
+      "cat",
+      0.08
+    ],
+    [
+      "dog",
+      0.1
+    ],
+    [
+      "cow",
+      0.17
+    ],
+    [
+      "pig",
+      0.12
+    ],
+    [
+      "crab",
+      0.07
+    ],
+    [
+      "frog",
+      0.06
+    ],
+    [
+      "penguin",
+      0.09
+    ],
+    [
+      "turtle",
+      0.1
+    ],
+    [
+      "monkey",
+      0.11
+    ],
+    [
+      "rat",
+      0.05
+    ],
+    [
+      "crocodile",
+      0.2
+    ],
+    [
+      "piranha",
+      0.07
+    ],
+    [
+      "hyena",
+      0.12
+    ],
+    [
+      "rhino",
+      0.24
+    ],
+    [
+      "buffalo",
+      0.19
+    ],
+    [
+      "unicorn",
+      0.18
+    ],
+    [
+      "fairy",
+      0.07
+    ],
+    [
+      "ghost",
+      0.15
+    ],
+    [
+      "mage",
+      0.16
+    ],
+    [
+      "druid",
+      0.16
+    ],
+    [
+      "alien",
+      0.14
+    ],
+    [
+      "snowman",
+      0.15
+    ],
+    [
+      "goat",
+      0.11
+    ],
+    [
+      "camel",
+      0.19
+    ],
+    [
+      "ostrich",
+      0.16
+    ],
+    [
+      "flamingo",
+      0.13
+    ],
+    [
+      "seal",
+      0.13
+    ],
+    [
+      "polar_bear",
+      0.21
+    ],
+    [
+      "beetle",
+      0.05
+    ],
+    [
+      "bee",
+      0.04
+    ],
+    [
+      "butterfly",
+      0.05
+    ],
+    [
+      "grasshopper",
+      0.05
+    ],
+    [
+      "necromancer",
+      0.16
+    ],
+    [
+      "plague_doctor",
+      0.15
+    ],
+    [
+      "fire_skull",
+      0.09
+    ],
+    [
+      "cold_one",
+      0.2
+    ],
+    [
+      "ufo",
+      0.2
+    ],
+    [
+      "sand_spider",
+      0.13
+    ],
+    [
+      "acid_blob",
+      0.14
+    ],
+    [
+      "lil_pumpkin",
+      0.08
+    ],
+    [
+      "gummy_bear",
+      0.09
+    ],
+    [
+      "crabzilla",
+      0.4
+    ],
+    [
+      "flame_tower",
+      0.26
+    ],
+    [
+      "ice_tower",
+      0.26
+    ],
+    [
+      "white_mage",
+      0.16
+    ],
+    [
+      "angel",
+      0.18
+    ],
+    [
+      "sandworm",
+      0.38
+    ],
+    [
+      "langton_ant",
+      0.07
+    ],
+    [
+      "tumor",
+      0.12
+    ],
+    [
+      "treant",
+      0.28
+    ],
+    [
+      "candy_man",
+      0.14
+    ],
+    [
+      "jumpy_skull",
+      0.1
+    ],
+    [
+      "robot_santa",
+      0.18
+    ],
+    [
+      "yeti",
+      0.24
+    ],
+    [
+      "monolith",
+      0.3
+    ],
+    [
+      "grey_goo",
+      0.12
+    ]
+  ],
+  "herdSize": [
+    [
+      "sheep",
+      9
+    ],
+    [
+      "deer",
+      8
+    ],
+    [
+      "rabbit",
+      6
+    ],
+    [
+      "chicken",
+      6
+    ],
+    [
+      "bird",
+      7
+    ],
+    [
+      "wolf",
+      5
+    ],
+    [
+      "fox",
+      3
+    ],
+    [
+      "bear",
+      2
+    ],
+    [
+      "snake",
+      1
+    ],
+    [
+      "fish",
+      8
+    ],
+    [
+      "cow",
+      7
+    ],
+    [
+      "pig",
+      5
+    ],
+    [
+      "buffalo",
+      10
+    ],
+    [
+      "penguin",
+      9
+    ],
+    [
+      "hyena",
+      5
+    ],
+    [
+      "monkey",
+      6
+    ],
+    [
+      "rat",
+      8
+    ],
+    [
+      "piranha",
+      10
+    ],
+    [
+      "frog",
+      4
+    ],
+    [
+      "dog",
+      3
+    ],
+    [
+      "crab",
+      4
+    ],
+    [
+      "rhino",
+      2
+    ],
+    [
+      "goat",
+      6
+    ],
+    [
+      "camel",
+      4
+    ],
+    [
+      "ostrich",
+      5
+    ],
+    [
+      "flamingo",
+      10
+    ],
+    [
+      "seal",
+      6
+    ],
+    [
+      "beetle",
+      3
+    ],
+    [
+      "bee",
+      8
+    ],
+    [
+      "butterfly",
+      4
+    ],
+    [
+      "grasshopper",
+      6
+    ],
+    [
+      "gummy_bear",
+      4
+    ],
+    [
+      "lil_pumpkin",
+      3
+    ],
+    [
+      "sand_spider",
+      2
+    ],
+    [
+      "candy_man",
+      3
+    ],
+    [
+      "jumpy_skull",
+      3
+    ]
+  ],
+  "monsters": [
+    "dragon",
+    "demon",
+    "zombie",
+    "skeleton",
+    "elemental",
+    "bandit",
+    "ghost",
+    "mage",
+    "alien",
+    "necromancer",
+    "fire_skull",
+    "cold_one",
+    "ufo",
+    "sand_spider",
+    "acid_blob",
+    "crabzilla",
+    "flame_tower",
+    "ice_tower",
+    "sandworm",
+    "jumpy_skull",
+    "tumor",
+    "yeti",
+    "grey_goo"
+  ],
+  "structures": [
+    "flame_tower",
+    "ice_tower",
+    "tumor",
+    "langton_ant",
+    "monolith",
+    "grey_goo"
+  ],
+  "maxMedium": [
+    [
+      "human",
+      600
+    ],
+    [
+      "elf",
+      450
+    ],
+    [
+      "dwarf",
+      400
+    ],
+    [
+      "orc",
+      450
+    ],
+    [
+      "wolf",
+      30
+    ],
+    [
+      "bear",
+      15
+    ],
+    [
+      "deer",
+      40
+    ],
+    [
+      "rabbit",
+      60
+    ],
+    [
+      "bird",
+      60
+    ],
+    [
+      "fish",
+      90
+    ],
+    [
+      "sheep",
+      50
+    ],
+    [
+      "chicken",
+      60
+    ],
+    [
+      "fox",
+      25
+    ],
+    [
+      "snake",
+      25
+    ],
+    [
+      "dragon",
+      3
+    ],
+    [
+      "demon",
+      5
+    ],
+    [
+      "zombie",
+      60
+    ],
+    [
+      "skeleton",
+      70
+    ],
+    [
+      "elemental",
+      10
+    ],
+    [
+      "bandit",
+      25
+    ],
+    [
+      "cat",
+      25
+    ],
+    [
+      "dog",
+      25
+    ],
+    [
+      "cow",
+      40
+    ],
+    [
+      "pig",
+      40
+    ],
+    [
+      "crab",
+      40
+    ],
+    [
+      "frog",
+      40
+    ],
+    [
+      "penguin",
+      40
+    ],
+    [
+      "turtle",
+      20
+    ],
+    [
+      "monkey",
+      30
+    ],
+    [
+      "rat",
+      60
+    ],
+    [
+      "crocodile",
+      12
+    ],
+    [
+      "piranha",
+      60
+    ],
+    [
+      "hyena",
+      25
+    ],
+    [
+      "rhino",
+      10
+    ],
+    [
+      "buffalo",
+      40
+    ],
+    [
+      "unicorn",
+      4
+    ],
+    [
+      "fairy",
+      15
+    ],
+    [
+      "ghost",
+      15
+    ],
+    [
+      "mage",
+      4
+    ],
+    [
+      "druid",
+      6
+    ],
+    [
+      "alien",
+      8
+    ],
+    [
+      "snowman",
+      20
+    ],
+    [
+      "goat",
+      40
+    ],
+    [
+      "camel",
+      25
+    ],
+    [
+      "ostrich",
+      25
+    ],
+    [
+      "flamingo",
+      40
+    ],
+    [
+      "seal",
+      30
+    ],
+    [
+      "polar_bear",
+      10
+    ],
+    [
+      "beetle",
+      40
+    ],
+    [
+      "bee",
+      50
+    ],
+    [
+      "butterfly",
+      40
+    ],
+    [
+      "grasshopper",
+      50
+    ],
+    [
+      "necromancer",
+      3
+    ],
+    [
+      "plague_doctor",
+      6
+    ],
+    [
+      "fire_skull",
+      12
+    ],
+    [
+      "cold_one",
+      6
+    ],
+    [
+      "ufo",
+      3
+    ],
+    [
+      "sand_spider",
+      20
+    ],
+    [
+      "acid_blob",
+      10
+    ],
+    [
+      "lil_pumpkin",
+      25
+    ],
+    [
+      "gummy_bear",
+      30
+    ],
+    [
+      "crabzilla",
+      1
+    ],
+    [
+      "flame_tower",
+      12
+    ],
+    [
+      "ice_tower",
+      12
+    ],
+    [
+      "white_mage",
+      4
+    ],
+    [
+      "angel",
+      4
+    ],
+    [
+      "sandworm",
+      2
+    ],
+    [
+      "langton_ant",
+      6
+    ],
+    [
+      "tumor",
+      30
+    ],
+    [
+      "treant",
+      6
+    ],
+    [
+      "candy_man",
+      25
+    ],
+    [
+      "jumpy_skull",
+      15
+    ],
+    [
+      "robot_santa",
+      2
+    ],
+    [
+      "yeti",
+      6
+    ],
+    [
+      "monolith",
+      3
+    ],
+    [
+      "grey_goo",
+      120
+    ]
+  ],
+  "maxLow": [
+    [
+      "human",
+      300
+    ],
+    [
+      "elf",
+      225
+    ],
+    [
+      "dwarf",
+      200
+    ],
+    [
+      "orc",
+      225
+    ],
+    [
+      "wolf",
+      15
+    ],
+    [
+      "bear",
+      7
+    ],
+    [
+      "deer",
+      20
+    ],
+    [
+      "rabbit",
+      30
+    ],
+    [
+      "bird",
+      30
+    ],
+    [
+      "fish",
+      45
+    ],
+    [
+      "sheep",
+      25
+    ],
+    [
+      "chicken",
+      30
+    ],
+    [
+      "fox",
+      12
+    ],
+    [
+      "snake",
+      12
+    ],
+    [
+      "dragon",
+      1
+    ],
+    [
+      "demon",
+      2
+    ],
+    [
+      "zombie",
+      30
+    ],
+    [
+      "skeleton",
+      35
+    ],
+    [
+      "elemental",
+      5
+    ],
+    [
+      "bandit",
+      12
+    ],
+    [
+      "cat",
+      12
+    ],
+    [
+      "dog",
+      12
+    ],
+    [
+      "cow",
+      20
+    ],
+    [
+      "pig",
+      20
+    ],
+    [
+      "crab",
+      20
+    ],
+    [
+      "frog",
+      20
+    ],
+    [
+      "penguin",
+      20
+    ],
+    [
+      "turtle",
+      10
+    ],
+    [
+      "monkey",
+      15
+    ],
+    [
+      "rat",
+      30
+    ],
+    [
+      "crocodile",
+      6
+    ],
+    [
+      "piranha",
+      30
+    ],
+    [
+      "hyena",
+      12
+    ],
+    [
+      "rhino",
+      5
+    ],
+    [
+      "buffalo",
+      20
+    ],
+    [
+      "unicorn",
+      2
+    ],
+    [
+      "fairy",
+      7
+    ],
+    [
+      "ghost",
+      7
+    ],
+    [
+      "mage",
+      2
+    ],
+    [
+      "druid",
+      3
+    ],
+    [
+      "alien",
+      4
+    ],
+    [
+      "snowman",
+      10
+    ],
+    [
+      "goat",
+      20
+    ],
+    [
+      "camel",
+      12
+    ],
+    [
+      "ostrich",
+      12
+    ],
+    [
+      "flamingo",
+      20
+    ],
+    [
+      "seal",
+      15
+    ],
+    [
+      "polar_bear",
+      5
+    ],
+    [
+      "beetle",
+      20
+    ],
+    [
+      "bee",
+      25
+    ],
+    [
+      "butterfly",
+      20
+    ],
+    [
+      "grasshopper",
+      25
+    ],
+    [
+      "necromancer",
+      1
+    ],
+    [
+      "plague_doctor",
+      3
+    ],
+    [
+      "fire_skull",
+      6
+    ],
+    [
+      "cold_one",
+      3
+    ],
+    [
+      "ufo",
+      1
+    ],
+    [
+      "sand_spider",
+      10
+    ],
+    [
+      "acid_blob",
+      5
+    ],
+    [
+      "lil_pumpkin",
+      12
+    ],
+    [
+      "gummy_bear",
+      15
+    ],
+    [
+      "crabzilla",
+      0
+    ],
+    [
+      "flame_tower",
+      6
+    ],
+    [
+      "ice_tower",
+      6
+    ],
+    [
+      "white_mage",
+      2
+    ],
+    [
+      "angel",
+      2
+    ],
+    [
+      "sandworm",
+      1
+    ],
+    [
+      "langton_ant",
+      3
+    ],
+    [
+      "tumor",
+      15
+    ],
+    [
+      "treant",
+      3
+    ],
+    [
+      "candy_man",
+      12
+    ],
+    [
+      "jumpy_skull",
+      7
+    ],
+    [
+      "robot_santa",
+      1
+    ],
+    [
+      "yeti",
+      3
+    ],
+    [
+      "monolith",
+      1
+    ],
+    [
+      "grey_goo",
+      60
+    ]
+  ],
+  "maxHigh": [
+    [
+      "human",
+      1200
+    ],
+    [
+      "elf",
+      900
+    ],
+    [
+      "dwarf",
+      800
+    ],
+    [
+      "orc",
+      900
+    ],
+    [
+      "wolf",
+      60
+    ],
+    [
+      "bear",
+      30
+    ],
+    [
+      "deer",
+      80
+    ],
+    [
+      "rabbit",
+      120
+    ],
+    [
+      "bird",
+      120
+    ],
+    [
+      "fish",
+      180
+    ],
+    [
+      "sheep",
+      100
+    ],
+    [
+      "chicken",
+      120
+    ],
+    [
+      "fox",
+      50
+    ],
+    [
+      "snake",
+      50
+    ],
+    [
+      "dragon",
+      6
+    ],
+    [
+      "demon",
+      10
+    ],
+    [
+      "zombie",
+      120
+    ],
+    [
+      "skeleton",
+      140
+    ],
+    [
+      "elemental",
+      20
+    ],
+    [
+      "bandit",
+      50
+    ],
+    [
+      "cat",
+      50
+    ],
+    [
+      "dog",
+      50
+    ],
+    [
+      "cow",
+      80
+    ],
+    [
+      "pig",
+      80
+    ],
+    [
+      "crab",
+      80
+    ],
+    [
+      "frog",
+      80
+    ],
+    [
+      "penguin",
+      80
+    ],
+    [
+      "turtle",
+      40
+    ],
+    [
+      "monkey",
+      60
+    ],
+    [
+      "rat",
+      120
+    ],
+    [
+      "crocodile",
+      24
+    ],
+    [
+      "piranha",
+      120
+    ],
+    [
+      "hyena",
+      50
+    ],
+    [
+      "rhino",
+      20
+    ],
+    [
+      "buffalo",
+      80
+    ],
+    [
+      "unicorn",
+      8
+    ],
+    [
+      "fairy",
+      30
+    ],
+    [
+      "ghost",
+      30
+    ],
+    [
+      "mage",
+      8
+    ],
+    [
+      "druid",
+      12
+    ],
+    [
+      "alien",
+      16
+    ],
+    [
+      "snowman",
+      40
+    ],
+    [
+      "goat",
+      80
+    ],
+    [
+      "camel",
+      50
+    ],
+    [
+      "ostrich",
+      50
+    ],
+    [
+      "flamingo",
+      80
+    ],
+    [
+      "seal",
+      60
+    ],
+    [
+      "polar_bear",
+      20
+    ],
+    [
+      "beetle",
+      80
+    ],
+    [
+      "bee",
+      100
+    ],
+    [
+      "butterfly",
+      80
+    ],
+    [
+      "grasshopper",
+      100
+    ],
+    [
+      "necromancer",
+      6
+    ],
+    [
+      "plague_doctor",
+      12
+    ],
+    [
+      "fire_skull",
+      24
+    ],
+    [
+      "cold_one",
+      12
+    ],
+    [
+      "ufo",
+      6
+    ],
+    [
+      "sand_spider",
+      40
+    ],
+    [
+      "acid_blob",
+      20
+    ],
+    [
+      "lil_pumpkin",
+      50
+    ],
+    [
+      "gummy_bear",
+      60
+    ],
+    [
+      "crabzilla",
+      2
+    ],
+    [
+      "flame_tower",
+      24
+    ],
+    [
+      "ice_tower",
+      24
+    ],
+    [
+      "white_mage",
+      8
+    ],
+    [
+      "angel",
+      8
+    ],
+    [
+      "sandworm",
+      4
+    ],
+    [
+      "langton_ant",
+      12
+    ],
+    [
+      "tumor",
+      60
+    ],
+    [
+      "treant",
+      12
+    ],
+    [
+      "candy_man",
+      50
+    ],
+    [
+      "jumpy_skull",
+      30
+    ],
+    [
+      "robot_santa",
+      4
+    ],
+    [
+      "yeti",
+      12
+    ],
+    [
+      "monolith",
+      6
+    ],
+    [
+      "grey_goo",
+      240
+    ]
+  ]
+}

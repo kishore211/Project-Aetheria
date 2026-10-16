@@ -16,7 +16,8 @@ import {
 } from '../types/world';
 import { getPixelSpriteTexture, getPixelSpriteFrames, WALK_FRAMES, gearLook, wieldsGear, type Outfit } from './pixelSprites';
 import { armorBlock, claimSpoils, gearSpeed, wearAfterBlow, weaponCooldown, weaponDamage, weaponReach } from './equipment';
-import { emitShot, type ShotKind } from './shotBridge';
+import { emitShot } from './shotBridge';
+import { mapAll, mapSome, typesWhere, type CreatureStats, type RangedAttack } from '../content/creatures';
 import { handOverToLayer } from './creatureLayer';
 import { wants } from './mind';
 import { groundSpeed, stepOnGround } from './biomeEffects';
@@ -89,92 +90,9 @@ const hasWood = (tile: Tile): boolean => tile.resources.some(r => r.type === 'wo
 /** Woods that turn to open grass once their last tree comes down. */
 const FELLED_TO_CLEARING = new Set<string>(['deciduous_forest', 'coniferous_forest', 'tropical_forest', 'rainforest', 'taiga']);
 
-// Predator-Prey relationships
-export const FOOD_CHAIN: Record<EntityType, EntityType[]> = {
-  human: ['rabbit', 'deer', 'fish', 'sheep', 'chicken'],
-  elf: ['fish', 'deer'],
-  dwarf: ['fish'],
-  orc: ['rabbit', 'deer', 'fish', 'sheep', 'pig', 'cow'],
-  wolf: ['rabbit', 'deer', 'sheep', 'chicken', 'goat'],
-  bear: ['fish', 'rabbit', 'deer', 'human', 'sheep'],
-  deer: [],
-  rabbit: [],
-  bird: ['beetle', 'grasshopper', 'butterfly'],
-  fish: [],
-  sheep: [],
-  chicken: ['grasshopper', 'beetle'],
-  fox: ['rabbit', 'chicken'],
-  snake: ['rabbit', 'chicken'],
-  dragon: ['human', 'elf', 'dwarf', 'orc', 'wolf', 'bear', 'deer', 'rabbit', 'sheep'],
-  demon: ['human', 'elf', 'dwarf', 'orc'],
-  zombie: ['human', 'elf', 'dwarf', 'orc'],
-  skeleton: ['human', 'elf', 'dwarf'],
-  elemental: [],
-  bandit: ['human', 'elf'],
-  cat: ['rat', 'chicken', 'fish'],
-  dog: ['rabbit', 'rat', 'chicken'],
-  cow: [],
-  pig: [],
-  crab: [],
-  frog: ['bee', 'grasshopper', 'beetle', 'butterfly'],
-  penguin: ['fish'],
-  turtle: [],
-  monkey: [],
-  rat: [],
-  crocodile: ['deer', 'sheep', 'fish', 'human', 'buffalo', 'pig', 'frog', 'flamingo', 'camel'],
-  piranha: ['fish'],
-  hyena: ['rabbit', 'deer', 'sheep', 'pig', 'ostrich', 'goat'],
-  rhino: [],
-  buffalo: [],
-  unicorn: [],
-  fairy: [],
-  ghost: ['human', 'elf', 'dwarf', 'orc'],
-  mage: ['human', 'elf', 'dwarf', 'orc'],
-  druid: [],
-  alien: ['human', 'cow', 'sheep'],
-  snowman: [],
-  goat: [],
-  camel: [],
-  ostrich: ['grasshopper', 'beetle'],
-  flamingo: ['fish'],
-  seal: ['fish', 'piranha'],
-  polar_bear: ['seal', 'penguin', 'fish', 'human'],
-  beetle: [],
-  bee: [],
-  butterfly: [],
-  grasshopper: [],
-  necromancer: ['human', 'elf', 'dwarf', 'orc'],
-  plague_doctor: [],
-  fire_skull: [],
-  cold_one: ['human', 'elf', 'dwarf', 'orc', 'deer'],
-  ufo: ['cow', 'sheep', 'human'],
-  sand_spider: ['rabbit', 'rat', 'beetle', 'grasshopper', 'human'],
-  acid_blob: ['human', 'elf', 'dwarf', 'orc'],
-  lil_pumpkin: [],
-  gummy_bear: [],
-  crabzilla: ['human', 'elf', 'dwarf', 'orc', 'cow', 'buffalo', 'rhino'],
-  flame_tower: [],
-  ice_tower: [],
-  white_mage: ['zombie', 'skeleton', 'demon', 'ghost'],
-  angel: ['demon', 'zombie', 'skeleton', 'ghost', 'necromancer'],
-  sandworm: ['camel', 'human', 'elf', 'dwarf', 'orc', 'goat', 'ostrich'],
-  langton_ant: [],
-  tumor: [],
-  treant: [],
-  candy_man: [],
-  jumpy_skull: ['human', 'elf', 'dwarf', 'rabbit', 'chicken'],
-  robot_santa: [],
-  yeti: ['human', 'elf', 'dwarf', 'orc', 'penguin', 'seal', 'goat'],
-  monolith: [],
-  grey_goo: [],
-};
+export const FOOD_CHAIN: Record<EntityType, EntityType[]> = mapAll(c => c.eats);
 
-/**
- * Things that are built rather than born. They stand where they were put, do
- * not eat or sleep or wander, and act only through their aura
- * (creatureAbilities.ts) — but they have health and can be torn down.
- */
-export const STRUCTURES = new Set<EntityType>(['flame_tower', 'ice_tower', 'tumor', 'langton_ant', 'monolith', 'grey_goo']);
+export const STRUCTURES = new Set<EntityType>(typesWhere(c => c.structure));
 
 /** Reverse of FOOD_CHAIN, built once at module load. */
 const PREDATORS_OF: Partial<Record<EntityType, EntityType[]>> = {};
@@ -186,12 +104,7 @@ for (const [predator, preyList] of Object.entries(FOOD_CHAIN) as [EntityType, En
 
 const SENTIENT: EntityType[] = ['human', 'elf', 'dwarf', 'orc'];
 
-/** What the Peaceful Monsters law calms down. */
-export const MONSTERS = new Set<EntityType>([
-  'dragon', 'demon', 'zombie', 'skeleton', 'elemental', 'bandit', 'ghost', 'mage', 'alien',
-  'necromancer', 'fire_skull', 'cold_one', 'ufo', 'sand_spider', 'acid_blob', 'crabzilla',
-  'flame_tower', 'ice_tower', 'sandworm', 'jumpy_skull', 'tumor', 'yeti', 'grey_goo',
-]);
+export const MONSTERS = new Set<EntityType>(typesWhere(c => c.monster));
 export const isSentient = (type: EntityType): boolean => SENTIENT.includes(type);
 
 /**
@@ -281,100 +194,14 @@ function generateEntityName(type: EntityType): string {
   return nameList[Math.floor(Math.random() * nameList.length)];
 }
 
-interface TypeProfile {
-  maxAge: number;
-  maxHealth: number;
-  strength: number;
-  intelligence: number;
-  speed: number;
-  resilience: number;
-}
+const PROFILES: Partial<Record<EntityType, CreatureStats>> = mapSome(c => c.stats);
 
-const PROFILES: Partial<Record<EntityType, TypeProfile>> = {
-  human: { maxAge: 80, maxHealth: 100, strength: 10, intelligence: 15, speed: 10, resilience: 10 },
-  elf: { maxAge: 500, maxHealth: 90, strength: 8, intelligence: 18, speed: 12, resilience: 8 },
-  dwarf: { maxAge: 250, maxHealth: 120, strength: 15, intelligence: 12, speed: 8, resilience: 15 },
-  orc: { maxAge: 60, maxHealth: 115, strength: 18, intelligence: 8, speed: 10, resilience: 12 },
-  wolf: { maxAge: 15, maxHealth: 80, strength: 12, intelligence: 8, speed: 15, resilience: 10 },
-  bear: { maxAge: 25, maxHealth: 150, strength: 18, intelligence: 7, speed: 8, resilience: 15 },
-  deer: { maxAge: 12, maxHealth: 70, strength: 5, intelligence: 6, speed: 16, resilience: 8 },
-  rabbit: { maxAge: 5, maxHealth: 30, strength: 2, intelligence: 5, speed: 18, resilience: 4 },
-  bird: { maxAge: 6, maxHealth: 25, strength: 2, intelligence: 6, speed: 20, resilience: 4 },
-  fish: { maxAge: 6, maxHealth: 25, strength: 2, intelligence: 3, speed: 12, resilience: 4 },
-  sheep: { maxAge: 12, maxHealth: 60, strength: 4, intelligence: 4, speed: 8, resilience: 8 },
-  chicken: { maxAge: 6, maxHealth: 20, strength: 1, intelligence: 3, speed: 9, resilience: 3 },
-  fox: { maxAge: 10, maxHealth: 50, strength: 8, intelligence: 10, speed: 16, resilience: 7 },
-  snake: { maxAge: 12, maxHealth: 35, strength: 10, intelligence: 4, speed: 7, resilience: 6 },
-  dragon: { maxAge: 900, maxHealth: 600, strength: 45, intelligence: 20, speed: 14, resilience: 35 },
-  demon: { maxAge: 400, maxHealth: 260, strength: 30, intelligence: 16, speed: 12, resilience: 22 },
-  zombie: { maxAge: 9999, maxHealth: 70, strength: 12, intelligence: 2, speed: 5, resilience: 12 },
-  skeleton: { maxAge: 9999, maxHealth: 60, strength: 11, intelligence: 3, speed: 8, resilience: 10 },
-  elemental: { maxAge: 600, maxHealth: 180, strength: 20, intelligence: 12, speed: 11, resilience: 25 },
-  bandit: { maxAge: 60, maxHealth: 105, strength: 14, intelligence: 11, speed: 12, resilience: 10 },
-  cat: { maxAge: 14, maxHealth: 35, strength: 5, intelligence: 9, speed: 16, resilience: 5 },
-  dog: { maxAge: 14, maxHealth: 60, strength: 9, intelligence: 9, speed: 15, resilience: 8 },
-  cow: { maxAge: 20, maxHealth: 110, strength: 6, intelligence: 4, speed: 6, resilience: 12 },
-  pig: { maxAge: 15, maxHealth: 70, strength: 5, intelligence: 7, speed: 7, resilience: 9 },
-  crab: { maxAge: 8, maxHealth: 30, strength: 4, intelligence: 2, speed: 6, resilience: 10 },
-  frog: { maxAge: 6, maxHealth: 18, strength: 1, intelligence: 3, speed: 12, resilience: 3 },
-  penguin: { maxAge: 18, maxHealth: 40, strength: 3, intelligence: 5, speed: 7, resilience: 7 },
-  turtle: { maxAge: 150, maxHealth: 90, strength: 3, intelligence: 6, speed: 3, resilience: 25 },
-  monkey: { maxAge: 25, maxHealth: 45, strength: 5, intelligence: 12, speed: 15, resilience: 5 },
-  rat: { maxAge: 3, maxHealth: 12, strength: 1, intelligence: 6, speed: 14, resilience: 2 },
-  crocodile: { maxAge: 70, maxHealth: 170, strength: 20, intelligence: 4, speed: 7, resilience: 18 },
-  piranha: { maxAge: 8, maxHealth: 20, strength: 6, intelligence: 2, speed: 15, resilience: 3 },
-  hyena: { maxAge: 16, maxHealth: 70, strength: 11, intelligence: 7, speed: 15, resilience: 9 },
-  rhino: { maxAge: 45, maxHealth: 220, strength: 22, intelligence: 4, speed: 9, resilience: 24 },
-  buffalo: { maxAge: 25, maxHealth: 140, strength: 14, intelligence: 4, speed: 9, resilience: 14 },
-  unicorn: { maxAge: 1000, maxHealth: 160, strength: 12, intelligence: 16, speed: 18, resilience: 14 },
-  fairy: { maxAge: 300, maxHealth: 30, strength: 2, intelligence: 18, speed: 18, resilience: 4 },
-  ghost: { maxAge: 9999, maxHealth: 50, strength: 8, intelligence: 10, speed: 9, resilience: 30 },
-  mage: { maxAge: 200, maxHealth: 120, strength: 22, intelligence: 22, speed: 9, resilience: 12 },
-  druid: { maxAge: 300, maxHealth: 110, strength: 10, intelligence: 20, speed: 10, resilience: 14 },
-  alien: { maxAge: 400, maxHealth: 120, strength: 16, intelligence: 24, speed: 12, resilience: 12 },
-  snowman: { maxAge: 40, maxHealth: 60, strength: 6, intelligence: 4, speed: 5, resilience: 6 },
-  goat: { maxAge: 14, maxHealth: 55, strength: 6, intelligence: 5, speed: 13, resilience: 8 },
-  camel: { maxAge: 25, maxHealth: 120, strength: 8, intelligence: 5, speed: 9, resilience: 14 },
-  ostrich: { maxAge: 20, maxHealth: 70, strength: 7, intelligence: 3, speed: 19, resilience: 7 },
-  flamingo: { maxAge: 20, maxHealth: 35, strength: 2, intelligence: 4, speed: 9, resilience: 4 },
-  seal: { maxAge: 25, maxHealth: 70, strength: 5, intelligence: 6, speed: 10, resilience: 10 },
-  polar_bear: { maxAge: 25, maxHealth: 170, strength: 19, intelligence: 7, speed: 9, resilience: 16 },
-  beetle: { maxAge: 2, maxHealth: 10, strength: 2, intelligence: 1, speed: 6, resilience: 6 },
-  bee: { maxAge: 1, maxHealth: 6, strength: 2, intelligence: 3, speed: 16, resilience: 1 },
-  butterfly: { maxAge: 1, maxHealth: 5, strength: 0, intelligence: 2, speed: 12, resilience: 1 },
-  grasshopper: { maxAge: 1, maxHealth: 8, strength: 1, intelligence: 1, speed: 14, resilience: 2 },
-  necromancer: { maxAge: 300, maxHealth: 140, strength: 14, intelligence: 22, speed: 8, resilience: 12 },
-  plague_doctor: { maxAge: 70, maxHealth: 100, strength: 8, intelligence: 18, speed: 10, resilience: 12 },
-  fire_skull: { maxAge: 9999, maxHealth: 40, strength: 9, intelligence: 4, speed: 16, resilience: 8 },
-  cold_one: { maxAge: 500, maxHealth: 160, strength: 18, intelligence: 8, speed: 8, resilience: 20 },
-  ufo: { maxAge: 9999, maxHealth: 200, strength: 12, intelligence: 30, speed: 16, resilience: 18 },
-  sand_spider: { maxAge: 12, maxHealth: 60, strength: 12, intelligence: 3, speed: 14, resilience: 8 },
-  acid_blob: { maxAge: 30, maxHealth: 90, strength: 10, intelligence: 2, speed: 5, resilience: 14 },
-  lil_pumpkin: { maxAge: 10, maxHealth: 25, strength: 3, intelligence: 3, speed: 9, resilience: 4 },
-  gummy_bear: { maxAge: 12, maxHealth: 40, strength: 4, intelligence: 4, speed: 10, resilience: 6 },
-  crabzilla: { maxAge: 400, maxHealth: 900, strength: 50, intelligence: 6, speed: 7, resilience: 40 },
-  flame_tower: { maxAge: 9999, maxHealth: 500, strength: 0, intelligence: 0, speed: 0, resilience: 30 },
-  ice_tower: { maxAge: 9999, maxHealth: 500, strength: 0, intelligence: 0, speed: 0, resilience: 30 },
-  white_mage: { maxAge: 220, maxHealth: 120, strength: 14, intelligence: 24, speed: 9, resilience: 12 },
-  angel: { maxAge: 9999, maxHealth: 260, strength: 26, intelligence: 22, speed: 15, resilience: 24 },
-  sandworm: { maxAge: 300, maxHealth: 700, strength: 40, intelligence: 4, speed: 9, resilience: 30 },
-  langton_ant: { maxAge: 9999, maxHealth: 40, strength: 0, intelligence: 1, speed: 0, resilience: 6 },
-  tumor: { maxAge: 9999, maxHealth: 160, strength: 0, intelligence: 0, speed: 0, resilience: 18 },
-  treant: { maxAge: 2000, maxHealth: 420, strength: 24, intelligence: 14, speed: 5, resilience: 32 },
-  candy_man: { maxAge: 40, maxHealth: 60, strength: 5, intelligence: 6, speed: 9, resilience: 6 },
-  jumpy_skull: { maxAge: 9999, maxHealth: 35, strength: 9, intelligence: 3, speed: 19, resilience: 6 },
-  robot_santa: { maxAge: 9999, maxHealth: 300, strength: 10, intelligence: 20, speed: 10, resilience: 30 },
-  yeti: { maxAge: 120, maxHealth: 320, strength: 30, intelligence: 8, speed: 10, resilience: 22 },
-  monolith: { maxAge: 9999, maxHealth: 2000, strength: 0, intelligence: 50, speed: 0, resilience: 60 },
-  grey_goo: { maxAge: 9999, maxHealth: 60, strength: 0, intelligence: 0, speed: 0, resilience: 10 },
-};
-
-const DEFAULT_PROFILE: TypeProfile = {
+const DEFAULT_PROFILE: CreatureStats = {
   maxAge: 100, maxHealth: 100, strength: 10, intelligence: 10, speed: 10, resilience: 10,
 };
 
 /** A kind's base stats, for the Knowledge book. */
-export const profileOf = (type: EntityType): Readonly<TypeProfile> => PROFILES[type] ?? DEFAULT_PROFILE;
+export const profileOf = (type: EntityType): Readonly<CreatureStats> => PROFILES[type] ?? DEFAULT_PROFILE;
 
 /**
  * Create a new entity of the specified type
@@ -709,21 +536,7 @@ function applyStatusVisuals(entity: Entity, sprite: THREE.Sprite, deltaTime: num
   }
 }
 
-/**
- * Creatures that fight at a distance without needing a bow: the dragon's
- * breath, a mage's bolt, a UFO's beam. WorldBox draws every one of these, and
- * a dragon that has to walk up and nibble a knight is not a dragon.
- */
-export const RANGED: Partial<Record<EntityType, { reach: number; kind: ShotKind; ignite?: boolean }>> = {
-  dragon: { reach: 3.2, kind: 'fire', ignite: true },
-  mage: { reach: 3.5, kind: 'magic' },
-  necromancer: { reach: 3, kind: 'dark' },
-  ufo: { reach: 3.5, kind: 'laser' },
-  white_mage: { reach: 3.5, kind: 'magic' },
-  angel: { reach: 3, kind: 'magic' },
-  demon: { reach: 2.4, kind: 'fire', ignite: true },
-  elemental: { reach: 2.6, kind: 'magic' },
-};
+export const RANGED: Partial<Record<EntityType, RangedAttack>> = mapSome(c => c.ranged);
 
 /**
  * Experience, from kills. WorldBox units level up as they fight and a
